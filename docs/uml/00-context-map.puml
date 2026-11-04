@@ -1,0 +1,89 @@
+@startuml
+' Brasper Platform - Context Map (DDD)
+
+skinparam classAttributeIconSize 0
+skinparam rectangle {
+  BackgroundColor<<core>> #E8F5E9
+  BackgroundColor<<supporting>> #E3F2FD
+  BackgroundColor<<generic>> #F5F5F5
+}
+set separator none
+hide empty members
+
+title Brasper Platform - Context Map
+
+rectangle "IAM\n(Usuarios y Roles)" as iam <<generic>>
+rectangle "Projects\n(Clientes, Proyectos, Avance)" as projects <<core>>
+rectangle "Billing\n(Facturación y Cobranza)" as billing <<core>>
+rectangle "Expenses\n(Proveedores y Gastos)" as expenses <<core>>
+rectangle "Staff\n(Personal y Costos Fijos)" as staff <<supporting>>
+rectangle "Treasury\n(Bancos, Pagos, Préstamos, Aportes)" as treasury <<core>>
+rectangle "Accounting\n(Libro Diario, IGV, Activos)" as accounting <<supporting>>
+rectangle "Reporting\n(Flujo de Caja, EERR, Balance, Rentabilidad)" as reporting <<supporting>>
+rectangle "Shared Kernel\n(Money, Period, TaxBreakdown, Result, Repos)" as shared <<generic>>
+
+' Upstream (U) -> Downstream (D) via ACL facades
+projects --> billing : U/D\nIProjectsContextFacade
+projects --> expenses : U/D\nIProjectsContextFacade
+projects --> reporting : U/D\nIProjectsContextFacade
+treasury --> billing : U/D\nITreasuryContextFacade
+treasury --> expenses : U/D\nITreasuryContextFacade
+treasury --> staff : U/D\nITreasuryContextFacade
+accounting --> billing : U/D\nIAccountingContextFacade (TaxRates)
+accounting --> expenses : U/D\nIAccountingContextFacade (TaxRates)
+accounting --> reporting : U/D\nIAccountingContextFacade
+billing --> reporting : U/D\nIBillingContextFacade
+expenses --> reporting : U/D\nIExpensesContextFacade
+treasury --> reporting : U/D\nITreasuryContextFacade
+treasury --> accounting : U/D\nITreasuryContextFacade
+staff --> reporting : U/D\nIStaffContextFacade
+
+' Domain events (publisher ..> subscriber)
+billing ..> treasury : InvoicePaymentReceivedEvent\nInvoiceIssuedEvent (autodetracción)
+treasury ..> expenses : PayablePaidEvent
+billing ..> accounting : InvoiceIssuedEvent\nInvoicePaymentReceivedEvent
+expenses ..> treasury : ExpenseRegisteredEvent
+expenses ..> accounting : ExpenseRegisteredEvent
+staff ..> treasury : FixedCostPaidEvent
+staff ..> accounting : FixedCostPaidEvent
+treasury ..> accounting : LoanDisbursedEvent\nLoanInstallmentPaidEvent\nPayablePaidEvent\nPartnerContributionRegisteredEvent\nFundsTransferredEvent
+accounting ..> treasury : TaxReturnPaidEvent
+projects ..> accounting : ProjectCompletedEvent
+
+note as glossary
+  <b>Lenguaje ubicuo (EN -> ES)</b>
+  Project = Proyecto (código NNNBR-MES-AAAA)
+  ProgressRecord = Avance mensual (%)
+  CostEstimate = Estimación de costo
+  Invoice / InvoicePayment = Factura / Cobro
+  ScheduledCollection = Cobranza programada (venta proyectada)
+  Expense / Supplier = Gasto / Proveedor
+  FixedCost / FixedCostPayment = Costo fijo / Pago de costo fijo
+  BankAccount / CashMovement = Cuenta bancaria / Movimiento de caja
+  Payable = Obligación por pagar (pagos pendientes)
+  Loan / LoanInstallment = Préstamo / Cuota
+  Partner / PartnerContribution = Socio / Aporte (Aportes Ingeniero)
+  JournalEntry / LedgerAccount = Asiento contable / Cuenta contable (PCGE)
+  TaxReturn = Declaración mensual (IGV + pago a cuenta renta)
+  FixedAsset = Activo fijo
+  CashFlowWeek = Semana del flujo de caja (Semana 01..05)
+  Detraction / Retention = Detracción (12%) / Retención (3%)
+end note
+
+note right of iam
+  Transversal: todos los contextos validan
+  el JWT y el Role vía
+  RequestAuthorizationMiddleware + [Authorize].
+end note
+
+note as rules
+  <b>Reglas de integración</b>
+  - Un contexto NUNCA accede al repositorio de otro:
+    usa la fachada ACL (I*ContextFacade) del upstream.
+  - Los efectos colaterales entre contextos (caja,
+    asientos contables) viajan por eventos de dominio,
+    publicados tras UnitOfWork.CompleteAsync().
+  - Referencias entre agregados de distintos contextos
+    solo por Id (int), nunca por navegación EF.
+end note
+@enduml

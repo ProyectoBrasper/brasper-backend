@@ -1,0 +1,269 @@
+@startuml
+' Brasper Platform - Shared Kernel Class Diagram
+
+skinparam classAttributeIconSize 0
+set separator none
+
+package "Shared" {
+
+  package "Domain.Model" {
+    interface IAuditableEntity <<auditable>> {
+      +DateTimeOffset? CreatedAt
+      +DateTimeOffset? UpdatedAt
+      +int? CreatedByUserId
+    }
+
+    interface IDomainEvent <<event>> {
+      +DateTimeOffset OccurredOn
+    }
+
+    interface IHasDomainEvents <<event-source>> {
+      +IReadOnlyCollection<IDomainEvent> DomainEvents
+      +ClearDomainEvents() : void
+    }
+
+    abstract class AggregateRoot <<aggregate-root>> {
+      -List<IDomainEvent> _domainEvents
+      #AddDomainEvent(IDomainEvent) : void
+      +ClearDomainEvents() : void
+    }
+
+    package "ValueObjects" {
+      class Money <<value-object>> {
+        +decimal Amount
+        +Currency Currency
+        +Money(decimal, Currency)
+        +Add(Money) : Money
+        +Subtract(Money) : Money
+        +Multiply(decimal) : Money
+        +Round(int) : Money
+        +{static} Zero(Currency) : Money
+      }
+
+      enum Currency <<value-object>> {
+        PEN
+        USD
+      }
+
+      class Percentage <<value-object>> {
+        +decimal Value
+        +Percentage(decimal)
+        +Of(Money) : Money
+        +{static} FromPercent(decimal) : Percentage
+      }
+
+      class Period <<value-object>> {
+        +int Year
+        +int Month
+        +Period(int, int)
+        +StartDate() : DateOnly
+        +EndDate() : DateOnly
+        +Next() : Period
+        +Previous() : Period
+        +Weeks() : IReadOnlyList<CashFlowWeek>
+        +{static} FromDate(DateOnly) : Period
+      }
+
+      class CashFlowWeek <<value-object>> {
+        +Period Period
+        +int Number
+        +DateOnly StartDate
+        +DateOnly EndDate
+        +Contains(DateOnly) : bool
+        +{static} FromDate(DateOnly) : CashFlowWeek
+      }
+
+      class Ruc <<value-object>> {
+        +string Value
+        +Ruc(string)
+      }
+
+      class TaxRates <<value-object>> {
+        +Percentage Igv
+        +Percentage Detraction
+        +Percentage Retention
+        +Percentage IncomeTaxPrepayment
+      }
+
+      class TaxBreakdown <<value-object>> {
+        +Money TaxableBase
+        +Money Igv
+        +Money Total
+        +{static} FromTaxableBase(Money, Percentage) : TaxBreakdown
+        +{static} FromTotal(Money, Percentage) : TaxBreakdown
+        +{static} WithoutIgv(Money) : TaxBreakdown
+      }
+
+      enum CostCategory <<value-object>> {
+        Materials
+        Labor
+        TravelExpenses
+        Other
+      }
+
+      enum PaymentStatus <<value-object>> {
+        Pending
+        PartiallyPaid
+        Paid
+      }
+    }
+  }
+
+  package "Domain.Repositories" {
+    interface IBaseRepository<TEntity> <<repository>> {
+      +AddAsync(TEntity, CancellationToken) : Task
+      +FindByIdAsync(int, CancellationToken) : Task<TEntity?>
+      +Update(TEntity) : void
+      +Remove(TEntity) : void
+      +ListAsync(CancellationToken) : Task<IEnumerable<TEntity>>
+    }
+
+    interface IUnitOfWork <<unit-of-work>> {
+      +CompleteAsync(CancellationToken) : Task
+    }
+  }
+
+  package "Application.Patterns" {
+    abstract class "Result<TValue, TError>" as ResultT <<result>> {
+      +IsSuccess : bool
+      +IsFailure : bool
+      +Value : TValue
+      +Error : TError
+      +{static} Success(TValue) : Result<TValue, TError>
+      +{static} Failure(TError) : Result<TValue, TError>
+      +Map<TNext>(Func<TValue, TNext>) : Result<TNext, TError>
+      +Fold<TResult>(Func<TValue, TResult>, Func<TError, TResult>) : TResult
+      +Match(Action<TValue>, Action<TError>) : void
+    }
+
+    interface IDomainEventHandler<TEvent> <<event-handler>> {
+      +Handle(TEvent, CancellationToken) : Task
+    }
+  }
+
+  package "Interfaces.REST" {
+    package "Resources" {
+      class SharedResource <<localization>>
+
+      class ErrorResource <<resource>> {
+        +string Code
+        +string Message
+      }
+
+      class PeriodResource <<resource>> {
+        +int Year
+        +int Month
+      }
+
+      class MoneyResource <<resource>> {
+        +decimal Amount
+        +string Currency
+      }
+    }
+
+    package "Transform" {
+      class ActionResultFromResultAssembler <<assembler>> {
+        +{static} ToActionResult<TValue, TError, TResource>(Result<TValue, TError>, ControllerBase, IStringLocalizer<SharedResource>, Func<TValue, TResource>, string) : ActionResult
+      }
+
+      class LocalizedOpenApiAssembler <<assembler>> {
+        +{static} TransformOperationAsync(OpenApiOperation, OpenApiOperationTransformerContext, CancellationToken) : Task
+        +{static} TransformSchemaAsync(OpenApiSchema, OpenApiSchemaTransformerContext, CancellationToken) : Task
+      }
+    }
+  }
+
+  package "Infrastructure.Persistence.EFC.Configuration" {
+    class AppDbContext <<db-context>> {
+      +OnConfiguring(DbContextOptionsBuilder) : void
+      +OnModelCreating(ModelBuilder) : void
+      --
+      +ApplyIamConfiguration()
+      +ApplyProjectsConfiguration()
+      +ApplyBillingConfiguration()
+      +ApplyExpensesConfiguration()
+      +ApplyStaffConfiguration()
+      +ApplyTreasuryConfiguration()
+      +ApplyAccountingConfiguration()
+      +snake_case naming convention
+      +owned types for Money / Period / TaxBreakdown
+    }
+  }
+
+  package "Infrastructure.Persistence.EFC.Interceptors" {
+    class AuditableEntityInterceptor <<interceptor>> {
+      +SavingChanges(DbContextEventData, InterceptionResult<int>) : InterceptionResult<int>
+      +SavingChangesAsync(DbContextEventData, InterceptionResult<int>, CancellationToken) : ValueTask<InterceptionResult<int>>
+    }
+  }
+
+  package "Infrastructure.Persistence.EFC.Repositories" {
+    class BaseRepository<TEntity> <<repository>> {
+      +AddAsync(TEntity, CancellationToken) : Task
+      +FindByIdAsync(int, CancellationToken) : Task<TEntity?>
+      +Update(TEntity) : void
+      +Remove(TEntity) : void
+      +ListAsync(CancellationToken) : Task<IEnumerable<TEntity>>
+    }
+
+    class UnitOfWork <<unit-of-work>> {
+      +CompleteAsync(CancellationToken) : Task
+    }
+  }
+
+  package "Infrastructure.Mediator" {
+    class DomainEventDispatcher <<mediator>> {
+      +DispatchAsync(IEnumerable<IHasDomainEvents>, CancellationToken) : Task
+    }
+  }
+}
+
+' Relationships
+AggregateRoot ..|> IHasDomainEvents : implements
+IHasDomainEvents --> IDomainEvent : holds
+IDomainEventHandler ..> IDomainEvent : handles
+
+Money --> Currency : has
+TaxBreakdown --> Money : composes
+TaxBreakdown ..> Percentage : uses
+TaxRates --> Percentage : composes
+CashFlowWeek --> Period : belongs to
+Period ..> CashFlowWeek : creates
+
+BaseRepository ..|> IBaseRepository : implements
+UnitOfWork ..|> IUnitOfWork : implements
+UnitOfWork --> AppDbContext : uses
+UnitOfWork --> DomainEventDispatcher : dispatches after save
+DomainEventDispatcher ..> IDomainEventHandler : invokes
+BaseRepository --> AppDbContext : uses
+
+AppDbContext ..> AuditableEntityInterceptor : uses
+AppDbContext ..> IAuditableEntity : timestamps
+
+ActionResultFromResultAssembler ..> ResultT : maps
+ActionResultFromResultAssembler ..> SharedResource : localizes
+ActionResultFromResultAssembler ..> ErrorResource : produces
+LocalizedOpenApiAssembler ..> SharedResource : localizes
+
+note right of TaxBreakdown
+  Igv = TaxableBase x Igv rate (18%)
+  Total = TaxableBase + Igv
+  WithoutIgv: gastos sin comprobante
+  (Igv = 0, Total = TaxableBase)
+end note
+
+note right of CashFlowWeek
+  Semana 01..05 del mes (lunes-domingo,
+  recortada al inicio/fin del mes).
+  Reemplaza el texto libre "Semana 0X"
+  del Excel usado en los SUMIF.
+end note
+
+note bottom of UnitOfWork
+  CompleteAsync():
+  1. SaveChanges (interceptor llena auditoría)
+  2. Recolecta DomainEvents de los agregados
+  3. DomainEventDispatcher publica a los handlers
+     de los otros bounded contexts
+end note
+@enduml

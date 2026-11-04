@@ -1,0 +1,887 @@
+@startuml
+' Brasper Platform - Accounting Bounded Context (Libro Diario, Impuestos, Activos Fijos)
+
+skinparam classAttributeIconSize 0
+set separator none
+
+package "Accounting" {
+
+  package "Interfaces.REST" {
+    class LedgerAccountsController {
+      +CreateLedgerAccount(CreateLedgerAccountResource, CancellationToken) : Task<ActionResult>
+      +GetAllLedgerAccounts(CancellationToken) : Task<ActionResult>
+      +GetTrialBalance(int, int, CancellationToken) : Task<ActionResult>
+    }
+
+    class JournalEntriesController {
+      +RegisterManualEntry(RegisterJournalEntryResource, CancellationToken) : Task<ActionResult>
+      +ReverseEntry(int, CancellationToken) : Task<ActionResult>
+      +GetEntriesByPeriod(int, int, CancellationToken) : Task<ActionResult>
+      +GetEntryById(int, CancellationToken) : Task<ActionResult>
+    }
+
+    class TaxReturnsController {
+      +PrepareTaxReturn(PrepareTaxReturnResource, CancellationToken) : Task<ActionResult>
+      +PayTaxReturn(int, PayTaxReturnResource, CancellationToken) : Task<ActionResult>
+      +GetTaxReturnByPeriod(int, int, CancellationToken) : Task<ActionResult>
+    }
+
+    class TaxParametersController {
+      +SetTaxParameters(SetTaxParametersResource, CancellationToken) : Task<ActionResult>
+      +GetCurrentTaxParameters(CancellationToken) : Task<ActionResult>
+    }
+
+    class FixedAssetsController {
+      +RegisterFixedAsset(RegisterFixedAssetResource, CancellationToken) : Task<ActionResult>
+      +DisposeFixedAsset(int, CancellationToken) : Task<ActionResult>
+      +GetAllFixedAssets(CancellationToken) : Task<ActionResult>
+      +GetFixedAssetById(int, CancellationToken) : Task<ActionResult>
+    }
+
+    package "Resources" {
+      class LedgerAccountResource <<resource>> {
+        +int Id
+        +string Code
+        +string Name
+        +string Type
+        +bool IsActive
+      }
+
+      class CreateLedgerAccountResource <<resource>> {
+        +string Code
+        +string Name
+        +string Type
+      }
+
+      class JournalEntryResource <<resource>> {
+        +int Id
+        +DateOnly EntryDate
+        +string Description
+        +string Source
+        +int? SourceId
+        +bool IsReversed
+        +IEnumerable<JournalLineResource> Lines
+      }
+
+      class JournalLineResource <<resource>> {
+        +string AccountCode
+        +decimal Debit
+        +decimal Credit
+        +int? ProjectId
+      }
+
+      class RegisterJournalEntryResource <<resource>> {
+        +DateOnly EntryDate
+        +string Description
+        +IEnumerable<JournalLineResource> Lines
+      }
+
+      class TrialBalanceResource <<resource>> {
+        +int Year
+        +int Month
+        +IEnumerable<TrialBalanceLineResource> Lines
+        +decimal TotalDebit
+        +decimal TotalCredit
+      }
+
+      class TrialBalanceLineResource <<resource>> {
+        +string AccountCode
+        +string AccountName
+        +decimal Debit
+        +decimal Credit
+        +decimal Balance
+      }
+
+      class TaxReturnResource <<resource>> {
+        +int Id
+        +int Year
+        +int Month
+        +decimal OutputIgv
+        +decimal InputIgv
+        +decimal CarriedCredit
+        +decimal IgvPayable
+        +decimal IncomeTaxPrepayment
+        +decimal TotalPayable
+        +string Status
+        +DateOnly? PaidOn
+      }
+
+      class PrepareTaxReturnResource <<resource>> {
+        +int Year
+        +int Month
+      }
+
+      class PayTaxReturnResource <<resource>> {
+        +DateOnly PaidOn
+        +int BankAccountId
+      }
+
+      class TaxParametersResource <<resource>> {
+        +decimal Igv
+        +decimal Detraction
+        +decimal Retention
+        +decimal IncomeTaxPrepayment
+        +DateOnly EffectiveFrom
+      }
+
+      class SetTaxParametersResource <<resource>> {
+        +decimal Igv
+        +decimal Detraction
+        +decimal Retention
+        +decimal IncomeTaxPrepayment
+        +DateOnly EffectiveFrom
+      }
+
+      class FixedAssetResource <<resource>> {
+        +int Id
+        +string Description
+        +DateOnly AcquiredOn
+        +decimal TaxableBase
+        +decimal Igv
+        +decimal Total
+        +int UsefulLifeMonths
+        +decimal BookValue
+        +bool IsDisposed
+      }
+
+      class RegisterFixedAssetResource <<resource>> {
+        +string Description
+        +DateOnly AcquiredOn
+        +decimal TaxableBase
+        +string Currency
+        +int UsefulLifeMonths
+        +int? ExpenseId
+      }
+    }
+
+    package "Transform" {
+      class LedgerAccountResourceFromEntityAssembler <<assembler>> {
+        +ToResourceFromEntity(LedgerAccount) : LedgerAccountResource
+      }
+
+      class JournalEntryResourceFromEntityAssembler <<assembler>> {
+        +ToResourceFromEntity(JournalEntry) : JournalEntryResource
+      }
+
+      class RegisterJournalEntryCommandFromResourceAssembler <<assembler>> {
+        +ToCommandFromResource(RegisterJournalEntryResource) : RegisterJournalEntryCommand
+      }
+
+      class TrialBalanceResourceFromReadModelAssembler <<assembler>> {
+        +ToResourceFromReadModel(TrialBalance) : TrialBalanceResource
+      }
+
+      class TaxReturnResourceFromEntityAssembler <<assembler>> {
+        +ToResourceFromEntity(TaxReturn) : TaxReturnResource
+      }
+
+      class TaxParametersResourceFromEntityAssembler <<assembler>> {
+        +ToResourceFromEntity(TaxParameters) : TaxParametersResource
+      }
+
+      class FixedAssetResourceFromEntityAssembler <<assembler>> {
+        +ToResourceFromEntity(FixedAsset) : FixedAssetResource
+      }
+
+      class RegisterFixedAssetCommandFromResourceAssembler <<assembler>> {
+        +ToCommandFromResource(RegisterFixedAssetResource) : RegisterFixedAssetCommand
+      }
+    }
+  }
+
+  package "Interfaces.ACL" {
+    interface IAccountingContextFacade <<facade>> {
+      +FetchTaxRatesAt(DateOnly, CancellationToken) : Task<TaxRates>
+      +FetchAccountBalancesAt(DateOnly, CancellationToken) : Task<IDictionary<string, decimal>>
+      +FetchBalancesByAccountTypeAt(DateOnly, CancellationToken) : Task<IDictionary<string, decimal>>
+      +FetchResultByPeriod(Period, CancellationToken) : Task<IDictionary<string, decimal>>
+      +FetchTaxPayableByPeriod(Period, CancellationToken) : Task<decimal>
+    }
+  }
+
+  package "Domain.Model" {
+    package "ValueObjects" {
+      class AccountCode <<value-object>> {
+        +string Value
+        +AccountCode(string)
+        +Element() : int
+      }
+
+      enum LedgerAccountType <<value-object>> {
+        Asset
+        Liability
+        Equity
+        Revenue
+        Expense
+      }
+
+      enum EntrySource <<value-object>> {
+        Manual
+        InvoiceIssued
+        InvoicePayment
+        Expense
+        FixedCostPayment
+        PayablePayment
+        LoanDisbursement
+        LoanInstallment
+        PartnerContribution
+        FundsTransfer
+        TaxReturn
+        Depreciation
+        PeriodClosing
+      }
+
+      enum TaxReturnStatus <<value-object>> {
+        Draft
+        Filed
+        Paid
+      }
+    }
+
+    package "Commands" {
+      class CreateLedgerAccountCommand <<command>> {
+        +AccountCode Code
+        +string Name
+        +LedgerAccountType Type
+      }
+
+      class RegisterJournalEntryCommand <<command>> {
+        +DateOnly EntryDate
+        +string Description
+        +EntrySource Source
+        +int? SourceId
+        +IEnumerable<JournalLineData> Lines
+      }
+
+      class JournalLineData <<command>> {
+        +AccountCode AccountCode
+        +Money Debit
+        +Money Credit
+        +int? ProjectId
+      }
+
+      class ReverseJournalEntryCommand <<command>> {
+        +int JournalEntryId
+        +DateOnly ReversedOn
+      }
+
+      class PrepareTaxReturnCommand <<command>> {
+        +Period Period
+      }
+
+      class PayTaxReturnCommand <<command>> {
+        +int TaxReturnId
+        +DateOnly PaidOn
+        +int BankAccountId
+      }
+
+      class SetTaxParametersCommand <<command>> {
+        +TaxRates Rates
+        +DateOnly EffectiveFrom
+      }
+
+      class RegisterFixedAssetCommand <<command>> {
+        +string Description
+        +DateOnly AcquiredOn
+        +Money TaxableBase
+        +int UsefulLifeMonths
+        +int? ExpenseId
+      }
+
+      class DisposeFixedAssetCommand <<command>> {
+        +int FixedAssetId
+        +DateOnly DisposedOn
+      }
+
+      class RunMonthlyDepreciationCommand <<command>> {
+        +Period Period
+      }
+    }
+
+    package "Queries" {
+      class GetAllLedgerAccountsQuery <<query>>
+
+      class GetTrialBalanceQuery <<query>> {
+        +Period Period
+      }
+
+      class GetJournalEntriesByPeriodQuery <<query>> {
+        +Period Period
+      }
+
+      class GetJournalEntryByIdQuery <<query>> {
+        +int Id
+      }
+
+      class GetTaxReturnByPeriodQuery <<query>> {
+        +Period Period
+      }
+
+      class GetTaxParametersAtQuery <<query>> {
+        +DateOnly Date
+      }
+
+      class GetAllFixedAssetsQuery <<query>>
+
+      class GetFixedAssetByIdQuery <<query>> {
+        +int Id
+      }
+    }
+
+    package "ReadModels" {
+      class TrialBalance <<read-model>> {
+        +Period Period
+        +IReadOnlyList<TrialBalanceLine> Lines
+        +TotalDebit() : Money
+        +TotalCredit() : Money
+        +IsBalanced() : bool
+      }
+
+      class TrialBalanceLine <<read-model>> {
+        +AccountCode AccountCode
+        +string AccountName
+        +LedgerAccountType Type
+        +Money Debit
+        +Money Credit
+        +Balance() : Money
+      }
+    }
+
+    package "Events" {
+      class TaxReturnPaidEvent <<event>> {
+        +int TaxReturnId
+        +Period Period
+        +DateOnly PaidOn
+        +Money Amount
+        +int BankAccountId
+      }
+    }
+
+    package "Aggregates" {
+      class LedgerAccount <<aggregate>> {
+        +int Id
+        +AccountCode Code
+        +string Name
+        +LedgerAccountType Type
+        +bool IsActive
+        +LedgerAccount(CreateLedgerAccountCommand)
+        +Deactivate() : void
+      }
+
+      class JournalEntry <<aggregate>> {
+        +int Id
+        +DateOnly EntryDate
+        +Period Period
+        +string Description
+        +EntrySource Source
+        +int? SourceId
+        +bool IsReversed
+        +int? ReversalOfId
+        +IReadOnlyCollection<JournalLine> Lines
+        +JournalEntry(RegisterJournalEntryCommand)
+        +Reverse(DateOnly) : JournalEntry
+        +TotalDebit() : Money
+        +TotalCredit() : Money
+      }
+
+      class TaxReturn <<aggregate>> {
+        +int Id
+        +Period Period
+        +Money OutputIgv
+        +Money InputIgv
+        +Money CarriedCredit
+        +Money IncomeTaxPrepayment
+        +TaxReturnStatus Status
+        +DateOnly? PaidOn
+        +int? BankAccountId
+        +TaxReturn(Period, Money, Money, Money, Money)
+        +IgvPayable() : Money
+        +NextCarriedCredit() : Money
+        +TotalPayable() : Money
+        +File() : void
+        +MarkAsPaid(DateOnly, int) : void
+      }
+
+      class TaxParameters <<aggregate>> {
+        +int Id
+        +TaxRates Rates
+        +DateOnly EffectiveFrom
+        +TaxParameters(SetTaxParametersCommand)
+      }
+
+      class FixedAsset <<aggregate>> {
+        +int Id
+        +string Description
+        +DateOnly AcquiredOn
+        +TaxBreakdown Amounts
+        +int UsefulLifeMonths
+        +int? ExpenseId
+        +DateOnly? DisposedOn
+        +FixedAsset(RegisterFixedAssetCommand, TaxRates)
+        +MonthlyDepreciation() : Money
+        +AccumulatedDepreciationAt(DateOnly) : Money
+        +BookValueAt(DateOnly) : Money
+        +Dispose(DateOnly) : void
+      }
+    }
+
+    package "Entities" {
+      class JournalLine <<entity>> {
+        +int Id
+        +int JournalEntryId
+        +AccountCode AccountCode
+        +Money Debit
+        +Money Credit
+        +int? ProjectId
+      }
+    }
+
+    package "Services" {
+      class PostingRulesDomainService <<domain-service>> {
+        +ForInvoiceIssued(InvoiceIssuedEvent) : RegisterJournalEntryCommand
+        +ForInvoicePayment(InvoicePaymentReceivedEvent) : RegisterJournalEntryCommand
+        +ForExpense(ExpenseRegisteredEvent) : RegisterJournalEntryCommand
+        +ForFixedCostPayment(FixedCostPaidEvent) : RegisterJournalEntryCommand
+        +ForPayablePayment(PayablePaidEvent) : RegisterJournalEntryCommand
+        +ForLoanDisbursement(LoanDisbursedEvent) : RegisterJournalEntryCommand
+        +ForLoanInstallment(LoanInstallmentPaidEvent) : RegisterJournalEntryCommand
+        +ForPartnerContribution(PartnerContributionRegisteredEvent) : RegisterJournalEntryCommand
+        +ForFundsTransfer(FundsTransferredEvent) : RegisterJournalEntryCommand
+        +ForProjectCompleted(ProjectCompletedEvent) : RegisterJournalEntryCommand
+        +ForTaxReturnPaid(TaxReturn) : RegisterJournalEntryCommand
+      }
+    }
+  }
+
+  package "Domain.Repositories" {
+    interface ILedgerAccountRepository <<repository>> {
+      +FindByCodeAsync(AccountCode, CancellationToken) : Task<LedgerAccount?>
+      +ExistsByCodeAsync(AccountCode, CancellationToken) : Task<bool>
+    }
+
+    interface IJournalEntryRepository <<repository>> {
+      +FindByPeriodAsync(Period, CancellationToken) : Task<IEnumerable<JournalEntry>>
+      +FindBySourceAsync(EntrySource, int, CancellationToken) : Task<JournalEntry?>
+      +GetTrialBalanceAsync(Period, CancellationToken) : Task<TrialBalance>
+      +GetBalancesAtAsync(DateOnly, CancellationToken) : Task<IDictionary<string, decimal>>
+    }
+
+    interface ITaxReturnRepository <<repository>> {
+      +FindByPeriodAsync(Period, CancellationToken) : Task<TaxReturn?>
+    }
+
+    interface ITaxParametersRepository <<repository>> {
+      +FindEffectiveAtAsync(DateOnly, CancellationToken) : Task<TaxParameters?>
+    }
+
+    interface IFixedAssetRepository <<repository>> {
+      +FindActiveAtAsync(DateOnly, CancellationToken) : Task<IEnumerable<FixedAsset>>
+    }
+  }
+
+  package "Application" {
+    package "Errors" {
+      enum LedgerAccountError <<error>> {
+        InvalidAccountCode
+        DuplicateAccountCode
+        UnexpectedError
+      }
+
+      enum JournalEntryError <<error>> {
+        UnbalancedEntry
+        AccountNotFound
+        AccountInactive
+        PeriodClosed
+        DuplicateSource
+        EntryNotFound
+        AlreadyReversed
+        UnexpectedError
+      }
+
+      enum TaxReturnError <<error>> {
+        PeriodAlreadyDeclared
+        TaxReturnNotFound
+        AlreadyPaid
+        BankAccountNotFound
+        NothingToPay
+        UnexpectedError
+      }
+
+      enum TaxParametersError <<error>> {
+        InvalidRate
+        OverlappingEffectiveDate
+        UnexpectedError
+      }
+
+      enum FixedAssetError <<error>> {
+        FixedAssetNotFound
+        InvalidUsefulLife
+        InvalidAmount
+        AlreadyDisposed
+        UnexpectedError
+      }
+    }
+
+    package "Services" {
+      interface ILedgerCommandService <<application-service>> {
+        +Handle(CreateLedgerAccountCommand, CancellationToken) : Task<Result<LedgerAccount, LedgerAccountError>>
+        +Handle(RegisterJournalEntryCommand, CancellationToken) : Task<Result<JournalEntry, JournalEntryError>>
+        +Handle(ReverseJournalEntryCommand, CancellationToken) : Task<Result<JournalEntry, JournalEntryError>>
+      }
+
+      interface ILedgerQueryService <<application-service>> {
+        +Handle(GetAllLedgerAccountsQuery, CancellationToken) : Task<IEnumerable<LedgerAccount>>
+        +Handle(GetTrialBalanceQuery, CancellationToken) : Task<TrialBalance>
+        +Handle(GetJournalEntriesByPeriodQuery, CancellationToken) : Task<IEnumerable<JournalEntry>>
+        +Handle(GetJournalEntryByIdQuery, CancellationToken) : Task<JournalEntry?>
+      }
+
+      interface ITaxCommandService <<application-service>> {
+        +Handle(PrepareTaxReturnCommand, CancellationToken) : Task<Result<TaxReturn, TaxReturnError>>
+        +Handle(PayTaxReturnCommand, CancellationToken) : Task<Result<TaxReturn, TaxReturnError>>
+        +Handle(SetTaxParametersCommand, CancellationToken) : Task<Result<TaxParameters, TaxParametersError>>
+      }
+
+      interface ITaxQueryService <<application-service>> {
+        +Handle(GetTaxReturnByPeriodQuery, CancellationToken) : Task<TaxReturn?>
+        +Handle(GetTaxParametersAtQuery, CancellationToken) : Task<TaxParameters?>
+      }
+
+      interface IFixedAssetCommandService <<application-service>> {
+        +Handle(RegisterFixedAssetCommand, CancellationToken) : Task<Result<FixedAsset, FixedAssetError>>
+        +Handle(DisposeFixedAssetCommand, CancellationToken) : Task<Result<FixedAsset, FixedAssetError>>
+        +Handle(RunMonthlyDepreciationCommand, CancellationToken) : Task<Result<JournalEntry, FixedAssetError>>
+      }
+
+      interface IFixedAssetQueryService <<application-service>> {
+        +Handle(GetAllFixedAssetsQuery, CancellationToken) : Task<IEnumerable<FixedAsset>>
+        +Handle(GetFixedAssetByIdQuery, CancellationToken) : Task<FixedAsset?>
+      }
+    }
+
+    package "Internal.CommandServices" {
+      class LedgerCommandService <<service>> {
+        +Handle(CreateLedgerAccountCommand, CancellationToken) : Task<Result<LedgerAccount, LedgerAccountError>>
+        +Handle(RegisterJournalEntryCommand, CancellationToken) : Task<Result<JournalEntry, JournalEntryError>>
+        +Handle(ReverseJournalEntryCommand, CancellationToken) : Task<Result<JournalEntry, JournalEntryError>>
+      }
+
+      class TaxCommandService <<service>> {
+        +Handle(PrepareTaxReturnCommand, CancellationToken) : Task<Result<TaxReturn, TaxReturnError>>
+        +Handle(PayTaxReturnCommand, CancellationToken) : Task<Result<TaxReturn, TaxReturnError>>
+        +Handle(SetTaxParametersCommand, CancellationToken) : Task<Result<TaxParameters, TaxParametersError>>
+      }
+
+      class FixedAssetCommandService <<service>> {
+        +Handle(RegisterFixedAssetCommand, CancellationToken) : Task<Result<FixedAsset, FixedAssetError>>
+        +Handle(DisposeFixedAssetCommand, CancellationToken) : Task<Result<FixedAsset, FixedAssetError>>
+        +Handle(RunMonthlyDepreciationCommand, CancellationToken) : Task<Result<JournalEntry, FixedAssetError>>
+      }
+    }
+
+    package "Internal.QueryServices" {
+      class LedgerQueryService <<service>> {
+        +Handle(GetAllLedgerAccountsQuery, CancellationToken) : Task<IEnumerable<LedgerAccount>>
+        +Handle(GetTrialBalanceQuery, CancellationToken) : Task<TrialBalance>
+        +Handle(GetJournalEntriesByPeriodQuery, CancellationToken) : Task<IEnumerable<JournalEntry>>
+        +Handle(GetJournalEntryByIdQuery, CancellationToken) : Task<JournalEntry?>
+      }
+
+      class TaxQueryService <<service>> {
+        +Handle(GetTaxReturnByPeriodQuery, CancellationToken) : Task<TaxReturn?>
+        +Handle(GetTaxParametersAtQuery, CancellationToken) : Task<TaxParameters?>
+      }
+
+      class FixedAssetQueryService <<service>> {
+        +Handle(GetAllFixedAssetsQuery, CancellationToken) : Task<IEnumerable<FixedAsset>>
+        +Handle(GetFixedAssetByIdQuery, CancellationToken) : Task<FixedAsset?>
+      }
+    }
+
+    package "Internal.EventHandlers" {
+      class PostingEventHandlers <<event-handler>> {
+        +Handle(InvoiceIssuedEvent, CancellationToken) : Task
+        +Handle(InvoicePaymentReceivedEvent, CancellationToken) : Task
+        +Handle(ExpenseRegisteredEvent, CancellationToken) : Task
+        +Handle(FixedCostPaidEvent, CancellationToken) : Task
+        +Handle(PayablePaidEvent, CancellationToken) : Task
+        +Handle(LoanDisbursedEvent, CancellationToken) : Task
+        +Handle(LoanInstallmentPaidEvent, CancellationToken) : Task
+        +Handle(PartnerContributionRegisteredEvent, CancellationToken) : Task
+        +Handle(FundsTransferredEvent, CancellationToken) : Task
+        +Handle(ProjectCompletedEvent, CancellationToken) : Task
+      }
+    }
+
+    package "Internal.OutboundServices.ACL" {
+      class ExternalTreasuryService <<outbound-service>> {
+        +ExistsBankAccountById(int, CancellationToken) : Task<bool>
+      }
+    }
+
+    package "ACL" {
+      class AccountingContextFacade <<facade>> {
+        +FetchTaxRatesAt(DateOnly, CancellationToken) : Task<TaxRates>
+        +FetchAccountBalancesAt(DateOnly, CancellationToken) : Task<IDictionary<string, decimal>>
+        +FetchBalancesByAccountTypeAt(DateOnly, CancellationToken) : Task<IDictionary<string, decimal>>
+        +FetchResultByPeriod(Period, CancellationToken) : Task<IDictionary<string, decimal>>
+        +FetchTaxPayableByPeriod(Period, CancellationToken) : Task<decimal>
+      }
+    }
+  }
+
+  package "Infrastructure.Persistence.EFC.Repositories" {
+    class LedgerAccountRepository <<repository>> {
+      +FindByCodeAsync(AccountCode, CancellationToken) : Task<LedgerAccount?>
+      +ExistsByCodeAsync(AccountCode, CancellationToken) : Task<bool>
+    }
+
+    class JournalEntryRepository <<repository>> {
+      +FindByPeriodAsync(Period, CancellationToken) : Task<IEnumerable<JournalEntry>>
+      +FindBySourceAsync(EntrySource, int, CancellationToken) : Task<JournalEntry?>
+      +GetTrialBalanceAsync(Period, CancellationToken) : Task<TrialBalance>
+      +GetBalancesAtAsync(DateOnly, CancellationToken) : Task<IDictionary<string, decimal>>
+    }
+
+    class TaxReturnRepository <<repository>> {
+      +FindByPeriodAsync(Period, CancellationToken) : Task<TaxReturn?>
+    }
+
+    class TaxParametersRepository <<repository>> {
+      +FindEffectiveAtAsync(DateOnly, CancellationToken) : Task<TaxParameters?>
+    }
+
+    class FixedAssetRepository <<repository>> {
+      +FindActiveAtAsync(DateOnly, CancellationToken) : Task<IEnumerable<FixedAsset>>
+    }
+  }
+
+  package "Infrastructure.Persistence.EFC.Configuration.Extensions" {
+    class AccountingModelBuilderExtensions <<db-configuration>> {
+      +{static} ApplyAccountingConfiguration(ModelBuilder) : void
+      --
+      +ledger_accounts: unique index (code) + seed PCGE
+      +journal_entries: unique index (source, source_id)
+      +journal_lines: index (account_code), index (project_id)
+      +tax_returns: unique index (year, month)
+      +tax_parameters: unique index (effective_from)
+    }
+  }
+}
+
+package "External Events" {
+  class InvoiceIssuedEvent <<event>>
+  class InvoicePaymentReceivedEvent <<event>>
+  class ExpenseRegisteredEvent <<event>>
+  class FixedCostPaidEvent <<event>>
+  class PayablePaidEvent <<event>>
+  class LoanDisbursedEvent <<event>>
+  class LoanInstallmentPaidEvent <<event>>
+  class PartnerContributionRegisteredEvent <<event>>
+  class FundsTransferredEvent <<event>>
+  class ProjectCompletedEvent <<event>>
+}
+
+package "External Contexts (ACL)" {
+  interface ITreasuryContextFacade <<facade>>
+}
+
+package "Shared" {
+  abstract class "Result<TValue, TError>" as ResultT <<result>>
+  abstract class AggregateRoot <<aggregate-root>>
+  interface IAuditableEntity <<auditable>>
+  interface IDomainEvent <<event>>
+  interface IDomainEventHandler<TEvent> <<event-handler>>
+  interface IBaseRepository<TEntity> <<repository>>
+  interface IUnitOfWork <<unit-of-work>>
+  class BaseRepository<TEntity> <<repository>>
+  class Money <<value-object>>
+  class Period <<value-object>>
+  class TaxRates <<value-object>>
+  class TaxBreakdown <<value-object>>
+}
+
+' Relationships - Interfaces
+LedgerAccountsController --> ILedgerCommandService : uses
+LedgerAccountsController --> ILedgerQueryService : uses
+LedgerAccountsController --> LedgerAccountResourceFromEntityAssembler : uses
+LedgerAccountsController --> TrialBalanceResourceFromReadModelAssembler : uses
+JournalEntriesController --> ILedgerCommandService : uses
+JournalEntriesController --> ILedgerQueryService : uses
+JournalEntriesController --> JournalEntryResourceFromEntityAssembler : uses
+JournalEntriesController --> RegisterJournalEntryCommandFromResourceAssembler : uses
+TaxReturnsController --> ITaxCommandService : uses
+TaxReturnsController --> ITaxQueryService : uses
+TaxReturnsController --> TaxReturnResourceFromEntityAssembler : uses
+TaxParametersController --> ITaxCommandService : uses
+TaxParametersController --> ITaxQueryService : uses
+TaxParametersController --> TaxParametersResourceFromEntityAssembler : uses
+FixedAssetsController --> IFixedAssetCommandService : uses
+FixedAssetsController --> IFixedAssetQueryService : uses
+FixedAssetsController --> FixedAssetResourceFromEntityAssembler : uses
+FixedAssetsController --> RegisterFixedAssetCommandFromResourceAssembler : uses
+
+LedgerAccountResourceFromEntityAssembler ..> LedgerAccount : reads
+LedgerAccountResourceFromEntityAssembler --> LedgerAccountResource : produces
+JournalEntryResourceFromEntityAssembler ..> JournalEntry : reads
+JournalEntryResourceFromEntityAssembler --> JournalEntryResource : produces
+RegisterJournalEntryCommandFromResourceAssembler ..> RegisterJournalEntryResource : reads
+RegisterJournalEntryCommandFromResourceAssembler --> RegisterJournalEntryCommand : produces
+TrialBalanceResourceFromReadModelAssembler ..> TrialBalance : reads
+TrialBalanceResourceFromReadModelAssembler --> TrialBalanceResource : produces
+TaxReturnResourceFromEntityAssembler ..> TaxReturn : reads
+TaxReturnResourceFromEntityAssembler --> TaxReturnResource : produces
+TaxParametersResourceFromEntityAssembler ..> TaxParameters : reads
+TaxParametersResourceFromEntityAssembler --> TaxParametersResource : produces
+FixedAssetResourceFromEntityAssembler ..> FixedAsset : reads
+FixedAssetResourceFromEntityAssembler --> FixedAssetResource : produces
+RegisterFixedAssetCommandFromResourceAssembler ..> RegisterFixedAssetResource : reads
+RegisterFixedAssetCommandFromResourceAssembler --> RegisterFixedAssetCommand : produces
+JournalEntryResource *-- JournalLineResource
+RegisterJournalEntryResource *-- JournalLineResource
+TrialBalanceResource *-- TrialBalanceLineResource
+
+' Relationships - Application
+LedgerCommandService ..|> ILedgerCommandService : implements
+LedgerQueryService ..|> ILedgerQueryService : implements
+TaxCommandService ..|> ITaxCommandService : implements
+TaxQueryService ..|> ITaxQueryService : implements
+FixedAssetCommandService ..|> IFixedAssetCommandService : implements
+FixedAssetQueryService ..|> IFixedAssetQueryService : implements
+AccountingContextFacade ..|> IAccountingContextFacade : implements
+AccountingContextFacade --> IJournalEntryRepository : uses
+AccountingContextFacade --> ITaxParametersRepository : uses
+AccountingContextFacade --> ITaxReturnRepository : uses
+
+LedgerCommandService --> ILedgerAccountRepository : uses
+LedgerCommandService --> IJournalEntryRepository : uses
+LedgerCommandService --> IUnitOfWork : uses
+LedgerCommandService ..> ResultT : returns
+LedgerQueryService --> ILedgerAccountRepository : uses
+LedgerQueryService --> IJournalEntryRepository : uses
+TaxCommandService --> ITaxReturnRepository : uses
+TaxCommandService --> ITaxParametersRepository : uses
+TaxCommandService --> IJournalEntryRepository : reads IGV accounts
+TaxCommandService --> ILedgerCommandService : posts entry
+TaxCommandService --> ExternalTreasuryService : uses
+TaxCommandService --> IUnitOfWork : uses
+TaxQueryService --> ITaxReturnRepository : uses
+TaxQueryService --> ITaxParametersRepository : uses
+FixedAssetCommandService --> IFixedAssetRepository : uses
+FixedAssetCommandService --> ITaxParametersRepository : uses
+FixedAssetCommandService --> ILedgerCommandService : posts depreciation
+FixedAssetCommandService --> IUnitOfWork : uses
+FixedAssetQueryService --> IFixedAssetRepository : uses
+ExternalTreasuryService --> ITreasuryContextFacade : uses
+
+PostingEventHandlers ..|> IDomainEventHandler : implements
+PostingEventHandlers --> PostingRulesDomainService : uses
+PostingEventHandlers --> ILedgerCommandService : posts entries
+PostingEventHandlers ..> InvoiceIssuedEvent : handles
+PostingEventHandlers ..> InvoicePaymentReceivedEvent : handles
+PostingEventHandlers ..> ExpenseRegisteredEvent : handles
+PostingEventHandlers ..> FixedCostPaidEvent : handles
+PostingEventHandlers ..> PayablePaidEvent : handles
+PostingEventHandlers ..> LoanDisbursedEvent : handles
+PostingEventHandlers ..> LoanInstallmentPaidEvent : handles
+PostingEventHandlers ..> PartnerContributionRegisteredEvent : handles
+PostingEventHandlers ..> FundsTransferredEvent : handles
+PostingEventHandlers ..> ProjectCompletedEvent : handles
+
+' Relationships - Infrastructure
+ILedgerAccountRepository --|> IBaseRepository : extends
+IJournalEntryRepository --|> IBaseRepository : extends
+ITaxReturnRepository --|> IBaseRepository : extends
+ITaxParametersRepository --|> IBaseRepository : extends
+IFixedAssetRepository --|> IBaseRepository : extends
+LedgerAccountRepository ..|> ILedgerAccountRepository : implements
+LedgerAccountRepository --|> BaseRepository : extends
+JournalEntryRepository ..|> IJournalEntryRepository : implements
+JournalEntryRepository --|> BaseRepository : extends
+TaxReturnRepository ..|> ITaxReturnRepository : implements
+TaxReturnRepository --|> BaseRepository : extends
+TaxParametersRepository ..|> ITaxParametersRepository : implements
+TaxParametersRepository --|> BaseRepository : extends
+FixedAssetRepository ..|> IFixedAssetRepository : implements
+FixedAssetRepository --|> BaseRepository : extends
+
+' Relationships - Domain
+LedgerAccount ..|> IAuditableEntity : implements
+JournalEntry ..|> IAuditableEntity : implements
+TaxReturn --|> AggregateRoot : extends
+TaxReturn ..|> IAuditableEntity : implements
+TaxParameters ..|> IAuditableEntity : implements
+FixedAsset ..|> IAuditableEntity : implements
+
+LedgerAccount --> AccountCode : owns
+LedgerAccount --> LedgerAccountType : has
+JournalEntry --> EntrySource : has
+JournalEntry --> Period : owns
+JournalEntry "1" *-- "2..*" JournalLine : contains
+JournalLine --> AccountCode : references
+JournalLine "0..*" ..> "1" LedgerAccount : AccountCode
+TrialBalance "1" *-- "0..*" TrialBalanceLine : contains
+TaxReturn --> TaxReturnStatus : has
+TaxReturn --> Period : owns
+TaxParameters --> TaxRates : owns
+FixedAsset --> TaxBreakdown : owns
+TaxReturn ..> TaxReturnPaidEvent : raises
+TaxReturnPaidEvent ..|> IDomainEvent : implements
+RegisterJournalEntryCommand *-- JournalLineData
+
+note right of JournalEntry
+  Partida doble (invariante):
+  - Mínimo 2 líneas
+  - suma(Debit) == suma(Credit)
+  - Cada línea: Debit XOR Credit > 0
+  - Cuentas existentes y activas
+  - No se edita ni elimina: se revierte (Reverse)
+  - (Source, SourceId) único -> idempotencia
+  Así el Balance General SIEMPRE cuadra
+  (en Excel: diferencias de -5,519 / -31,271 / -52,137).
+end note
+
+note right of PostingRulesDomainService
+  Plantillas de asiento (PCGE):
+  InvoiceIssued (normal):
+    D 12 CxC Total / H 40111 IGV, H 70 Ventas
+  InvoiceIssued (IsAdvance):
+    D 12 Total / H 40111 IGV, H 122 Anticipos
+  ProjectCompleted:
+    D 122 Anticipos / H 70 Ventas
+  InvoicePayment:
+    D 10 Caja-Bancos (o 107 Detracciones) / H 12
+  Expense (pagado):
+    D 60/63 Base + D 40111 IGV (si crédito) / H 10
+  Expense (pendiente):  ... / H 42 Proveedores
+  Expense (aporte socio): ... / H 455 o 50 Capital
+  FixedCostPayment: D 62/63/65 / H 10
+  PayablePayment:   D 42/46 / H 10
+  LoanDisbursement (Received): D 10 / H 45
+  LoanInstallment (Received): D 45 + D 67 Int. / H 10
+  Loan Granted: inverso con cuenta 16
+  FundsTransfer: D 10x destino / H 10x origen
+  TaxReturnPaid: D 40111 + D 4017 / H 10
+  Depreciation: D 68 / H 39
+end note
+
+note right of TaxReturn
+  IgvPayable = max(0, OutputIgv - InputIgv
+                    - CarriedCredit)
+  NextCarriedCredit = max(0, InputIgv
+                    + CarriedCredit - OutputIgv)
+  IncomeTaxPrepayment = Ventas del mes
+                    x TaxRates.IncomeTaxPrepayment
+  TotalPayable = IgvPayable + IncomeTaxPrepayment
+  Output/Input IGV salen de los saldos de la
+  cuenta 40111 del Libro Diario del período.
+end note
+
+note bottom of TaxParameters
+  Vigentes por fecha (EffectiveFrom).
+  Por defecto: IGV 18%, Detracción 12%,
+  Retención 3%, Pago a cuenta renta (configurable).
+  Billing / Expenses los leen vía
+  IAccountingContextFacade.FetchTaxRatesAt().
+end note
+@enduml

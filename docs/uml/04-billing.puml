@@ -1,0 +1,622 @@
+@startuml
+' Brasper Platform - Billing Bounded Context (Facturación y Cobranza)
+
+skinparam classAttributeIconSize 0
+set separator none
+
+package "Billing" {
+
+  package "Interfaces.REST" {
+    class InvoicesController {
+      +IssueInvoice(IssueInvoiceResource, CancellationToken) : Task<ActionResult>
+      +VoidInvoice(int, CancellationToken) : Task<ActionResult>
+      +GetAllInvoices(string?, int?, int?, int?, CancellationToken) : Task<ActionResult>
+      +GetInvoiceById(int, CancellationToken) : Task<ActionResult>
+    }
+
+    class InvoicePaymentsController {
+      +RegisterPayment(int, RegisterInvoicePaymentResource, CancellationToken) : Task<ActionResult>
+      +GetPaymentsByInvoiceId(int, CancellationToken) : Task<ActionResult>
+    }
+
+    class ScheduledCollectionsController {
+      +ScheduleCollection(ScheduleCollectionResource, CancellationToken) : Task<ActionResult>
+      +RescheduleCollection(int, RescheduleCollectionResource, CancellationToken) : Task<ActionResult>
+      +CancelCollection(int, CancellationToken) : Task<ActionResult>
+      +GetScheduledCollections(int, int, CancellationToken) : Task<ActionResult>
+    }
+
+    package "Resources" {
+      class InvoiceResource <<resource>> {
+        +int Id
+        +string Number
+        +DateOnly IssuedOn
+        +string? PurchaseOrder
+        +int ProjectId
+        +int ClientId
+        +decimal TaxableBase
+        +decimal Igv
+        +decimal Total
+        +decimal Retention
+        +decimal Detraction
+        +bool SelfDetraction
+        +bool IsAdvance
+        +decimal NetAmount
+        +decimal CollectedAmount
+        +decimal OutstandingBalance
+        +string Status
+        +string? Notes
+      }
+
+      class IssueInvoiceResource <<resource>> {
+        +string Series
+        +int Correlative
+        +DateOnly IssuedOn
+        +string? PurchaseOrder
+        +int ProjectId
+        +int ClientId
+        +decimal TaxableBase
+        +string Currency
+        +bool HasRetention
+        +bool HasDetraction
+        +bool SelfDetraction
+        +bool IsAdvance
+        +string? Notes
+      }
+
+      class InvoicePaymentResource <<resource>> {
+        +int Id
+        +DateOnly ReceivedOn
+        +decimal Amount
+        +string Type
+        +int BankAccountId
+        +string? Reference
+      }
+
+      class RegisterInvoicePaymentResource <<resource>> {
+        +DateOnly ReceivedOn
+        +decimal Amount
+        +string Type
+        +int BankAccountId
+        +string? Reference
+      }
+
+      class ScheduledCollectionResource <<resource>> {
+        +int Id
+        +int ProjectId
+        +decimal ExpectedAmount
+        +int Year
+        +int Month
+        +int Week
+        +string Status
+        +int? InvoiceId
+        +string? Notes
+      }
+
+      class ScheduleCollectionResource <<resource>> {
+        +int ProjectId
+        +decimal ExpectedAmount
+        +DateOnly ExpectedOn
+        +string? Notes
+      }
+
+      class RescheduleCollectionResource <<resource>> {
+        +DateOnly ExpectedOn
+      }
+    }
+
+    package "Transform" {
+      class InvoiceResourceFromEntityAssembler <<assembler>> {
+        +ToResourceFromEntity(Invoice) : InvoiceResource
+      }
+
+      class IssueInvoiceCommandFromResourceAssembler <<assembler>> {
+        +ToCommandFromResource(IssueInvoiceResource) : IssueInvoiceCommand
+      }
+
+      class InvoicePaymentResourceFromEntityAssembler <<assembler>> {
+        +ToResourceFromEntity(InvoicePayment) : InvoicePaymentResource
+      }
+
+      class RegisterInvoicePaymentCommandFromResourceAssembler <<assembler>> {
+        +ToCommandFromResource(int, RegisterInvoicePaymentResource) : RegisterInvoicePaymentCommand
+      }
+
+      class ScheduledCollectionResourceFromEntityAssembler <<assembler>> {
+        +ToResourceFromEntity(ScheduledCollection) : ScheduledCollectionResource
+      }
+
+      class ScheduleCollectionCommandFromResourceAssembler <<assembler>> {
+        +ToCommandFromResource(ScheduleCollectionResource) : ScheduleCollectionCommand
+      }
+    }
+  }
+
+  package "Interfaces.ACL" {
+    interface IBillingContextFacade <<facade>> {
+      +SumOutstandingReceivablesAt(DateOnly, CancellationToken) : Task<decimal>
+      +SumOutputIgvByPeriod(Period, CancellationToken) : Task<decimal>
+      +SumInvoicedByProject(int, CancellationToken) : Task<decimal>
+      +SumCollectedByProject(int, CancellationToken) : Task<decimal>
+      +SumCollectedByWeek(CashFlowWeek, CancellationToken) : Task<decimal>
+      +SumScheduledCollectionsByWeek(CashFlowWeek, CancellationToken) : Task<decimal>
+    }
+  }
+
+  package "Domain.Model" {
+    package "ValueObjects" {
+      class InvoiceNumber <<value-object>> {
+        +string Series
+        +int Correlative
+        +InvoiceNumber(string, int)
+        +ToString() : string
+      }
+
+      enum InvoiceStatus <<value-object>> {
+        Pending
+        PartiallyCollected
+        Collected
+        Voided
+      }
+
+      enum InvoicePaymentType <<value-object>> {
+        NetDeposit
+        DetractionDeposit
+        RetentionCertificate
+      }
+
+      enum ScheduleStatus <<value-object>> {
+        Scheduled
+        Realized
+        Rescheduled
+        Cancelled
+      }
+    }
+
+    package "Commands" {
+      class IssueInvoiceCommand <<command>> {
+        +InvoiceNumber Number
+        +DateOnly IssuedOn
+        +string? PurchaseOrder
+        +int ProjectId
+        +int ClientId
+        +Money TaxableBase
+        +bool HasRetention
+        +bool HasDetraction
+        +bool SelfDetraction
+        +bool IsAdvance
+        +string? Notes
+      }
+
+      class VoidInvoiceCommand <<command>> {
+        +int InvoiceId
+      }
+
+      class RegisterInvoicePaymentCommand <<command>> {
+        +int InvoiceId
+        +DateOnly ReceivedOn
+        +Money Amount
+        +InvoicePaymentType Type
+        +int BankAccountId
+        +string? Reference
+      }
+
+      class ScheduleCollectionCommand <<command>> {
+        +int ProjectId
+        +Money ExpectedAmount
+        +CashFlowWeek ExpectedWeek
+        +string? Notes
+      }
+
+      class RescheduleCollectionCommand <<command>> {
+        +int ScheduledCollectionId
+        +CashFlowWeek ExpectedWeek
+      }
+
+      class CancelScheduledCollectionCommand <<command>> {
+        +int ScheduledCollectionId
+      }
+    }
+
+    package "Queries" {
+      class GetAllInvoicesQuery <<query>> {
+        +InvoiceStatus? Status
+        +int? ProjectId
+        +Period? IssuedIn
+      }
+
+      class GetInvoiceByIdQuery <<query>> {
+        +int Id
+      }
+
+      class GetPaymentsByInvoiceIdQuery <<query>> {
+        +int InvoiceId
+      }
+
+      class GetScheduledCollectionsByPeriodQuery <<query>> {
+        +Period Period
+      }
+    }
+
+    package "Events" {
+      class InvoiceIssuedEvent <<event>> {
+        +int InvoiceId
+        +int ProjectId
+        +DateOnly IssuedOn
+        +TaxBreakdown Amounts
+        +Money Detraction
+        +bool SelfDetraction
+        +bool IsAdvance
+      }
+
+      class InvoicePaymentReceivedEvent <<event>> {
+        +int InvoiceId
+        +int PaymentId
+        +int BankAccountId
+        +DateOnly ReceivedOn
+        +Money Amount
+        +InvoicePaymentType Type
+      }
+
+      class InvoiceVoidedEvent <<event>> {
+        +int InvoiceId
+        +DateOnly VoidedOn
+      }
+    }
+
+    package "Aggregates" {
+      class Invoice <<aggregate>> {
+        +int Id
+        +InvoiceNumber Number
+        +DateOnly IssuedOn
+        +string? PurchaseOrder
+        +int ProjectId
+        +int ClientId
+        +TaxBreakdown Amounts
+        +bool HasRetention
+        +Money Retention
+        +bool HasDetraction
+        +Money Detraction
+        +bool SelfDetraction
+        +bool IsAdvance
+        +InvoiceStatus Status
+        +string? Notes
+        +IReadOnlyCollection<InvoicePayment> Payments
+        +Invoice(IssueInvoiceCommand, TaxRates)
+        +RegisterPayment(RegisterInvoicePaymentCommand) : InvoicePayment
+        +Void() : void
+        +NetAmount() : Money
+        +CollectedAmount() : Money
+        +OutstandingBalance() : Money
+      }
+
+      class ScheduledCollection <<aggregate>> {
+        +int Id
+        +int ProjectId
+        +Money ExpectedAmount
+        +CashFlowWeek ExpectedWeek
+        +ScheduleStatus Status
+        +int? InvoiceId
+        +string? Notes
+        +ScheduledCollection(ScheduleCollectionCommand)
+        +Reschedule(CashFlowWeek) : void
+        +MarkAsRealized(int) : void
+        +Cancel() : void
+      }
+    }
+
+    package "Entities" {
+      class InvoicePayment <<entity>> {
+        +int Id
+        +int InvoiceId
+        +DateOnly ReceivedOn
+        +Money Amount
+        +InvoicePaymentType Type
+        +int BankAccountId
+        +string? Reference
+      }
+    }
+  }
+
+  package "Domain.Repositories" {
+    interface IInvoiceRepository <<repository>> {
+      +FindByNumberAsync(InvoiceNumber, CancellationToken) : Task<Invoice?>
+      +FindByProjectIdAsync(int, CancellationToken) : Task<IEnumerable<Invoice>>
+      +FindByStatusAsync(InvoiceStatus, CancellationToken) : Task<IEnumerable<Invoice>>
+      +FindByIssuedPeriodAsync(Period, CancellationToken) : Task<IEnumerable<Invoice>>
+      +ExistsByNumberAsync(InvoiceNumber, CancellationToken) : Task<bool>
+    }
+
+    interface IScheduledCollectionRepository <<repository>> {
+      +FindByPeriodAsync(Period, CancellationToken) : Task<IEnumerable<ScheduledCollection>>
+      +FindByWeekAsync(CashFlowWeek, CancellationToken) : Task<IEnumerable<ScheduledCollection>>
+      +FindPendingByProjectIdAsync(int, CancellationToken) : Task<IEnumerable<ScheduledCollection>>
+    }
+  }
+
+  package "Application" {
+    package "Errors" {
+      enum IssueInvoiceError <<error>> {
+        ProjectNotFound
+        ClientMismatch
+        DuplicateInvoiceNumber
+        InvalidAmount
+        UnexpectedError
+      }
+
+      enum VoidInvoiceError <<error>> {
+        InvoiceNotFound
+        InvoiceHasPayments
+        UnexpectedError
+      }
+
+      enum RegisterInvoicePaymentError <<error>> {
+        InvoiceNotFound
+        InvoiceVoided
+        AmountExceedsBalance
+        BankAccountNotFound
+        InvalidAccountForPaymentType
+        UnexpectedError
+      }
+
+      enum ScheduleCollectionError <<error>> {
+        ProjectNotFound
+        ScheduledCollectionNotFound
+        InvalidAmount
+        AlreadyRealized
+        UnexpectedError
+      }
+    }
+
+    package "Services" {
+      interface IInvoiceCommandService <<application-service>> {
+        +Handle(IssueInvoiceCommand, CancellationToken) : Task<Result<Invoice, IssueInvoiceError>>
+        +Handle(VoidInvoiceCommand, CancellationToken) : Task<Result<Invoice, VoidInvoiceError>>
+        +Handle(RegisterInvoicePaymentCommand, CancellationToken) : Task<Result<InvoicePayment, RegisterInvoicePaymentError>>
+      }
+
+      interface IInvoiceQueryService <<application-service>> {
+        +Handle(GetAllInvoicesQuery, CancellationToken) : Task<IEnumerable<Invoice>>
+        +Handle(GetInvoiceByIdQuery, CancellationToken) : Task<Invoice?>
+        +Handle(GetPaymentsByInvoiceIdQuery, CancellationToken) : Task<IEnumerable<InvoicePayment>>
+      }
+
+      interface IScheduledCollectionCommandService <<application-service>> {
+        +Handle(ScheduleCollectionCommand, CancellationToken) : Task<Result<ScheduledCollection, ScheduleCollectionError>>
+        +Handle(RescheduleCollectionCommand, CancellationToken) : Task<Result<ScheduledCollection, ScheduleCollectionError>>
+        +Handle(CancelScheduledCollectionCommand, CancellationToken) : Task<Result<ScheduledCollection, ScheduleCollectionError>>
+      }
+
+      interface IScheduledCollectionQueryService <<application-service>> {
+        +Handle(GetScheduledCollectionsByPeriodQuery, CancellationToken) : Task<IEnumerable<ScheduledCollection>>
+      }
+    }
+
+    package "Internal.CommandServices" {
+      class InvoiceCommandService <<service>> {
+        +Handle(IssueInvoiceCommand, CancellationToken) : Task<Result<Invoice, IssueInvoiceError>>
+        +Handle(VoidInvoiceCommand, CancellationToken) : Task<Result<Invoice, VoidInvoiceError>>
+        +Handle(RegisterInvoicePaymentCommand, CancellationToken) : Task<Result<InvoicePayment, RegisterInvoicePaymentError>>
+      }
+
+      class ScheduledCollectionCommandService <<service>> {
+        +Handle(ScheduleCollectionCommand, CancellationToken) : Task<Result<ScheduledCollection, ScheduleCollectionError>>
+        +Handle(RescheduleCollectionCommand, CancellationToken) : Task<Result<ScheduledCollection, ScheduleCollectionError>>
+        +Handle(CancelScheduledCollectionCommand, CancellationToken) : Task<Result<ScheduledCollection, ScheduleCollectionError>>
+      }
+    }
+
+    package "Internal.QueryServices" {
+      class InvoiceQueryService <<service>> {
+        +Handle(GetAllInvoicesQuery, CancellationToken) : Task<IEnumerable<Invoice>>
+        +Handle(GetInvoiceByIdQuery, CancellationToken) : Task<Invoice?>
+        +Handle(GetPaymentsByInvoiceIdQuery, CancellationToken) : Task<IEnumerable<InvoicePayment>>
+      }
+
+      class ScheduledCollectionQueryService <<service>> {
+        +Handle(GetScheduledCollectionsByPeriodQuery, CancellationToken) : Task<IEnumerable<ScheduledCollection>>
+      }
+    }
+
+    package "Internal.EventHandlers" {
+      class InvoiceIssuedEventHandler <<event-handler>> {
+        +Handle(InvoiceIssuedEvent, CancellationToken) : Task
+      }
+    }
+
+    package "Internal.OutboundServices.ACL" {
+      class ExternalProjectService <<outbound-service>> {
+        +ExistsProjectById(int, CancellationToken) : Task<bool>
+      }
+
+      class ExternalTreasuryService <<outbound-service>> {
+        +FetchBankAccountType(int, CancellationToken) : Task<string?>
+      }
+
+      class ExternalAccountingService <<outbound-service>> {
+        +FetchTaxRatesAt(DateOnly, CancellationToken) : Task<TaxRates>
+      }
+    }
+
+    package "ACL" {
+      class BillingContextFacade <<facade>> {
+        +SumOutstandingReceivablesAt(DateOnly, CancellationToken) : Task<decimal>
+        +SumOutputIgvByPeriod(Period, CancellationToken) : Task<decimal>
+        +SumInvoicedByProject(int, CancellationToken) : Task<decimal>
+      +SumCollectedByProject(int, CancellationToken) : Task<decimal>
+        +SumCollectedByWeek(CashFlowWeek, CancellationToken) : Task<decimal>
+        +SumScheduledCollectionsByWeek(CashFlowWeek, CancellationToken) : Task<decimal>
+      }
+    }
+  }
+
+  package "Infrastructure.Persistence.EFC.Repositories" {
+    class InvoiceRepository <<repository>> {
+      +FindByNumberAsync(InvoiceNumber, CancellationToken) : Task<Invoice?>
+      +FindByProjectIdAsync(int, CancellationToken) : Task<IEnumerable<Invoice>>
+      +FindByStatusAsync(InvoiceStatus, CancellationToken) : Task<IEnumerable<Invoice>>
+      +FindByIssuedPeriodAsync(Period, CancellationToken) : Task<IEnumerable<Invoice>>
+      +ExistsByNumberAsync(InvoiceNumber, CancellationToken) : Task<bool>
+    }
+
+    class ScheduledCollectionRepository <<repository>> {
+      +FindByPeriodAsync(Period, CancellationToken) : Task<IEnumerable<ScheduledCollection>>
+      +FindByWeekAsync(CashFlowWeek, CancellationToken) : Task<IEnumerable<ScheduledCollection>>
+      +FindPendingByProjectIdAsync(int, CancellationToken) : Task<IEnumerable<ScheduledCollection>>
+    }
+  }
+
+  package "Infrastructure.Persistence.EFC.Configuration.Extensions" {
+    class BillingModelBuilderExtensions <<db-configuration>> {
+      +{static} ApplyBillingConfiguration(ModelBuilder) : void
+      --
+      +invoices: unique index (series, correlative)
+      +invoice_payments: FK invoice_id (cascade)
+      +scheduled_collections: index (year, month, week)
+    }
+  }
+}
+
+package "External Contexts (ACL)" {
+  interface IProjectsContextFacade <<facade>>
+  interface ITreasuryContextFacade <<facade>>
+  interface IAccountingContextFacade <<facade>>
+}
+
+package "Shared" {
+  abstract class "Result<TValue, TError>" as ResultT <<result>>
+  abstract class AggregateRoot <<aggregate-root>>
+  interface IAuditableEntity <<auditable>>
+  interface IDomainEvent <<event>>
+  interface IDomainEventHandler<TEvent> <<event-handler>>
+  interface IBaseRepository<TEntity> <<repository>>
+  interface IUnitOfWork <<unit-of-work>>
+  class BaseRepository<TEntity> <<repository>>
+  class Money <<value-object>>
+  class Period <<value-object>>
+  class CashFlowWeek <<value-object>>
+  class TaxBreakdown <<value-object>>
+  class TaxRates <<value-object>>
+}
+
+' Relationships - Interfaces
+InvoicesController --> IInvoiceCommandService : uses
+InvoicesController --> IInvoiceQueryService : uses
+InvoicesController --> InvoiceResourceFromEntityAssembler : uses
+InvoicesController --> IssueInvoiceCommandFromResourceAssembler : uses
+InvoicePaymentsController --> IInvoiceCommandService : uses
+InvoicePaymentsController --> IInvoiceQueryService : uses
+InvoicePaymentsController --> RegisterInvoicePaymentCommandFromResourceAssembler : uses
+InvoicePaymentsController --> InvoicePaymentResourceFromEntityAssembler : uses
+ScheduledCollectionsController --> IScheduledCollectionCommandService : uses
+ScheduledCollectionsController --> IScheduledCollectionQueryService : uses
+ScheduledCollectionsController --> ScheduledCollectionResourceFromEntityAssembler : uses
+ScheduledCollectionsController --> ScheduleCollectionCommandFromResourceAssembler : uses
+
+InvoiceResourceFromEntityAssembler ..> Invoice : reads
+InvoiceResourceFromEntityAssembler --> InvoiceResource : produces
+IssueInvoiceCommandFromResourceAssembler ..> IssueInvoiceResource : reads
+IssueInvoiceCommandFromResourceAssembler --> IssueInvoiceCommand : produces
+InvoicePaymentResourceFromEntityAssembler ..> InvoicePayment : reads
+InvoicePaymentResourceFromEntityAssembler --> InvoicePaymentResource : produces
+RegisterInvoicePaymentCommandFromResourceAssembler ..> RegisterInvoicePaymentResource : reads
+RegisterInvoicePaymentCommandFromResourceAssembler --> RegisterInvoicePaymentCommand : produces
+ScheduledCollectionResourceFromEntityAssembler ..> ScheduledCollection : reads
+ScheduledCollectionResourceFromEntityAssembler --> ScheduledCollectionResource : produces
+ScheduleCollectionCommandFromResourceAssembler ..> ScheduleCollectionResource : reads
+ScheduleCollectionCommandFromResourceAssembler --> ScheduleCollectionCommand : produces
+
+' Relationships - Application
+InvoiceCommandService ..|> IInvoiceCommandService : implements
+InvoiceQueryService ..|> IInvoiceQueryService : implements
+ScheduledCollectionCommandService ..|> IScheduledCollectionCommandService : implements
+ScheduledCollectionQueryService ..|> IScheduledCollectionQueryService : implements
+BillingContextFacade ..|> IBillingContextFacade : implements
+BillingContextFacade --> IInvoiceRepository : uses
+BillingContextFacade --> IScheduledCollectionRepository : uses
+
+InvoiceCommandService --> IInvoiceRepository : uses
+InvoiceCommandService --> IUnitOfWork : uses
+InvoiceCommandService --> ExternalProjectService : uses
+InvoiceCommandService --> ExternalTreasuryService : uses
+InvoiceCommandService --> ExternalAccountingService : uses
+InvoiceCommandService ..> ResultT : returns
+InvoiceQueryService --> IInvoiceRepository : uses
+ScheduledCollectionCommandService --> IScheduledCollectionRepository : uses
+ScheduledCollectionCommandService --> IUnitOfWork : uses
+ScheduledCollectionCommandService --> ExternalProjectService : uses
+ScheduledCollectionQueryService --> IScheduledCollectionRepository : uses
+InvoiceIssuedEventHandler ..|> IDomainEventHandler : implements
+InvoiceIssuedEventHandler --> IScheduledCollectionRepository : marks realized
+
+ExternalProjectService --> IProjectsContextFacade : uses
+ExternalTreasuryService --> ITreasuryContextFacade : uses
+ExternalAccountingService --> IAccountingContextFacade : uses
+
+' Relationships - Infrastructure
+IInvoiceRepository --|> IBaseRepository : extends
+IScheduledCollectionRepository --|> IBaseRepository : extends
+InvoiceRepository ..|> IInvoiceRepository : implements
+InvoiceRepository --|> BaseRepository : extends
+ScheduledCollectionRepository ..|> IScheduledCollectionRepository : implements
+ScheduledCollectionRepository --|> BaseRepository : extends
+
+' Relationships - Domain
+Invoice --|> AggregateRoot : extends
+Invoice ..|> IAuditableEntity : implements
+ScheduledCollection ..|> IAuditableEntity : implements
+Invoice --> InvoiceNumber : owns
+Invoice --> InvoiceStatus : has
+Invoice --> TaxBreakdown : owns
+Invoice ..> TaxRates : uses
+Invoice "1" *-- "0..*" InvoicePayment : contains
+InvoicePayment --> InvoicePaymentType : has
+InvoicePayment --> Money : owns
+ScheduledCollection --> ScheduleStatus : has
+ScheduledCollection --> CashFlowWeek : owns
+ScheduledCollection "0..*" ..> "0..1" Invoice : InvoiceId
+Invoice ..> InvoiceIssuedEvent : raises
+Invoice ..> InvoicePaymentReceivedEvent : raises
+Invoice ..> InvoiceVoidedEvent : raises
+InvoiceIssuedEvent ..|> IDomainEvent : implements
+InvoicePaymentReceivedEvent ..|> IDomainEvent : implements
+InvoiceVoidedEvent ..|> IDomainEvent : implements
+
+IssueInvoiceCommand --> InvoiceNumber : contains
+RegisterInvoicePaymentCommand --> InvoicePaymentType : contains
+ScheduleCollectionCommand --> CashFlowWeek : contains
+
+note right of Invoice
+  Cálculos (TaxRates vigentes a IssuedOn):
+  Amounts = TaxBreakdown.FromTaxableBase(base, Igv 18%)
+  Retention = Total x 3%            (si HasRetention)
+  Detraction = ROUND(Total x 12%, 0) (si HasDetraction)
+  NetAmount = Total - Retention - Detraction
+  CollectedAmount = suma(Payments.Amount)
+  OutstandingBalance = Total - CollectedAmount
+
+  Status:
+  - Collected si OutstandingBalance <= 0
+  - PartiallyCollected si 0 < Collected < Total
+  (Excel mezclaba "=0" y "<=0")
+
+  Invariantes:
+  - Number (serie + correlativo) único
+  - No se cobra más que OutstandingBalance
+  - Void solo sin pagos
+end note
+
+note right of InvoicePayment
+  DetractionDeposit -> cuenta tipo Detractions
+  (Banco de la Nación); NetDeposit -> cuenta
+  Checking. Validado vía ITreasuryContextFacade.
+  SelfDetraction: la empresa deposita la
+  detracción (genera Payable en Treasury).
+end note
+
+note bottom of ScheduledCollection
+  "Ventas proyectadas" del flujo de caja.
+  Cuando se emite la factura real ->
+  MarkAsRealized(invoiceId).
+end note
+@enduml

@@ -1,0 +1,1033 @@
+@startuml
+' Brasper Platform - Treasury Bounded Context (Bancos, Obligaciones, Préstamos, Aportes)
+
+skinparam classAttributeIconSize 0
+set separator none
+
+package "Treasury" {
+
+  package "Interfaces.REST" {
+    class BankAccountsController {
+      +OpenBankAccount(OpenBankAccountResource, CancellationToken) : Task<ActionResult>
+      +GetAllBankAccounts(CancellationToken) : Task<ActionResult>
+      +GetBankAccountById(int, CancellationToken) : Task<ActionResult>
+      +GetMovements(int, int, int, CancellationToken) : Task<ActionResult>
+      +RegisterAdjustment(int, RegisterAdjustmentResource, CancellationToken) : Task<ActionResult>
+      +TransferFunds(TransferFundsResource, CancellationToken) : Task<ActionResult>
+    }
+
+    class PayablesController {
+      +CreatePayable(CreatePayableResource, CancellationToken) : Task<ActionResult>
+      +RegisterPayment(int, RegisterPayablePaymentResource, CancellationToken) : Task<ActionResult>
+      +ReschedulePayable(int, ReschedulePayableResource, CancellationToken) : Task<ActionResult>
+      +GetAllPayables(string?, int?, int?, CancellationToken) : Task<ActionResult>
+      +GetPayableById(int, CancellationToken) : Task<ActionResult>
+    }
+
+    class LoansController {
+      +RegisterLoan(RegisterLoanResource, CancellationToken) : Task<ActionResult>
+      +ScheduleInstallment(int, ScheduleInstallmentResource, CancellationToken) : Task<ActionResult>
+      +PayInstallment(int, int, PayInstallmentResource, CancellationToken) : Task<ActionResult>
+      +GetAllLoans(string?, CancellationToken) : Task<ActionResult>
+      +GetLoanById(int, CancellationToken) : Task<ActionResult>
+    }
+
+    class PartnersController {
+      +RegisterPartner(RegisterPartnerResource, CancellationToken) : Task<ActionResult>
+      +RegisterContribution(int, RegisterContributionResource, CancellationToken) : Task<ActionResult>
+      +GetAllPartners(CancellationToken) : Task<ActionResult>
+      +GetContributionsByPeriod(int, int, CancellationToken) : Task<ActionResult>
+    }
+
+    package "Resources" {
+      class BankAccountResource <<resource>> {
+        +int Id
+        +string Bank
+        +string AccountNumber
+        +string Type
+        +string Currency
+        +decimal OpeningBalance
+        +decimal CurrentBalance
+      }
+
+      class OpenBankAccountResource <<resource>> {
+        +string Bank
+        +string AccountNumber
+        +string Type
+        +string Currency
+        +decimal OpeningBalance
+        +DateOnly OpenedOn
+      }
+
+      class CashMovementResource <<resource>> {
+        +int Id
+        +DateOnly OccurredOn
+        +string Direction
+        +decimal Amount
+        +string Concept
+        +string Source
+        +int? SourceId
+      }
+
+      class RegisterAdjustmentResource <<resource>> {
+        +DateOnly OccurredOn
+        +string Direction
+        +decimal Amount
+        +string Concept
+      }
+
+      class TransferFundsResource <<resource>> {
+        +int FromAccountId
+        +int ToAccountId
+        +DateOnly TransferredOn
+        +decimal Amount
+        +string Concept
+      }
+
+      class PayableResource <<resource>> {
+        +int Id
+        +string Concept
+        +string Type
+        +decimal TotalAmount
+        +decimal PaidAmount
+        +decimal Balance
+        +int? SupplierId
+        +int? ProjectId
+        +int? ExpenseId
+        +int? Year
+        +int? Month
+        +int? Week
+        +string Status
+      }
+
+      class CreatePayableResource <<resource>> {
+        +string Concept
+        +string Type
+        +decimal TotalAmount
+        +string Currency
+        +int? SupplierId
+        +int? ProjectId
+        +DateOnly? ExpectedOn
+      }
+
+      class RegisterPayablePaymentResource <<resource>> {
+        +DateOnly PaidOn
+        +decimal Amount
+        +int BankAccountId
+      }
+
+      class ReschedulePayableResource <<resource>> {
+        +DateOnly ExpectedOn
+      }
+
+      class LoanResource <<resource>> {
+        +int Id
+        +string Type
+        +string Counterparty
+        +decimal Principal
+        +decimal InterestRate
+        +DateOnly DisbursedOn
+        +decimal TotalInterest
+        +decimal OutstandingBalance
+        +string Status
+      }
+
+      class RegisterLoanResource <<resource>> {
+        +string Type
+        +string Counterparty
+        +decimal Principal
+        +string Currency
+        +decimal InterestRate
+        +DateOnly DisbursedOn
+        +int BankAccountId
+      }
+
+      class ScheduleInstallmentResource <<resource>> {
+        +DateOnly DueOn
+        +decimal Principal
+        +decimal Interest
+      }
+
+      class PayInstallmentResource <<resource>> {
+        +DateOnly PaidOn
+        +int BankAccountId
+      }
+
+      class PartnerResource <<resource>> {
+        +int Id
+        +string FullName
+        +string Role
+        +decimal TotalContributed
+      }
+
+      class RegisterPartnerResource <<resource>> {
+        +string FullName
+        +string Role
+      }
+
+      class RegisterContributionResource <<resource>> {
+        +DateOnly ContributedOn
+        +decimal Amount
+        +bool IsReimbursable
+        +int? BankAccountId
+        +string Concept
+      }
+    }
+
+    package "Transform" {
+      class BankAccountResourceFromEntityAssembler <<assembler>> {
+        +ToResourceFromEntity(BankAccount) : BankAccountResource
+      }
+
+      class CashMovementResourceFromEntityAssembler <<assembler>> {
+        +ToResourceFromEntity(CashMovement) : CashMovementResource
+      }
+
+      class OpenBankAccountCommandFromResourceAssembler <<assembler>> {
+        +ToCommandFromResource(OpenBankAccountResource) : OpenBankAccountCommand
+      }
+
+      class TransferFundsCommandFromResourceAssembler <<assembler>> {
+        +ToCommandFromResource(TransferFundsResource) : TransferFundsCommand
+      }
+
+      class PayableResourceFromEntityAssembler <<assembler>> {
+        +ToResourceFromEntity(Payable) : PayableResource
+      }
+
+      class CreatePayableCommandFromResourceAssembler <<assembler>> {
+        +ToCommandFromResource(CreatePayableResource) : CreatePayableCommand
+      }
+
+      class RegisterPayablePaymentCommandFromResourceAssembler <<assembler>> {
+        +ToCommandFromResource(int, RegisterPayablePaymentResource) : RegisterPayablePaymentCommand
+      }
+
+      class LoanResourceFromEntityAssembler <<assembler>> {
+        +ToResourceFromEntity(Loan) : LoanResource
+      }
+
+      class RegisterLoanCommandFromResourceAssembler <<assembler>> {
+        +ToCommandFromResource(RegisterLoanResource) : RegisterLoanCommand
+      }
+
+      class PartnerResourceFromEntityAssembler <<assembler>> {
+        +ToResourceFromEntity(Partner) : PartnerResource
+      }
+
+      class RegisterContributionCommandFromResourceAssembler <<assembler>> {
+        +ToCommandFromResource(int, RegisterContributionResource) : RegisterPartnerContributionCommand
+      }
+    }
+  }
+
+  package "Interfaces.ACL" {
+    interface ITreasuryContextFacade <<facade>> {
+      +ExistsBankAccountById(int, CancellationToken) : Task<bool>
+      +FetchBankAccountType(int, CancellationToken) : Task<string?>
+      +ExistsPartnerById(int, CancellationToken) : Task<bool>
+      +FetchCashBalanceAt(DateOnly, CancellationToken) : Task<decimal>
+      +FetchCashBalanceByAccountAt(DateOnly, CancellationToken) : Task<IDictionary<string, decimal>>
+      +SumInflowsByWeek(CashFlowWeek, CancellationToken) : Task<decimal>
+      +SumOutflowsByWeek(CashFlowWeek, CancellationToken) : Task<decimal>
+      +SumScheduledPayablesByWeek(CashFlowWeek, CancellationToken) : Task<decimal>
+      +SumScheduledInstallmentsByWeek(CashFlowWeek, CancellationToken) : Task<decimal>
+    }
+  }
+
+  package "Domain.Model" {
+    package "ValueObjects" {
+      enum Bank <<value-object>> {
+        Bcp
+        Bbva
+        BancoDeLaNacion
+        Cash
+      }
+
+      enum AccountType <<value-object>> {
+        Checking
+        Detractions
+        PettyCash
+      }
+
+      enum MovementDirection <<value-object>> {
+        Inflow
+        Outflow
+      }
+
+      enum MovementSource <<value-object>> {
+        OpeningBalance
+        InvoicePayment
+        Expense
+        FixedCostPayment
+        PayablePayment
+        LoanDisbursement
+        LoanInstallment
+        PartnerContribution
+        TaxPayment
+        Transfer
+        Adjustment
+      }
+
+      enum PayableType <<value-object>> {
+        Supplier
+        Technician
+        Accounting
+        SelfDetraction
+        Tax
+        Other
+      }
+
+      enum LoanType <<value-object>> {
+        Received
+        Granted
+      }
+
+      class AccountNumber <<value-object>> {
+        +string Value
+        +AccountNumber(string)
+      }
+    }
+
+    package "Commands" {
+      class OpenBankAccountCommand <<command>> {
+        +Bank Bank
+        +AccountNumber AccountNumber
+        +AccountType Type
+        +Currency Currency
+        +Money OpeningBalance
+        +DateOnly OpenedOn
+      }
+
+      class RegisterCashMovementCommand <<command>> {
+        +int BankAccountId
+        +DateOnly OccurredOn
+        +MovementDirection Direction
+        +Money Amount
+        +string Concept
+        +MovementSource Source
+        +int? SourceId
+      }
+
+      class TransferFundsCommand <<command>> {
+        +int FromAccountId
+        +int ToAccountId
+        +DateOnly TransferredOn
+        +Money Amount
+        +string Concept
+      }
+
+      class CreatePayableCommand <<command>> {
+        +string Concept
+        +PayableType Type
+        +Money TotalAmount
+        +int? SupplierId
+        +int? ProjectId
+        +int? ExpenseId
+        +CashFlowWeek? ScheduledWeek
+      }
+
+      class RegisterPayablePaymentCommand <<command>> {
+        +int PayableId
+        +DateOnly PaidOn
+        +Money Amount
+        +int BankAccountId
+      }
+
+      class ReschedulePayableCommand <<command>> {
+        +int PayableId
+        +CashFlowWeek ScheduledWeek
+      }
+
+      class RegisterLoanCommand <<command>> {
+        +LoanType Type
+        +string Counterparty
+        +Money Principal
+        +Percentage InterestRate
+        +DateOnly DisbursedOn
+        +int BankAccountId
+      }
+
+      class ScheduleLoanInstallmentCommand <<command>> {
+        +int LoanId
+        +DateOnly DueOn
+        +Money Principal
+        +Money Interest
+      }
+
+      class PayLoanInstallmentCommand <<command>> {
+        +int LoanId
+        +int InstallmentId
+        +DateOnly PaidOn
+        +int BankAccountId
+      }
+
+      class RegisterPartnerCommand <<command>> {
+        +string FullName
+        +string Role
+      }
+
+      class RegisterPartnerContributionCommand <<command>> {
+        +int PartnerId
+        +DateOnly ContributedOn
+        +Money Amount
+        +bool IsReimbursable
+        +int? BankAccountId
+        +int? ExpenseId
+        +string Concept
+      }
+    }
+
+    package "Queries" {
+      class GetAllBankAccountsQuery <<query>>
+
+      class GetBankAccountByIdQuery <<query>> {
+        +int Id
+      }
+
+      class GetCashMovementsByAccountAndPeriodQuery <<query>> {
+        +int BankAccountId
+        +Period Period
+      }
+
+      class GetAllPayablesQuery <<query>> {
+        +PaymentStatus? Status
+        +Period? ScheduledIn
+      }
+
+      class GetPayableByIdQuery <<query>> {
+        +int Id
+      }
+
+      class GetAllLoansQuery <<query>> {
+        +LoanType? Type
+      }
+
+      class GetLoanByIdQuery <<query>> {
+        +int Id
+      }
+
+      class GetAllPartnersQuery <<query>>
+
+      class GetContributionsByPeriodQuery <<query>> {
+        +Period Period
+      }
+    }
+
+    package "Events" {
+      class PayablePaidEvent <<event>> {
+        +int PayableId
+        +int PaymentId
+        +PayableType Type
+        +int? ExpenseId
+        +DateOnly PaidOn
+        +Money Amount
+        +bool IsFullyPaid
+      }
+
+      class LoanDisbursedEvent <<event>> {
+        +int LoanId
+        +LoanType Type
+        +DateOnly DisbursedOn
+        +Money Principal
+      }
+
+      class LoanInstallmentPaidEvent <<event>> {
+        +int LoanId
+        +int InstallmentId
+        +LoanType Type
+        +DateOnly PaidOn
+        +Money Principal
+        +Money Interest
+      }
+
+      class PartnerContributionRegisteredEvent <<event>> {
+        +int PartnerId
+        +int ContributionId
+        +DateOnly ContributedOn
+        +Money Amount
+        +bool IsReimbursable
+        +int? ExpenseId
+      }
+
+      class FundsTransferredEvent <<event>> {
+        +int FromAccountId
+        +int ToAccountId
+        +DateOnly TransferredOn
+        +Money Amount
+      }
+    }
+
+    package "Aggregates" {
+      class BankAccount <<aggregate>> {
+        +int Id
+        +Bank Bank
+        +AccountNumber AccountNumber
+        +AccountType Type
+        +Currency Currency
+        +Money OpeningBalance
+        +DateOnly OpenedOn
+        +IReadOnlyCollection<CashMovement> Movements
+        +BankAccount(OpenBankAccountCommand)
+        +RegisterInflow(DateOnly, Money, string, MovementSource, int?) : CashMovement
+        +RegisterOutflow(DateOnly, Money, string, MovementSource, int?) : CashMovement
+        +BalanceAt(DateOnly) : Money
+        +InflowsBetween(DateOnly, DateOnly) : Money
+        +OutflowsBetween(DateOnly, DateOnly) : Money
+      }
+
+      class Payable <<aggregate>> {
+        +int Id
+        +string Concept
+        +PayableType Type
+        +Money TotalAmount
+        +int? SupplierId
+        +int? ProjectId
+        +int? ExpenseId
+        +CashFlowWeek? ScheduledWeek
+        +PaymentStatus Status
+        +IReadOnlyCollection<PayablePayment> Payments
+        +Payable(CreatePayableCommand)
+        +RegisterPayment(DateOnly, Money, int) : PayablePayment
+        +Reschedule(CashFlowWeek) : void
+        +PaidAmount() : Money
+        +Balance() : Money
+      }
+
+      class Loan <<aggregate>> {
+        +int Id
+        +LoanType Type
+        +string Counterparty
+        +Money Principal
+        +Percentage InterestRate
+        +DateOnly DisbursedOn
+        +int BankAccountId
+        +PaymentStatus Status
+        +IReadOnlyCollection<LoanInstallment> Installments
+        +Loan(RegisterLoanCommand)
+        +ScheduleInstallment(DateOnly, Money, Money) : LoanInstallment
+        +PayInstallment(int, DateOnly) : LoanInstallment
+        +TotalInterest() : Money
+        +OutstandingBalance() : Money
+      }
+
+      class Partner <<aggregate>> {
+        +int Id
+        +string FullName
+        +string Role
+        +IReadOnlyCollection<PartnerContribution> Contributions
+        +Partner(RegisterPartnerCommand)
+        +RegisterContribution(RegisterPartnerContributionCommand) : PartnerContribution
+        +TotalContributed() : Money
+        +ContributedIn(Period) : Money
+      }
+    }
+
+    package "Entities" {
+      class CashMovement <<entity>> {
+        +int Id
+        +int BankAccountId
+        +DateOnly OccurredOn
+        +MovementDirection Direction
+        +Money Amount
+        +string Concept
+        +MovementSource Source
+        +int? SourceId
+      }
+
+      class PayablePayment <<entity>> {
+        +int Id
+        +int PayableId
+        +DateOnly PaidOn
+        +Money Amount
+        +int BankAccountId
+      }
+
+      class LoanInstallment <<entity>> {
+        +int Id
+        +int LoanId
+        +DateOnly DueOn
+        +CashFlowWeek DueWeek
+        +Money Principal
+        +Money Interest
+        +bool IsPaid
+        +DateOnly? PaidOn
+        +Total() : Money
+      }
+
+      class PartnerContribution <<entity>> {
+        +int Id
+        +int PartnerId
+        +DateOnly ContributedOn
+        +Money Amount
+        +bool IsReimbursable
+        +int? BankAccountId
+        +int? ExpenseId
+        +string Concept
+      }
+    }
+
+    package "Services" {
+      class FundsTransferDomainService <<domain-service>> {
+        +Transfer(BankAccount, BankAccount, DateOnly, Money, string) : void
+      }
+    }
+  }
+
+  package "Domain.Repositories" {
+    interface IBankAccountRepository <<repository>> {
+      +FindByAccountNumberAsync(AccountNumber, CancellationToken) : Task<BankAccount?>
+      +FindByTypeAsync(AccountType, CancellationToken) : Task<IEnumerable<BankAccount>>
+      +FindWithMovementsAsync(int, Period, CancellationToken) : Task<BankAccount?>
+    }
+
+    interface IPayableRepository <<repository>> {
+      +FindByStatusAsync(PaymentStatus, CancellationToken) : Task<IEnumerable<Payable>>
+      +FindByScheduledWeekAsync(CashFlowWeek, CancellationToken) : Task<IEnumerable<Payable>>
+      +FindByExpenseIdAsync(int, CancellationToken) : Task<Payable?>
+    }
+
+    interface ILoanRepository <<repository>> {
+      +FindByTypeAsync(LoanType, CancellationToken) : Task<IEnumerable<Loan>>
+      +FindWithInstallmentsDueInAsync(CashFlowWeek, CancellationToken) : Task<IEnumerable<Loan>>
+    }
+
+    interface IPartnerRepository <<repository>> {
+      +FindWithContributionsAsync(int, CancellationToken) : Task<Partner?>
+    }
+  }
+
+  package "Application" {
+    package "Errors" {
+      enum OpenBankAccountError <<error>> {
+        DuplicateAccountNumber
+        InvalidOpeningBalance
+        UnexpectedError
+      }
+
+      enum CashMovementError <<error>> {
+        BankAccountNotFound
+        InvalidAmount
+        CurrencyMismatch
+        UnexpectedError
+      }
+
+      enum TransferFundsError <<error>> {
+        SameAccount
+        BankAccountNotFound
+        CurrencyMismatch
+        InvalidAmount
+        UnexpectedError
+      }
+
+      enum PayableError <<error>> {
+        PayableNotFound
+        AlreadyPaid
+        AmountExceedsBalance
+        BankAccountNotFound
+        InvalidAmount
+        UnexpectedError
+      }
+
+      enum LoanError <<error>> {
+        LoanNotFound
+        InstallmentNotFound
+        InstallmentAlreadyPaid
+        InstallmentsExceedPrincipal
+        BankAccountNotFound
+        InvalidAmount
+        UnexpectedError
+      }
+
+      enum PartnerError <<error>> {
+        PartnerNotFound
+        DuplicatePartner
+        InvalidAmount
+        UnexpectedError
+      }
+    }
+
+    package "Services" {
+      interface IBankAccountCommandService <<application-service>> {
+        +Handle(OpenBankAccountCommand, CancellationToken) : Task<Result<BankAccount, OpenBankAccountError>>
+        +Handle(RegisterCashMovementCommand, CancellationToken) : Task<Result<CashMovement, CashMovementError>>
+        +Handle(TransferFundsCommand, CancellationToken) : Task<Result<BankAccount, TransferFundsError>>
+      }
+
+      interface IBankAccountQueryService <<application-service>> {
+        +Handle(GetAllBankAccountsQuery, CancellationToken) : Task<IEnumerable<BankAccount>>
+        +Handle(GetBankAccountByIdQuery, CancellationToken) : Task<BankAccount?>
+        +Handle(GetCashMovementsByAccountAndPeriodQuery, CancellationToken) : Task<IEnumerable<CashMovement>>
+      }
+
+      interface IPayableCommandService <<application-service>> {
+        +Handle(CreatePayableCommand, CancellationToken) : Task<Result<Payable, PayableError>>
+        +Handle(RegisterPayablePaymentCommand, CancellationToken) : Task<Result<PayablePayment, PayableError>>
+        +Handle(ReschedulePayableCommand, CancellationToken) : Task<Result<Payable, PayableError>>
+      }
+
+      interface IPayableQueryService <<application-service>> {
+        +Handle(GetAllPayablesQuery, CancellationToken) : Task<IEnumerable<Payable>>
+        +Handle(GetPayableByIdQuery, CancellationToken) : Task<Payable?>
+      }
+
+      interface ILoanCommandService <<application-service>> {
+        +Handle(RegisterLoanCommand, CancellationToken) : Task<Result<Loan, LoanError>>
+        +Handle(ScheduleLoanInstallmentCommand, CancellationToken) : Task<Result<LoanInstallment, LoanError>>
+        +Handle(PayLoanInstallmentCommand, CancellationToken) : Task<Result<LoanInstallment, LoanError>>
+      }
+
+      interface ILoanQueryService <<application-service>> {
+        +Handle(GetAllLoansQuery, CancellationToken) : Task<IEnumerable<Loan>>
+        +Handle(GetLoanByIdQuery, CancellationToken) : Task<Loan?>
+      }
+
+      interface IPartnerCommandService <<application-service>> {
+        +Handle(RegisterPartnerCommand, CancellationToken) : Task<Result<Partner, PartnerError>>
+        +Handle(RegisterPartnerContributionCommand, CancellationToken) : Task<Result<PartnerContribution, PartnerError>>
+      }
+
+      interface IPartnerQueryService <<application-service>> {
+        +Handle(GetAllPartnersQuery, CancellationToken) : Task<IEnumerable<Partner>>
+        +Handle(GetContributionsByPeriodQuery, CancellationToken) : Task<IEnumerable<PartnerContribution>>
+      }
+    }
+
+    package "Internal.CommandServices" {
+      class BankAccountCommandService <<service>> {
+        +Handle(OpenBankAccountCommand, CancellationToken) : Task<Result<BankAccount, OpenBankAccountError>>
+        +Handle(RegisterCashMovementCommand, CancellationToken) : Task<Result<CashMovement, CashMovementError>>
+        +Handle(TransferFundsCommand, CancellationToken) : Task<Result<BankAccount, TransferFundsError>>
+      }
+
+      class PayableCommandService <<service>> {
+        +Handle(CreatePayableCommand, CancellationToken) : Task<Result<Payable, PayableError>>
+        +Handle(RegisterPayablePaymentCommand, CancellationToken) : Task<Result<PayablePayment, PayableError>>
+        +Handle(ReschedulePayableCommand, CancellationToken) : Task<Result<Payable, PayableError>>
+      }
+
+      class LoanCommandService <<service>> {
+        +Handle(RegisterLoanCommand, CancellationToken) : Task<Result<Loan, LoanError>>
+        +Handle(ScheduleLoanInstallmentCommand, CancellationToken) : Task<Result<LoanInstallment, LoanError>>
+        +Handle(PayLoanInstallmentCommand, CancellationToken) : Task<Result<LoanInstallment, LoanError>>
+      }
+
+      class PartnerCommandService <<service>> {
+        +Handle(RegisterPartnerCommand, CancellationToken) : Task<Result<Partner, PartnerError>>
+        +Handle(RegisterPartnerContributionCommand, CancellationToken) : Task<Result<PartnerContribution, PartnerError>>
+      }
+    }
+
+    package "Internal.QueryServices" {
+      class BankAccountQueryService <<service>> {
+        +Handle(GetAllBankAccountsQuery, CancellationToken) : Task<IEnumerable<BankAccount>>
+        +Handle(GetBankAccountByIdQuery, CancellationToken) : Task<BankAccount?>
+        +Handle(GetCashMovementsByAccountAndPeriodQuery, CancellationToken) : Task<IEnumerable<CashMovement>>
+      }
+
+      class PayableQueryService <<service>> {
+        +Handle(GetAllPayablesQuery, CancellationToken) : Task<IEnumerable<Payable>>
+        +Handle(GetPayableByIdQuery, CancellationToken) : Task<Payable?>
+      }
+
+      class LoanQueryService <<service>> {
+        +Handle(GetAllLoansQuery, CancellationToken) : Task<IEnumerable<Loan>>
+        +Handle(GetLoanByIdQuery, CancellationToken) : Task<Loan?>
+      }
+
+      class PartnerQueryService <<service>> {
+        +Handle(GetAllPartnersQuery, CancellationToken) : Task<IEnumerable<Partner>>
+        +Handle(GetContributionsByPeriodQuery, CancellationToken) : Task<IEnumerable<PartnerContribution>>
+      }
+    }
+
+    package "Internal.EventHandlers" {
+      class InvoicePaymentReceivedEventHandler <<event-handler>> {
+        +Handle(InvoicePaymentReceivedEvent, CancellationToken) : Task
+      }
+
+      class InvoiceIssuedEventHandler <<event-handler>> {
+        +Handle(InvoiceIssuedEvent, CancellationToken) : Task
+      }
+
+      class ExpenseRegisteredEventHandler <<event-handler>> {
+        +Handle(ExpenseRegisteredEvent, CancellationToken) : Task
+      }
+
+      class FixedCostPaidEventHandler <<event-handler>> {
+        +Handle(FixedCostPaidEvent, CancellationToken) : Task
+      }
+
+      class TaxReturnPaidEventHandler <<event-handler>> {
+        +Handle(TaxReturnPaidEvent, CancellationToken) : Task
+      }
+    }
+
+    package "ACL" {
+      class TreasuryContextFacade <<facade>> {
+        +ExistsBankAccountById(int, CancellationToken) : Task<bool>
+        +FetchBankAccountType(int, CancellationToken) : Task<string?>
+        +ExistsPartnerById(int, CancellationToken) : Task<bool>
+        +FetchCashBalanceAt(DateOnly, CancellationToken) : Task<decimal>
+        +FetchCashBalanceByAccountAt(DateOnly, CancellationToken) : Task<IDictionary<string, decimal>>
+        +SumInflowsByWeek(CashFlowWeek, CancellationToken) : Task<decimal>
+        +SumOutflowsByWeek(CashFlowWeek, CancellationToken) : Task<decimal>
+        +SumScheduledPayablesByWeek(CashFlowWeek, CancellationToken) : Task<decimal>
+        +SumScheduledInstallmentsByWeek(CashFlowWeek, CancellationToken) : Task<decimal>
+      }
+    }
+  }
+
+  package "Infrastructure.Persistence.EFC.Repositories" {
+    class BankAccountRepository <<repository>> {
+      +FindByAccountNumberAsync(AccountNumber, CancellationToken) : Task<BankAccount?>
+      +FindByTypeAsync(AccountType, CancellationToken) : Task<IEnumerable<BankAccount>>
+      +FindWithMovementsAsync(int, Period, CancellationToken) : Task<BankAccount?>
+    }
+
+    class PayableRepository <<repository>> {
+      +FindByStatusAsync(PaymentStatus, CancellationToken) : Task<IEnumerable<Payable>>
+      +FindByScheduledWeekAsync(CashFlowWeek, CancellationToken) : Task<IEnumerable<Payable>>
+      +FindByExpenseIdAsync(int, CancellationToken) : Task<Payable?>
+    }
+
+    class LoanRepository <<repository>> {
+      +FindByTypeAsync(LoanType, CancellationToken) : Task<IEnumerable<Loan>>
+      +FindWithInstallmentsDueInAsync(CashFlowWeek, CancellationToken) : Task<IEnumerable<Loan>>
+    }
+
+    class PartnerRepository <<repository>> {
+      +FindWithContributionsAsync(int, CancellationToken) : Task<Partner?>
+    }
+  }
+
+  package "Infrastructure.Persistence.EFC.Configuration.Extensions" {
+    class TreasuryModelBuilderExtensions <<db-configuration>> {
+      +{static} ApplyTreasuryConfiguration(ModelBuilder) : void
+      --
+      +bank_accounts: unique index (account_number)
+      +cash_movements: index (bank_account_id, occurred_on)
+      +cash_movements: unique index (source, source_id, bank_account_id)
+      +payables: index (status), index (expense_id)
+      +loan_installments: index (due_on)
+    }
+  }
+}
+
+package "External Events" {
+  class InvoiceIssuedEvent <<event>>
+  class InvoicePaymentReceivedEvent <<event>>
+  class ExpenseRegisteredEvent <<event>>
+  class FixedCostPaidEvent <<event>>
+  class TaxReturnPaidEvent <<event>>
+}
+
+package "Shared" {
+  abstract class "Result<TValue, TError>" as ResultT <<result>>
+  abstract class AggregateRoot <<aggregate-root>>
+  interface IAuditableEntity <<auditable>>
+  interface IDomainEvent <<event>>
+  interface IDomainEventHandler<TEvent> <<event-handler>>
+  interface IBaseRepository<TEntity> <<repository>>
+  interface IUnitOfWork <<unit-of-work>>
+  class BaseRepository<TEntity> <<repository>>
+  class Money <<value-object>>
+  class Percentage <<value-object>>
+  class Period <<value-object>>
+  class CashFlowWeek <<value-object>>
+  enum Currency <<value-object>>
+  enum PaymentStatus <<value-object>>
+}
+
+' Relationships - Interfaces
+BankAccountsController --> IBankAccountCommandService : uses
+BankAccountsController --> IBankAccountQueryService : uses
+BankAccountsController --> BankAccountResourceFromEntityAssembler : uses
+BankAccountsController --> CashMovementResourceFromEntityAssembler : uses
+BankAccountsController --> OpenBankAccountCommandFromResourceAssembler : uses
+BankAccountsController --> TransferFundsCommandFromResourceAssembler : uses
+PayablesController --> IPayableCommandService : uses
+PayablesController --> IPayableQueryService : uses
+PayablesController --> PayableResourceFromEntityAssembler : uses
+PayablesController --> CreatePayableCommandFromResourceAssembler : uses
+PayablesController --> RegisterPayablePaymentCommandFromResourceAssembler : uses
+LoansController --> ILoanCommandService : uses
+LoansController --> ILoanQueryService : uses
+LoansController --> LoanResourceFromEntityAssembler : uses
+LoansController --> RegisterLoanCommandFromResourceAssembler : uses
+PartnersController --> IPartnerCommandService : uses
+PartnersController --> IPartnerQueryService : uses
+PartnersController --> PartnerResourceFromEntityAssembler : uses
+PartnersController --> RegisterContributionCommandFromResourceAssembler : uses
+
+BankAccountResourceFromEntityAssembler ..> BankAccount : reads
+BankAccountResourceFromEntityAssembler --> BankAccountResource : produces
+CashMovementResourceFromEntityAssembler ..> CashMovement : reads
+CashMovementResourceFromEntityAssembler --> CashMovementResource : produces
+OpenBankAccountCommandFromResourceAssembler ..> OpenBankAccountResource : reads
+OpenBankAccountCommandFromResourceAssembler --> OpenBankAccountCommand : produces
+TransferFundsCommandFromResourceAssembler ..> TransferFundsResource : reads
+TransferFundsCommandFromResourceAssembler --> TransferFundsCommand : produces
+PayableResourceFromEntityAssembler ..> Payable : reads
+PayableResourceFromEntityAssembler --> PayableResource : produces
+CreatePayableCommandFromResourceAssembler ..> CreatePayableResource : reads
+CreatePayableCommandFromResourceAssembler --> CreatePayableCommand : produces
+RegisterPayablePaymentCommandFromResourceAssembler ..> RegisterPayablePaymentResource : reads
+RegisterPayablePaymentCommandFromResourceAssembler --> RegisterPayablePaymentCommand : produces
+LoanResourceFromEntityAssembler ..> Loan : reads
+LoanResourceFromEntityAssembler --> LoanResource : produces
+RegisterLoanCommandFromResourceAssembler ..> RegisterLoanResource : reads
+RegisterLoanCommandFromResourceAssembler --> RegisterLoanCommand : produces
+PartnerResourceFromEntityAssembler ..> Partner : reads
+PartnerResourceFromEntityAssembler --> PartnerResource : produces
+RegisterContributionCommandFromResourceAssembler ..> RegisterContributionResource : reads
+RegisterContributionCommandFromResourceAssembler --> RegisterPartnerContributionCommand : produces
+
+' Relationships - Application
+BankAccountCommandService ..|> IBankAccountCommandService : implements
+BankAccountQueryService ..|> IBankAccountQueryService : implements
+PayableCommandService ..|> IPayableCommandService : implements
+PayableQueryService ..|> IPayableQueryService : implements
+LoanCommandService ..|> ILoanCommandService : implements
+LoanQueryService ..|> ILoanQueryService : implements
+PartnerCommandService ..|> IPartnerCommandService : implements
+PartnerQueryService ..|> IPartnerQueryService : implements
+TreasuryContextFacade ..|> ITreasuryContextFacade : implements
+TreasuryContextFacade --> IBankAccountRepository : uses
+TreasuryContextFacade --> IPayableRepository : uses
+TreasuryContextFacade --> ILoanRepository : uses
+TreasuryContextFacade --> IPartnerRepository : uses
+
+BankAccountCommandService --> IBankAccountRepository : uses
+BankAccountCommandService --> FundsTransferDomainService : uses
+BankAccountCommandService --> IUnitOfWork : uses
+BankAccountCommandService ..> ResultT : returns
+BankAccountQueryService --> IBankAccountRepository : uses
+PayableCommandService --> IPayableRepository : uses
+PayableCommandService --> IBankAccountRepository : uses
+PayableCommandService --> IUnitOfWork : uses
+PayableQueryService --> IPayableRepository : uses
+LoanCommandService --> ILoanRepository : uses
+LoanCommandService --> IBankAccountRepository : uses
+LoanCommandService --> IUnitOfWork : uses
+LoanQueryService --> ILoanRepository : uses
+PartnerCommandService --> IPartnerRepository : uses
+PartnerCommandService --> IBankAccountRepository : uses
+PartnerCommandService --> IUnitOfWork : uses
+PartnerQueryService --> IPartnerRepository : uses
+
+InvoicePaymentReceivedEventHandler ..|> IDomainEventHandler : implements
+InvoiceIssuedEventHandler ..|> IDomainEventHandler : implements
+ExpenseRegisteredEventHandler ..|> IDomainEventHandler : implements
+FixedCostPaidEventHandler ..|> IDomainEventHandler : implements
+TaxReturnPaidEventHandler ..|> IDomainEventHandler : implements
+InvoicePaymentReceivedEventHandler ..> InvoicePaymentReceivedEvent : handles
+InvoiceIssuedEventHandler ..> InvoiceIssuedEvent : handles
+ExpenseRegisteredEventHandler ..> ExpenseRegisteredEvent : handles
+FixedCostPaidEventHandler ..> FixedCostPaidEvent : handles
+TaxReturnPaidEventHandler ..> TaxReturnPaidEvent : handles
+InvoicePaymentReceivedEventHandler --> IBankAccountRepository : inflow
+InvoiceIssuedEventHandler --> IPayableRepository : self-detraction payable
+ExpenseRegisteredEventHandler --> IBankAccountRepository : outflow
+ExpenseRegisteredEventHandler --> IPayableRepository : payable if unpaid
+ExpenseRegisteredEventHandler --> IPartnerRepository : contribution
+FixedCostPaidEventHandler --> IBankAccountRepository : outflow
+TaxReturnPaidEventHandler --> IBankAccountRepository : outflow
+
+' Relationships - Infrastructure
+IBankAccountRepository --|> IBaseRepository : extends
+IPayableRepository --|> IBaseRepository : extends
+ILoanRepository --|> IBaseRepository : extends
+IPartnerRepository --|> IBaseRepository : extends
+BankAccountRepository ..|> IBankAccountRepository : implements
+BankAccountRepository --|> BaseRepository : extends
+PayableRepository ..|> IPayableRepository : implements
+PayableRepository --|> BaseRepository : extends
+LoanRepository ..|> ILoanRepository : implements
+LoanRepository --|> BaseRepository : extends
+PartnerRepository ..|> IPartnerRepository : implements
+PartnerRepository --|> BaseRepository : extends
+
+' Relationships - Domain
+BankAccount --|> AggregateRoot : extends
+Payable --|> AggregateRoot : extends
+Loan --|> AggregateRoot : extends
+Partner --|> AggregateRoot : extends
+BankAccount ..|> IAuditableEntity : implements
+Payable ..|> IAuditableEntity : implements
+Loan ..|> IAuditableEntity : implements
+Partner ..|> IAuditableEntity : implements
+
+BankAccount --> Bank : has
+BankAccount --> AccountType : has
+BankAccount --> AccountNumber : owns
+BankAccount --> Currency : has
+BankAccount "1" *-- "0..*" CashMovement : contains
+CashMovement --> MovementDirection : has
+CashMovement --> MovementSource : has
+CashMovement --> Money : owns
+Payable --> PayableType : has
+Payable --> PaymentStatus : has
+Payable --> CashFlowWeek : scheduled
+Payable "1" *-- "0..*" PayablePayment : contains
+Loan --> LoanType : has
+Loan --> Percentage : owns
+Loan "1" *-- "0..*" LoanInstallment : contains
+LoanInstallment --> CashFlowWeek : due
+Partner "1" *-- "0..*" PartnerContribution : contains
+FundsTransferDomainService ..> BankAccount : moves funds
+
+Payable ..> PayablePaidEvent : raises
+Loan ..> LoanDisbursedEvent : raises
+Loan ..> LoanInstallmentPaidEvent : raises
+Partner ..> PartnerContributionRegisteredEvent : raises
+FundsTransferDomainService ..> FundsTransferredEvent : raises
+PayablePaidEvent ..|> IDomainEvent : implements
+LoanDisbursedEvent ..|> IDomainEvent : implements
+LoanInstallmentPaidEvent ..|> IDomainEvent : implements
+PartnerContributionRegisteredEvent ..|> IDomainEvent : implements
+FundsTransferredEvent ..|> IDomainEvent : implements
+
+note right of BankAccount
+  Fuente ÚNICA del saldo de caja:
+  BalanceAt(d) = OpeningBalance
+     + suma(Inflows <= d) - suma(Outflows <= d)
+  Reemplaza los saldos tipeados a mano del Excel
+  (=2449.37+6000-425-85...) y los saldos iniciales
+  pegados entre meses.
+  Cada movimiento guarda Source + SourceId
+  (idempotencia: un evento no se registra 2 veces).
+  Cuentas: BCP / BBVA (Checking),
+  BN (Detractions), Caja chica (PettyCash).
+end note
+
+note right of Payable
+  "Pagos Pendientes" del Excel.
+  Status: Pending -> PartiallyPaid -> Paid
+  Balance = TotalAmount - PaidAmount
+  No se paga más que Balance.
+  ScheduledWeek alimenta el flujo proyectado.
+  Si ExpenseId != null, al pagarse completo
+  Expenses marca el gasto como Paid.
+end note
+
+note right of Loan
+  Received: préstamos a la empresa (pasivo)
+  Granted: préstamos otorgados (activo,
+  "Préstamo por Cobrar" del balance)
+  Received -> inflow al desembolsar,
+              outflow al pagar cuota
+  Granted  -> al revés
+  Suma(Installments.Principal) <= Principal
+  En Excel la cuota de dic. no restaba al flujo
+  por faltar el "pago parcial": aquí cada
+  cuota programada SIEMPRE entra al proyectado.
+end note
+
+note bottom of Partner
+  "Aportes Ingeniero": gastos pagados por un
+  socio con dinero propio. Si IsReimbursable ->
+  cuenta por pagar al socio; si no -> aporte
+  de capital (patrimonio).
+end note
+@enduml
