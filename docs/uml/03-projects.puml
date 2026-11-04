@@ -1,0 +1,679 @@
+@startuml
+' Brasper Platform - Projects Bounded Context (Java 21 / Spring Boot 3)
+
+skinparam classAttributeIconSize 0
+set separator none
+hide empty members
+
+package "projects" {
+
+  package "interfaces.rest" {
+    class ClientsController <<rest-controller>> {
+      +createClient(CreateClientResource) : ResponseEntity<?>
+      +updateClient(Long, UpdateClientResource) : ResponseEntity<?>
+      +getAllClients() : ResponseEntity<?>
+      +getClientById(Long) : ResponseEntity<?>
+    }
+
+    class ProjectsController <<rest-controller>> {
+      +createProject(CreateProjectResource) : ResponseEntity<?>
+      +updateProject(Long, UpdateProjectResource) : ResponseEntity<?>
+      +startProject(Long) : ResponseEntity<?>
+      +cancelProject(Long) : ResponseEntity<?>
+      +getProjectById(Long) : ResponseEntity<?>
+      +getProjectsWithParameters(String, Long, String) : ResponseEntity<?>
+    }
+
+    class ProjectProgressController <<rest-controller>> {
+      +registerProgress(Long, RegisterProgressResource) : ResponseEntity<?>
+      +getProgressByProjectId(Long) : ResponseEntity<?>
+    }
+
+    class ProjectCostEstimatesController <<rest-controller>> {
+      +setCostEstimate(Long, SetCostEstimateResource) : ResponseEntity<?>
+      +getCostEstimatesByProjectId(Long) : ResponseEntity<?>
+    }
+  }
+
+  package "interfaces.rest.resources" {
+    class CreateClientResource <<request-resource>> {
+      +String businessName
+      +String ruc
+      +String contactName
+      +String phone
+      +String email
+    }
+
+    class UpdateClientResource <<request-resource>> {
+      +String businessName
+      +String contactName
+      +String phone
+      +String email
+    }
+
+    class ClientResource <<response-resource>> {
+      +Long id
+      +String businessName
+      +String ruc
+      +String contactName
+      +String phone
+      +String email
+    }
+
+    class CreateProjectResource <<request-resource>> {
+      +String code
+      +String name
+      +String description
+      +Long clientId
+      +BigDecimal budget
+      +String currency
+      +LocalDate quotedOn
+      +BigDecimal participation
+      +BigDecimal salesCommissionRate
+    }
+
+    class UpdateProjectResource <<request-resource>> {
+      +String name
+      +String description
+      +BigDecimal budget
+      +BigDecimal participation
+      +BigDecimal salesCommissionRate
+    }
+
+    class ProjectResource <<response-resource>> {
+      +Long id
+      +String code
+      +String name
+      +String description
+      +Long clientId
+      +BigDecimal budget
+      +String currency
+      +LocalDate quotedOn
+      +String status
+      +BigDecimal participation
+      +BigDecimal salesCommissionRate
+      +BigDecimal accumulatedProgress
+      +BigDecimal estimatedDirectCost
+    }
+
+    class RegisterProgressResource <<request-resource>> {
+      +int year
+      +int month
+      +BigDecimal percentage
+    }
+
+    class ProgressRecordResource <<response-resource>> {
+      +Long id
+      +int year
+      +int month
+      +BigDecimal percentage
+    }
+
+    class SetCostEstimateResource <<request-resource>> {
+      +String category
+      +BigDecimal estimatedAmount
+    }
+
+    class CostEstimateResource <<response-resource>> {
+      +Long id
+      +String category
+      +BigDecimal estimatedAmount
+    }
+  }
+
+  package "interfaces.rest.transform" {
+    class CreateClientCommandFromResourceAssembler <<translator>> {
+      +toCommandFromResource(CreateClientResource) : CreateClientCommand
+    }
+
+    class UpdateClientCommandFromResourceAssembler <<translator>> {
+      +toCommandFromResource(Long, UpdateClientResource) : UpdateClientCommand
+    }
+
+    class CreateProjectCommandFromResourceAssembler <<translator>> {
+      +toCommandFromResource(CreateProjectResource) : CreateProjectCommand
+    }
+
+    class UpdateProjectCommandFromResourceAssembler <<translator>> {
+      +toCommandFromResource(Long, UpdateProjectResource) : UpdateProjectCommand
+    }
+
+    class RegisterProjectProgressCommandFromResourceAssembler <<translator>> {
+      +toCommandFromResource(Long, RegisterProgressResource) : RegisterProjectProgressCommand
+    }
+
+    class SetProjectCostEstimateCommandFromResourceAssembler <<translator>> {
+      +toCommandFromResource(Long, SetCostEstimateResource) : SetProjectCostEstimateCommand
+    }
+
+    class ProjectsValueObjectFromStringAssembler <<translator>> {
+      +toProjectCodeFromString(String) : ProjectCode
+      +toProjectStatusFromString(String) : ProjectStatus
+      +toRucFromString(String) : Ruc
+      +toCostCategoryFromString(String) : CostCategory
+    }
+
+    class ClientResourceFromEntityAssembler <<translator>> {
+      +toResourceFromEntity(Client) : ClientResource
+    }
+
+    class ProjectResourceFromEntityAssembler <<translator>> {
+      +toResourceFromEntity(Project) : ProjectResource
+    }
+
+    class ProgressRecordResourceFromEntityAssembler <<translator>> {
+      +toResourceFromEntity(ProgressRecord) : ProgressRecordResource
+    }
+
+    class CostEstimateResourceFromEntityAssembler <<translator>> {
+      +toResourceFromEntity(CostEstimate) : CostEstimateResource
+    }
+
+    class ResponseEntityFromClientCommandResultAssembler <<translator>> {
+      +toResponseEntityFromResult(Result<Client, ClientCommandFailure>, MessageSource) : ResponseEntity<?>
+    }
+
+    class ResponseEntityFromProjectCommandResultAssembler <<translator>> {
+      +toResponseEntityFromResult(Result<Project, ProjectCommandFailure>, MessageSource) : ResponseEntity<?>
+      +toResponseEntityFromProgressResult(Result<ProgressRecord, ProjectCommandFailure>, MessageSource) : ResponseEntity<?>
+      +toResponseEntityFromEstimateResult(Result<CostEstimate, ProjectCommandFailure>, MessageSource) : ResponseEntity<?>
+    }
+
+    class ResponseEntityFromClientQueryResultAssembler <<translator>> {
+      +toResponseEntityFromClient(Client) : ResponseEntity<?>
+      +toResponseEntityFromList(List<Client>) : ResponseEntity<?>
+      +notFound(MessageSource, String, Object...) : ResponseEntity<ProblemDetail>
+    }
+
+    class ResponseEntityFromProjectQueryResultAssembler <<translator>> {
+      +toResponseEntityFromProject(Project) : ResponseEntity<?>
+      +toResponseEntityFromList(List<Project>) : ResponseEntity<?>
+      +toResponseEntityFromProgressList(List<ProgressRecord>) : ResponseEntity<?>
+      +toResponseEntityFromEstimateList(List<CostEstimate>) : ResponseEntity<?>
+      +badRequest(MessageSource, String, Object...) : ResponseEntity<ProblemDetail>
+      +notFound(MessageSource, String, Object...) : ResponseEntity<ProblemDetail>
+    }
+  }
+
+  package "interfaces.acl" {
+    interface ProjectsContextFacade <<context-facade>> {
+      +existsProjectById(Long) : boolean
+      +fetchProjectIdByCode(String) : Optional<Long>
+      +fetchProjectStatus(Long) : Optional<String>
+      +fetchProjectSnapshot(Long) : Optional<ProjectSnapshot>
+      +fetchProjectSnapshots(int, int) : List<ProjectSnapshot>
+      +fetchProgressByPeriod(int, int) : Map<Long, BigDecimal>
+    }
+
+    class ProjectSnapshot <<record>> {
+      +Long id
+      +String code
+      +String name
+      +String clientName
+      +String status
+      +BigDecimal budget
+      +BigDecimal participation
+      +BigDecimal salesCommissionRate
+      +BigDecimal accumulatedProgress
+      +BigDecimal estimatedCost
+    }
+  }
+
+  package "application.commandservices" {
+    interface ClientCommandService <<application-service>> {
+      +handle(CreateClientCommand) : Result<Client, ClientCommandFailure>
+      +handle(UpdateClientCommand) : Result<Client, ClientCommandFailure>
+    }
+
+    interface ProjectCommandService <<application-service>> {
+      +handle(CreateProjectCommand) : Result<Project, ProjectCommandFailure>
+      +handle(UpdateProjectCommand) : Result<Project, ProjectCommandFailure>
+      +handle(StartProjectCommand) : Result<Project, ProjectCommandFailure>
+      +handle(CancelProjectCommand) : Result<Project, ProjectCommandFailure>
+      +handle(RegisterProjectProgressCommand) : Result<ProgressRecord, ProjectCommandFailure>
+      +handle(SetProjectCostEstimateCommand) : Result<CostEstimate, ProjectCommandFailure>
+    }
+
+    interface ClientCommandFailure <<failure>> {
+      +messageKey() : String
+    }
+
+    class "ClientCommandFailure.DuplicateRuc" as ClientFailureDuplicateRuc <<failure>>
+    class "ClientCommandFailure.NotFound" as ClientFailureNotFound <<failure>>
+
+    interface ProjectCommandFailure <<failure>> {
+      +messageKey() : String
+    }
+
+    class "ProjectCommandFailure.DuplicateCode" as ProjectFailureDuplicateCode <<failure>>
+    class "ProjectCommandFailure.ClientNotFound" as ProjectFailureClientNotFound <<failure>>
+    class "ProjectCommandFailure.NotFound" as ProjectFailureNotFound <<failure>>
+    class "ProjectCommandFailure.InvalidStatusTransition" as ProjectFailureInvalidStatusTransition <<failure>>
+    class "ProjectCommandFailure.ProgressExceedsLimit" as ProjectFailureProgressExceedsLimit <<failure>>
+    class "ProjectCommandFailure.PeriodAlreadyRegistered" as ProjectFailurePeriodAlreadyRegistered <<failure>>
+  }
+
+  package "application.queryservices" {
+    interface ClientQueryService <<application-service>> {
+      +handle(GetAllClientsQuery) : List<Client>
+      +handle(GetClientByIdQuery) : Optional<Client>
+    }
+
+    interface ProjectQueryService <<application-service>> {
+      +handle(GetAllProjectsQuery) : List<Project>
+      +handle(GetProjectByIdQuery) : Optional<Project>
+      +handle(GetProjectByCodeQuery) : Optional<Project>
+      +handle(GetProgressByProjectIdQuery) : List<ProgressRecord>
+      +handle(GetCostEstimatesByProjectIdQuery) : List<CostEstimate>
+    }
+  }
+
+  package "application.internal.commandservices" {
+    class ClientCommandServiceImpl <<application-service>> {
+      +handle(CreateClientCommand) : Result<Client, ClientCommandFailure>
+      +handle(UpdateClientCommand) : Result<Client, ClientCommandFailure>
+      -isDuplicateRucViolation(DataIntegrityViolationException) : boolean
+    }
+
+    class ProjectCommandServiceImpl <<application-service>> {
+      +handle(CreateProjectCommand) : Result<Project, ProjectCommandFailure>
+      +handle(UpdateProjectCommand) : Result<Project, ProjectCommandFailure>
+      +handle(StartProjectCommand) : Result<Project, ProjectCommandFailure>
+      +handle(CancelProjectCommand) : Result<Project, ProjectCommandFailure>
+      +handle(RegisterProjectProgressCommand) : Result<ProgressRecord, ProjectCommandFailure>
+      +handle(SetProjectCostEstimateCommand) : Result<CostEstimate, ProjectCommandFailure>
+      -isDuplicateCodeViolation(DataIntegrityViolationException) : boolean
+    }
+  }
+
+  package "application.internal.queryservices" {
+    class ClientQueryServiceImpl <<application-service>> {
+      +handle(GetAllClientsQuery) : List<Client>
+      +handle(GetClientByIdQuery) : Optional<Client>
+    }
+
+    class ProjectQueryServiceImpl <<application-service>> {
+      +handle(GetAllProjectsQuery) : List<Project>
+      +handle(GetProjectByIdQuery) : Optional<Project>
+      +handle(GetProjectByCodeQuery) : Optional<Project>
+      +handle(GetProgressByProjectIdQuery) : List<ProgressRecord>
+      +handle(GetCostEstimatesByProjectIdQuery) : List<CostEstimate>
+    }
+  }
+
+  package "application.acl" {
+    class ProjectsContextFacadeImpl <<context-facade>> {
+      +existsProjectById(Long) : boolean
+      +fetchProjectIdByCode(String) : Optional<Long>
+      +fetchProjectStatus(Long) : Optional<String>
+      +fetchProjectSnapshot(Long) : Optional<ProjectSnapshot>
+      +fetchProjectSnapshots(int, int) : List<ProjectSnapshot>
+      +fetchProgressByPeriod(int, int) : Map<Long, BigDecimal>
+    }
+  }
+
+  package "domain.model.aggregates" {
+    class Client <<aggregate-root>> {
+      +RUC_UNIQUE_CONSTRAINT : String
+      -Long id
+      -String businessName
+      -Ruc ruc
+      -String contactName
+      -String phone
+      -String email
+      -Instant createdAt
+      -Instant updatedAt
+      +Client(CreateClientCommand)
+      +update(UpdateClientCommand) : void
+    }
+
+    class Project <<aggregate-root>> {
+      +CODE_UNIQUE_CONSTRAINT : String
+      -Long id
+      -ProjectCode code
+      -String name
+      -String description
+      -Long clientId
+      -Money budget
+      -LocalDate quotedOn
+      -ProjectStatus status
+      -Percentage participation
+      -Percentage salesCommissionRate
+      -List<ProgressRecord> progressRecords
+      -List<CostEstimate> costEstimates
+      -Instant createdAt
+      -Instant updatedAt
+      +Project(CreateProjectCommand)
+      +update(UpdateProjectCommand) : void
+      +start() : void
+      +cancel() : void
+      +registerProgress(Period, Percentage) : ProgressRecord
+      +setCostEstimate(CostCategory, Money) : CostEstimate
+      +accumulatedProgress() : Percentage
+      +estimatedDirectCost() : Money
+      +salesCommission(Percentage) : Money
+    }
+  }
+
+  package "domain.model.entities" {
+    class ProgressRecord <<entity>> {
+      -Long id
+      -Project project
+      -Period period
+      -Percentage percentage
+    }
+
+    class CostEstimate <<entity>> {
+      -Long id
+      -Project project
+      -CostCategory category
+      -Money estimatedAmount
+    }
+  }
+
+  package "domain.model.valueobjects" {
+    class ProjectCode <<value-object>> {
+      +String value
+      +sequence() : int
+      +month() : int
+      +year() : int
+    }
+
+    enum ProjectStatus <<value-object>> {
+      QUOTED
+      IN_PROGRESS
+      COMPLETED
+      CANCELLED
+    }
+  }
+
+  package "domain.model.commands" {
+    class CreateClientCommand <<command>> {
+      +String businessName
+      +Ruc ruc
+      +String contactName
+      +String phone
+      +String email
+    }
+
+    class UpdateClientCommand <<command>> {
+      +Long clientId
+      +String businessName
+      +String contactName
+      +String phone
+      +String email
+    }
+
+    class CreateProjectCommand <<command>> {
+      +ProjectCode code
+      +String name
+      +String description
+      +Long clientId
+      +Money budget
+      +LocalDate quotedOn
+      +Percentage participation
+      +Percentage salesCommissionRate
+    }
+
+    class UpdateProjectCommand <<command>> {
+      +Long projectId
+      +String name
+      +String description
+      +Money budget
+      +Percentage participation
+      +Percentage salesCommissionRate
+    }
+
+    class StartProjectCommand <<command>> {
+      +Long projectId
+    }
+
+    class CancelProjectCommand <<command>> {
+      +Long projectId
+    }
+
+    class RegisterProjectProgressCommand <<command>> {
+      +Long projectId
+      +Period period
+      +Percentage percentage
+    }
+
+    class SetProjectCostEstimateCommand <<command>> {
+      +Long projectId
+      +CostCategory category
+      +Money estimatedAmount
+    }
+  }
+
+  package "domain.model.queries" {
+    class GetAllClientsQuery <<query>>
+
+    class GetClientByIdQuery <<query>> {
+      +Long id
+    }
+
+    class GetAllProjectsQuery <<query>> {
+      +ProjectStatus status
+      +Long clientId
+    }
+
+    class GetProjectByIdQuery <<query>> {
+      +Long id
+    }
+
+    class GetProjectByCodeQuery <<query>> {
+      +ProjectCode code
+    }
+
+    class GetProgressByProjectIdQuery <<query>> {
+      +Long projectId
+    }
+
+    class GetCostEstimatesByProjectIdQuery <<query>> {
+      +Long projectId
+    }
+  }
+
+  package "domain.model.events" {
+    class ProjectStartedEvent <<domain-event>> {
+      +Long projectId
+      +LocalDate startedOn
+    }
+
+    class ProjectCompletedEvent <<domain-event>> {
+      +Long projectId
+      +String code
+      +Period completedIn
+    }
+  }
+
+  package "infrastructure.persistence.jpa" {
+    interface ClientRepository <<spring-data-repository>> {
+      +findByRuc(Ruc) : Optional<Client>
+      +existsByRuc(Ruc) : boolean
+    }
+
+    interface ProjectRepository <<spring-data-repository>> {
+      +findByCode(ProjectCode) : Optional<Project>
+      +existsByCode(ProjectCode) : boolean
+      +findAllByStatus(ProjectStatus) : List<Project>
+      +findAllByClientId(Long) : List<Project>
+    }
+
+    class ProjectCodeAttributeConverter <<jpa-converter>> {
+      +convertToDatabaseColumn(ProjectCode) : String
+      +convertToEntityAttribute(String) : ProjectCode
+    }
+  }
+}
+
+package "shared" {
+  interface "Result<T, E>" as Result <<sealed-result>>
+  interface CommandFailure <<failure>>
+  class Money <<embeddable-value-object>>
+  class Percentage <<value-object>>
+  class Period <<embeddable-value-object>>
+  class Ruc <<value-object>>
+  enum CostCategory <<value-object>>
+}
+
+package "org.springframework" {
+  interface "JpaRepository<T, ID>" as JpaRepository <<Spring Data>>
+  abstract class "AbstractAggregateRoot<A>" as AbstractAggregateRoot <<Spring Data>>
+}
+
+' Interfaces
+ClientsController --> ClientCommandService : invokes
+ClientsController --> ClientQueryService : invokes
+ClientsController ..> CreateClientResource : accepts
+ClientsController --> CreateClientCommandFromResourceAssembler : uses
+ClientsController --> UpdateClientCommandFromResourceAssembler : uses
+ClientsController --> ResponseEntityFromClientCommandResultAssembler : uses
+ClientsController --> ResponseEntityFromClientQueryResultAssembler : uses
+ProjectsController --> ProjectCommandService : invokes
+ProjectsController --> ProjectQueryService : invokes
+ProjectsController ..> CreateProjectResource : accepts
+ProjectsController --> CreateProjectCommandFromResourceAssembler : uses
+ProjectsController --> UpdateProjectCommandFromResourceAssembler : uses
+ProjectsController --> ProjectsValueObjectFromStringAssembler : uses
+ProjectsController --> ResponseEntityFromProjectCommandResultAssembler : uses
+ProjectsController --> ResponseEntityFromProjectQueryResultAssembler : uses
+ProjectProgressController --> ProjectCommandService : invokes
+ProjectProgressController --> ProjectQueryService : invokes
+ProjectProgressController --> RegisterProjectProgressCommandFromResourceAssembler : uses
+ProjectProgressController --> ResponseEntityFromProjectCommandResultAssembler : uses
+ProjectProgressController --> ResponseEntityFromProjectQueryResultAssembler : uses
+ProjectCostEstimatesController --> ProjectCommandService : invokes
+ProjectCostEstimatesController --> ProjectQueryService : invokes
+ProjectCostEstimatesController --> SetProjectCostEstimateCommandFromResourceAssembler : uses
+ProjectCostEstimatesController --> ResponseEntityFromProjectCommandResultAssembler : uses
+ProjectCostEstimatesController --> ResponseEntityFromProjectQueryResultAssembler : uses
+
+' HTTP mapping
+CreateClientCommandFromResourceAssembler ..> CreateClientResource : reads
+CreateClientCommandFromResourceAssembler --> CreateClientCommand : creates
+UpdateClientCommandFromResourceAssembler ..> UpdateClientResource : reads
+UpdateClientCommandFromResourceAssembler --> UpdateClientCommand : creates
+CreateProjectCommandFromResourceAssembler ..> CreateProjectResource : reads
+CreateProjectCommandFromResourceAssembler --> CreateProjectCommand : creates
+UpdateProjectCommandFromResourceAssembler ..> UpdateProjectResource : reads
+UpdateProjectCommandFromResourceAssembler --> UpdateProjectCommand : creates
+RegisterProjectProgressCommandFromResourceAssembler ..> RegisterProgressResource : reads
+RegisterProjectProgressCommandFromResourceAssembler --> RegisterProjectProgressCommand : creates
+SetProjectCostEstimateCommandFromResourceAssembler ..> SetCostEstimateResource : reads
+SetProjectCostEstimateCommandFromResourceAssembler --> SetProjectCostEstimateCommand : creates
+CreateClientCommandFromResourceAssembler --> ProjectsValueObjectFromStringAssembler : uses
+CreateProjectCommandFromResourceAssembler --> ProjectsValueObjectFromStringAssembler : uses
+ProjectsValueObjectFromStringAssembler --> ProjectCode : creates
+ProjectsValueObjectFromStringAssembler --> ProjectStatus : creates
+ProjectsValueObjectFromStringAssembler --> Ruc : creates
+ProjectsValueObjectFromStringAssembler --> CostCategory : creates
+ResponseEntityFromClientCommandResultAssembler --> Result : maps
+ResponseEntityFromClientCommandResultAssembler --> ClientCommandFailure : maps
+ResponseEntityFromClientCommandResultAssembler --> ClientResourceFromEntityAssembler : uses
+ResponseEntityFromClientQueryResultAssembler --> ClientResourceFromEntityAssembler : uses
+ResponseEntityFromProjectCommandResultAssembler --> Result : maps
+ResponseEntityFromProjectCommandResultAssembler --> ProjectCommandFailure : maps
+ResponseEntityFromProjectCommandResultAssembler --> ProjectResourceFromEntityAssembler : uses
+ResponseEntityFromProjectCommandResultAssembler --> ProgressRecordResourceFromEntityAssembler : uses
+ResponseEntityFromProjectCommandResultAssembler --> CostEstimateResourceFromEntityAssembler : uses
+ResponseEntityFromProjectQueryResultAssembler --> ProjectResourceFromEntityAssembler : uses
+ResponseEntityFromProjectQueryResultAssembler --> ProgressRecordResourceFromEntityAssembler : uses
+ResponseEntityFromProjectQueryResultAssembler --> CostEstimateResourceFromEntityAssembler : uses
+ClientResourceFromEntityAssembler ..> Client : reads
+ClientResourceFromEntityAssembler --> ClientResource : creates
+ProjectResourceFromEntityAssembler ..> Project : reads
+ProjectResourceFromEntityAssembler --> ProjectResource : creates
+ProgressRecordResourceFromEntityAssembler ..> ProgressRecord : reads
+ProgressRecordResourceFromEntityAssembler --> ProgressRecordResource : creates
+CostEstimateResourceFromEntityAssembler ..> CostEstimate : reads
+CostEstimateResourceFromEntityAssembler --> CostEstimateResource : creates
+
+' Application
+ClientCommandServiceImpl ..|> ClientCommandService : implements
+ClientQueryServiceImpl ..|> ClientQueryService : implements
+ProjectCommandServiceImpl ..|> ProjectCommandService : implements
+ProjectQueryServiceImpl ..|> ProjectQueryService : implements
+ProjectsContextFacadeImpl ..|> ProjectsContextFacade : implements
+ProjectsContextFacadeImpl --> ProjectQueryService : uses
+ProjectsContextFacadeImpl --> ClientQueryService : uses
+ProjectsContextFacadeImpl --> ProjectSnapshot : creates
+ClientCommandFailure --|> CommandFailure : extends
+ProjectCommandFailure --|> CommandFailure : extends
+ClientFailureDuplicateRuc ..|> ClientCommandFailure : implements
+ClientFailureNotFound ..|> ClientCommandFailure : implements
+ProjectFailureDuplicateCode ..|> ProjectCommandFailure : implements
+ProjectFailureClientNotFound ..|> ProjectCommandFailure : implements
+ProjectFailureNotFound ..|> ProjectCommandFailure : implements
+ProjectFailureInvalidStatusTransition ..|> ProjectCommandFailure : implements
+ProjectFailureProgressExceedsLimit ..|> ProjectCommandFailure : implements
+ProjectFailurePeriodAlreadyRegistered ..|> ProjectCommandFailure : implements
+ClientCommandService --> Result : returns
+ProjectCommandService --> Result : returns
+ClientCommandServiceImpl --> ClientRepository : uses
+ClientCommandServiceImpl --> Client : creates
+ClientQueryServiceImpl --> ClientRepository : uses
+ProjectCommandServiceImpl --> ProjectRepository : uses
+ProjectCommandServiceImpl --> ClientRepository : uses
+ProjectCommandServiceImpl --> Project : creates
+ProjectQueryServiceImpl --> ProjectRepository : uses
+ProjectQueryService --> Project : returns
+ClientQueryService --> Client : returns
+
+' Domain model and persistence mapping
+Client --|> AbstractAggregateRoot : extends
+Project --|> AbstractAggregateRoot : extends
+Client --> CreateClientCommand : constructed from
+Project --> CreateProjectCommand : constructed from
+Client --> Ruc : contains
+Project --> ProjectCode : contains
+Project --> ProjectStatus : has
+Project --> Money : contains
+Project --> Percentage : contains
+Project "1" *-- "0..*" ProgressRecord : contains
+Project "1" *-- "0..*" CostEstimate : contains
+Project "0..*" ..> "1" Client : clientId
+ProgressRecord --> Period : contains
+CostEstimate --> CostCategory : has
+Project ..> ProjectStartedEvent : registers
+Project ..> ProjectCompletedEvent : registers
+CreateClientCommand --> Ruc : contains
+CreateProjectCommand --> ProjectCode : contains
+RegisterProjectProgressCommand --> Period : contains
+SetProjectCostEstimateCommand --> CostCategory : contains
+GetProjectByCodeQuery --> ProjectCode : contains
+ClientRepository --> Client : persists
+ClientRepository --|> JpaRepository : extends
+ProjectRepository --> Project : persists
+ProjectRepository --|> JpaRepository : extends
+ProjectRepository --> ProjectCode : queries by
+ProjectCodeAttributeConverter ..> ProjectCode : converts
+
+note right of Project
+  Invariantes:
+  - code único, formato NNNBR-MMM-AAAA (ej. 862BR-AGO-2026)
+  - budget = base imponible sin IGV, > 0
+  - participation: 1.0 propio / 0.5 compartido (Linings)
+  - suma de progressRecords <= 100%; un registro por Period
+  - solo IN_PROGRESS admite avance
+  - al llegar a 100% -> COMPLETED + ProjectCompletedEvent
+  salesCommission(igvRate) =
+    budget x (1 + igvRate) x salesCommissionRate
+  El costo REAL no vive aquí: lo calcula reporting
+  desde expenses (por projectId).
+end note
+
+note right of ProjectCode
+  Regex: ^\d{3}BR-(ENE|FEB|MAR|ABR|MAY|JUN|
+  JUL|AGO|SEP|OCT|NOV|DIC)-\d{4}$
+  Evita errores del Excel como
+  "8789R-OCT-2026" o "853BRJUN-2026".
+end note
+
+note bottom
+  The REST controllers delegate client and project use cases to application services.
+  Project is the aggregate root for its progress records and cost estimates
+  (@OneToMany cascade ALL, orphanRemoval). Other bounded contexts read projects only
+  through ProjectsContextFacade and reference them by projectId (Long).
+end note
+@enduml

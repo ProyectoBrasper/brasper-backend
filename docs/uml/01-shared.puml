@@ -1,0 +1,244 @@
+@startuml
+' Brasper Platform - Shared Kernel Class Diagram (Java 21 / Spring Boot 3)
+
+skinparam classAttributeIconSize 0
+set separator none
+hide empty members
+
+package "shared" {
+
+  package "interfaces.rest" {
+    class GlobalExceptionHandler <<rest-controller-advice>> {
+      +handleException(MethodArgumentNotValidException, Locale) : ErrorResponse
+      +handleException(IllegalArgumentException, Locale) : ErrorResponse
+      +handleException(IllegalStateException, Locale) : ErrorResponse
+    }
+  }
+
+  package "interfaces.rest.resources" {
+    class MoneyResource <<response-resource>> {
+      +BigDecimal amount
+      +String currency
+    }
+
+    class PeriodResource <<response-resource>> {
+      +int year
+      +int month
+    }
+  }
+
+  package "interfaces.rest.transform" {
+    class ProblemDetailAssembler <<translator>> {
+      +{static} badRequest(MessageSource, String, Object...) : ResponseEntity<ProblemDetail>
+      +{static} notFound(MessageSource, String, Object...) : ResponseEntity<ProblemDetail>
+      +{static} conflict(MessageSource, String, Object...) : ResponseEntity<ProblemDetail>
+      +{static} unprocessable(MessageSource, String, Object...) : ResponseEntity<ProblemDetail>
+    }
+  }
+
+  package "application.result" {
+    interface "Result<T, E>" as Result <<sealed-result>> {
+      +{static} success(T) : Result<T, E>
+      +{static} failure(E) : Result<T, E>
+      +isSuccess() : boolean
+      +isFailure() : boolean
+      +success() : Optional<T>
+      +failure() : Optional<E>
+      +map(Function<T, U>) : Result<U, E>
+      +fold(Function<T, R>, Function<E, R>) : R
+    }
+
+    class "Result.Success<T, E>" as ResultSuccess <<result-variant>> {
+      +T value
+    }
+
+    class "Result.Failure<T, E>" as ResultFailure <<result-variant>> {
+      +E error
+    }
+
+    interface CommandFailure <<failure>> {
+      +messageKey() : String
+    }
+  }
+
+  package "domain.model.valueobjects" {
+    class Money <<embeddable-value-object>> {
+      +BigDecimal amount
+      +Currency currency
+      +add(Money) : Money
+      +subtract(Money) : Money
+      +multiply(BigDecimal) : Money
+      +roundToUnits() : Money
+      +isPositive() : boolean
+      +{static} zero(Currency) : Money
+    }
+
+    enum Currency <<value-object>> {
+      PEN
+      USD
+    }
+
+    class Percentage <<value-object>> {
+      +BigDecimal value
+      +of(Money) : Money
+      +{static} ofPercent(BigDecimal) : Percentage
+    }
+
+    class Period <<embeddable-value-object>> {
+      +int year
+      +int month
+      +startDate() : LocalDate
+      +endDate() : LocalDate
+      +next() : Period
+      +previous() : Period
+      +weeks() : List<CashFlowWeek>
+      +{static} from(LocalDate) : Period
+    }
+
+    class CashFlowWeek <<embeddable-value-object>> {
+      +int year
+      +int month
+      +int number
+      +startDate() : LocalDate
+      +endDate() : LocalDate
+      +contains(LocalDate) : boolean
+      +period() : Period
+      +{static} from(LocalDate) : CashFlowWeek
+    }
+
+    class Ruc <<value-object>> {
+      +String value
+    }
+
+    class TaxRates <<embeddable-value-object>> {
+      +Percentage igv
+      +Percentage detraction
+      +Percentage retention
+      +Percentage incomeTaxPrepayment
+    }
+
+    class TaxBreakdown <<embeddable-value-object>> {
+      +Money taxableBase
+      +Money igv
+      +Money total
+      +{static} fromTaxableBase(Money, Percentage) : TaxBreakdown
+      +{static} fromTotal(Money, Percentage) : TaxBreakdown
+      +{static} withoutIgv(Money) : TaxBreakdown
+    }
+
+    enum CostCategory <<value-object>> {
+      MATERIALS
+      LABOR
+      TRAVEL_EXPENSES
+      OTHER
+    }
+
+    enum PaymentStatus <<value-object>> {
+      PENDING
+      PARTIALLY_PAID
+      PAID
+    }
+  }
+
+  package "infrastructure.persistence.jpa.strategy" {
+    class SnakeCasePhysicalNamingStrategy <<hibernate-strategy>> {
+      +toPhysicalCatalogName(Identifier, JdbcEnvironment) : Identifier
+      +toPhysicalSchemaName(Identifier, JdbcEnvironment) : Identifier
+      +toPhysicalTableName(Identifier, JdbcEnvironment) : Identifier
+      +toPhysicalSequenceName(Identifier, JdbcEnvironment) : Identifier
+      +toPhysicalColumnName(Identifier, JdbcEnvironment) : Identifier
+      -toSnakeCase(Identifier) : Identifier
+      -toPlural(Identifier) : Identifier
+    }
+  }
+
+  package "infrastructure.persistence.jpa.converters" {
+    class RucAttributeConverter <<jpa-converter>> {
+      +convertToDatabaseColumn(Ruc) : String
+      +convertToEntityAttribute(String) : Ruc
+    }
+
+    class PercentageAttributeConverter <<jpa-converter>> {
+      +convertToDatabaseColumn(Percentage) : BigDecimal
+      +convertToEntityAttribute(BigDecimal) : Percentage
+    }
+  }
+
+  package "infrastructure.persistence.jpa.configuration" {
+    class JpaAuditingConfiguration <<configuration>> {
+      @EnableJpaAuditing
+    }
+  }
+
+  package "infrastructure.i18n" {
+    class MessageSourceConfiguration <<configuration>> {
+      +messageSource() : MessageSource
+      +localeResolver() : LocaleResolver
+    }
+  }
+}
+
+package "org.springframework" {
+  abstract class "AbstractAggregateRoot<A>" as AbstractAggregateRoot <<Spring Data>> {
+    #registerEvent(T) : T
+    #domainEvents() : Collection<Object>
+    #clearDomainEvents() : void
+  }
+
+  interface "JpaRepository<T, ID>" as JpaRepository <<Spring Data>>
+  interface MessageSource <<Spring>>
+  class ProblemDetail <<Spring>>
+}
+
+' Relationships
+Result ..> ResultSuccess : permits
+Result ..> ResultFailure : permits
+ResultFailure --> CommandFailure : wraps E
+
+Money --> Currency : has
+TaxBreakdown --> Money : composes
+TaxBreakdown ..> Percentage : uses
+TaxRates --> Percentage : composes
+CashFlowWeek ..> Period : belongs to
+Period ..> CashFlowWeek : creates
+
+RucAttributeConverter ..> Ruc : converts
+PercentageAttributeConverter ..> Percentage : converts
+
+GlobalExceptionHandler ..> MessageSource : localizes
+ProblemDetailAssembler ..> MessageSource : localizes
+ProblemDetailAssembler ..> ProblemDetail : creates
+MessageSourceConfiguration ..> MessageSource : creates
+
+note bottom
+  Convenciones para todos los bounded contexts:
+  - Paquete raíz: pe.brasper.platform.<contexto>
+  - Commands, queries, resources y eventos son Java records.
+  - Las fallas de cada servicio de comandos son sealed interfaces que
+    extienden CommandFailure; cada variante define messageKey()
+    (clave en messages.properties / messages_es.properties).
+  - Los agregados extienden AbstractAggregateRoot<A> (Spring Data) para
+    registrar eventos de dominio; Spring los publica al hacer save()
+    y los consumen @TransactionalEventListener en otros contextos.
+  - Los agregados tienen createdAt / updatedAt (@CreatedDate /
+    @LastModifiedDate con @EntityListeners(AuditingEntityListener)).
+  - Getters con Lombok @Getter: se omiten en los diagramas.
+  - Value objects de un solo campo -> AttributeConverter (jpa-converter);
+    de varios campos -> @Embeddable (embeddable-value-object).
+  - Repositorios: interfaces Spring Data que extienden JpaRepository<T, Long>.
+end note
+
+note right of TaxBreakdown
+  igv = taxableBase x igv rate (18%)
+  total = taxableBase + igv
+  withoutIgv: gastos sin comprobante
+  (igv = 0, total = taxableBase)
+end note
+
+note right of CashFlowWeek
+  Semana 01..05 del mes (lunes-domingo,
+  recortada al inicio/fin del mes).
+  Reemplaza el texto libre "Semana 0X"
+  del Excel usado en los SUMIF.
+end note
+@enduml

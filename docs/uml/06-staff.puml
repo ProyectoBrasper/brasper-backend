@@ -1,0 +1,603 @@
+@startuml
+' Brasper Platform - Staff Bounded Context (Java 21 / Spring Boot 3)
+
+skinparam classAttributeIconSize 0
+set separator none
+hide empty members
+
+package "staff" {
+
+  package "interfaces.rest" {
+    class EmployeesController <<rest-controller>> {
+      +hireEmployee(HireEmployeeResource) : ResponseEntity<?>
+      +updateEmployee(Long, UpdateEmployeeResource) : ResponseEntity<?>
+      +terminateEmployee(Long, TerminateEmployeeResource) : ResponseEntity<?>
+      +getEmployeeById(Long) : ResponseEntity<?>
+      +getEmployeesWithParameters(Boolean) : ResponseEntity<?>
+    }
+
+    class FixedCostsController <<rest-controller>> {
+      +createFixedCost(CreateFixedCostResource) : ResponseEntity<?>
+      +updateFixedCost(Long, UpdateFixedCostResource) : ResponseEntity<?>
+      +deactivateFixedCost(Long) : ResponseEntity<?>
+      +getFixedCostById(Long) : ResponseEntity<?>
+      +getFixedCostsWithParameters(Boolean) : ResponseEntity<?>
+    }
+
+    class FixedCostPaymentsController <<rest-controller>> {
+      +registerPayment(Long, RegisterFixedCostPaymentResource) : ResponseEntity<?>
+      +getPaymentsByPeriod(int, int) : ResponseEntity<?>
+    }
+  }
+
+  package "interfaces.rest.resources" {
+    class HireEmployeeResource <<request-resource>> {
+      +String fullName
+      +String dni
+      +String position
+      +BigDecimal monthlySalary
+      +LocalDate hiredOn
+    }
+
+    class UpdateEmployeeResource <<request-resource>> {
+      +String position
+      +BigDecimal monthlySalary
+    }
+
+    class TerminateEmployeeResource <<request-resource>> {
+      +LocalDate terminatedOn
+    }
+
+    class EmployeeResource <<response-resource>> {
+      +Long id
+      +String fullName
+      +String dni
+      +String position
+      +BigDecimal monthlySalary
+      +LocalDate hiredOn
+      +LocalDate terminatedOn
+      +boolean active
+    }
+
+    class CreateFixedCostResource <<request-resource>> {
+      +String code
+      +String concept
+      +String type
+      +BigDecimal monthlyAmount
+      +Long employeeId
+      +List<Integer> expectedWeeks
+    }
+
+    class UpdateFixedCostResource <<request-resource>> {
+      +String concept
+      +BigDecimal monthlyAmount
+      +List<Integer> expectedWeeks
+    }
+
+    class FixedCostResource <<response-resource>> {
+      +Long id
+      +String code
+      +String concept
+      +String type
+      +BigDecimal monthlyAmount
+      +Long employeeId
+      +List<Integer> expectedWeeks
+      +boolean active
+    }
+
+    class RegisterFixedCostPaymentResource <<request-resource>> {
+      +LocalDate paidOn
+      +int year
+      +int month
+      +BigDecimal amount
+      +Long bankAccountId
+      +String notes
+    }
+
+    class FixedCostPaymentResource <<response-resource>> {
+      +Long id
+      +Long fixedCostId
+      +LocalDate paidOn
+      +int year
+      +int month
+      +BigDecimal amount
+      +Long bankAccountId
+      +String notes
+    }
+  }
+
+  package "interfaces.rest.transform" {
+    class HireEmployeeCommandFromResourceAssembler <<translator>> {
+      +toCommandFromResource(HireEmployeeResource) : HireEmployeeCommand
+    }
+
+    class UpdateEmployeeCommandFromResourceAssembler <<translator>> {
+      +toCommandFromResource(Long, UpdateEmployeeResource) : UpdateEmployeeCommand
+    }
+
+    class CreateFixedCostCommandFromResourceAssembler <<translator>> {
+      +toCommandFromResource(CreateFixedCostResource) : CreateFixedCostCommand
+    }
+
+    class RegisterFixedCostPaymentCommandFromResourceAssembler <<translator>> {
+      +toCommandFromResource(Long, RegisterFixedCostPaymentResource) : RegisterFixedCostPaymentCommand
+    }
+
+    class StaffValueObjectFromStringAssembler <<translator>> {
+      +toDniFromString(String) : Dni
+      +toCostCodeFromString(String) : CostCode
+      +toFixedCostTypeFromString(String) : FixedCostType
+    }
+
+    class EmployeeResourceFromEntityAssembler <<translator>> {
+      +toResourceFromEntity(Employee) : EmployeeResource
+    }
+
+    class FixedCostResourceFromEntityAssembler <<translator>> {
+      +toResourceFromEntity(FixedCost) : FixedCostResource
+    }
+
+    class FixedCostPaymentResourceFromEntityAssembler <<translator>> {
+      +toResourceFromEntity(FixedCostPayment) : FixedCostPaymentResource
+    }
+
+    class ResponseEntityFromEmployeeCommandResultAssembler <<translator>> {
+      +toResponseEntityFromResult(Result<Employee, EmployeeCommandFailure>, MessageSource) : ResponseEntity<?>
+    }
+
+    class ResponseEntityFromFixedCostCommandResultAssembler <<translator>> {
+      +toResponseEntityFromResult(Result<FixedCost, FixedCostCommandFailure>, MessageSource) : ResponseEntity<?>
+      +toResponseEntityFromPaymentResult(Result<FixedCostPayment, FixedCostCommandFailure>, MessageSource) : ResponseEntity<?>
+    }
+
+    class ResponseEntityFromStaffQueryResultAssembler <<translator>> {
+      +toResponseEntityFromEmployee(Employee) : ResponseEntity<?>
+      +toResponseEntityFromEmployeeList(List<Employee>) : ResponseEntity<?>
+      +toResponseEntityFromFixedCost(FixedCost) : ResponseEntity<?>
+      +toResponseEntityFromFixedCostList(List<FixedCost>) : ResponseEntity<?>
+      +toResponseEntityFromPaymentList(List<FixedCostPayment>) : ResponseEntity<?>
+      +notFound(MessageSource, String, Object...) : ResponseEntity<ProblemDetail>
+    }
+  }
+
+  package "interfaces.acl" {
+    interface StaffContextFacade <<context-facade>> {
+      +sumFixedCostsAccruedByPeriod(int, int) : BigDecimal
+      +fetchFixedCostsPaidByWeek(int, int, int) : Map<String, BigDecimal>
+      +fetchFixedCostsScheduledByWeek(int, int, int) : Map<String, BigDecimal>
+    }
+  }
+
+  package "application.commandservices" {
+    interface EmployeeCommandService <<application-service>> {
+      +handle(HireEmployeeCommand) : Result<Employee, EmployeeCommandFailure>
+      +handle(UpdateEmployeeCommand) : Result<Employee, EmployeeCommandFailure>
+      +handle(TerminateEmployeeCommand) : Result<Employee, EmployeeCommandFailure>
+    }
+
+    interface FixedCostCommandService <<application-service>> {
+      +handle(CreateFixedCostCommand) : Result<FixedCost, FixedCostCommandFailure>
+      +handle(UpdateFixedCostCommand) : Result<FixedCost, FixedCostCommandFailure>
+      +handle(DeactivateFixedCostCommand) : Result<FixedCost, FixedCostCommandFailure>
+      +handle(RegisterFixedCostPaymentCommand) : Result<FixedCostPayment, FixedCostCommandFailure>
+    }
+
+    interface EmployeeCommandFailure <<failure>> {
+      +messageKey() : String
+    }
+
+    class "EmployeeCommandFailure.DuplicateDni" as EmployeeFailureDuplicateDni <<failure>>
+    class "EmployeeCommandFailure.NotFound" as EmployeeFailureNotFound <<failure>>
+    class "EmployeeCommandFailure.AlreadyTerminated" as EmployeeFailureAlreadyTerminated <<failure>>
+
+    interface FixedCostCommandFailure <<failure>> {
+      +messageKey() : String
+    }
+
+    class "FixedCostCommandFailure.DuplicateCode" as FixedCostFailureDuplicateCode <<failure>>
+    class "FixedCostCommandFailure.EmployeeRequired" as FixedCostFailureEmployeeRequired <<failure>>
+    class "FixedCostCommandFailure.NotFound" as FixedCostFailureNotFound <<failure>>
+    class "FixedCostCommandFailure.Inactive" as FixedCostFailureInactive <<failure>>
+    class "FixedCostCommandFailure.BankAccountNotFound" as FixedCostFailureBankAccountNotFound <<failure>>
+  }
+
+  package "application.queryservices" {
+    interface EmployeeQueryService <<application-service>> {
+      +handle(GetAllEmployeesQuery) : List<Employee>
+      +handle(GetEmployeeByIdQuery) : Optional<Employee>
+    }
+
+    interface FixedCostQueryService <<application-service>> {
+      +handle(GetAllFixedCostsQuery) : List<FixedCost>
+      +handle(GetFixedCostByIdQuery) : Optional<FixedCost>
+      +handle(GetFixedCostPaymentsByPeriodQuery) : List<FixedCostPayment>
+    }
+  }
+
+  package "application.internal.commandservices" {
+    class EmployeeCommandServiceImpl <<application-service>> {
+      +handle(HireEmployeeCommand) : Result<Employee, EmployeeCommandFailure>
+      +handle(UpdateEmployeeCommand) : Result<Employee, EmployeeCommandFailure>
+      +handle(TerminateEmployeeCommand) : Result<Employee, EmployeeCommandFailure>
+      -isDuplicateDniViolation(DataIntegrityViolationException) : boolean
+    }
+
+    class FixedCostCommandServiceImpl <<application-service>> {
+      +handle(CreateFixedCostCommand) : Result<FixedCost, FixedCostCommandFailure>
+      +handle(UpdateFixedCostCommand) : Result<FixedCost, FixedCostCommandFailure>
+      +handle(DeactivateFixedCostCommand) : Result<FixedCost, FixedCostCommandFailure>
+      +handle(RegisterFixedCostPaymentCommand) : Result<FixedCostPayment, FixedCostCommandFailure>
+    }
+  }
+
+  package "application.internal.queryservices" {
+    class EmployeeQueryServiceImpl <<application-service>> {
+      +handle(GetAllEmployeesQuery) : List<Employee>
+      +handle(GetEmployeeByIdQuery) : Optional<Employee>
+    }
+
+    class FixedCostQueryServiceImpl <<application-service>> {
+      +handle(GetAllFixedCostsQuery) : List<FixedCost>
+      +handle(GetFixedCostByIdQuery) : Optional<FixedCost>
+      +handle(GetFixedCostPaymentsByPeriodQuery) : List<FixedCostPayment>
+    }
+  }
+
+  package "application.internal.outboundservices.acl" {
+    class ExternalTreasuryService <<outbound-service>> {
+      +existsBankAccountById(Long) : boolean
+    }
+  }
+
+  package "application.acl" {
+    class StaffContextFacadeImpl <<context-facade>> {
+      +sumFixedCostsAccruedByPeriod(int, int) : BigDecimal
+      +fetchFixedCostsPaidByWeek(int, int, int) : Map<String, BigDecimal>
+      +fetchFixedCostsScheduledByWeek(int, int, int) : Map<String, BigDecimal>
+    }
+  }
+
+  package "domain.model.aggregates" {
+    class Employee <<aggregate-root>> {
+      +DNI_UNIQUE_CONSTRAINT : String
+      -Long id
+      -String fullName
+      -Dni dni
+      -String position
+      -Money monthlySalary
+      -LocalDate hiredOn
+      -LocalDate terminatedOn
+      -boolean active
+      -Instant createdAt
+      -Instant updatedAt
+      +Employee(HireEmployeeCommand)
+      +update(UpdateEmployeeCommand) : void
+      +terminate(LocalDate) : void
+    }
+
+    class FixedCost <<aggregate-root>> {
+      +CODE_UNIQUE_CONSTRAINT : String
+      -Long id
+      -CostCode code
+      -String concept
+      -FixedCostType type
+      -Money monthlyAmount
+      -Long employeeId
+      -PaymentSchedule schedule
+      -boolean active
+      -List<FixedCostPayment> payments
+      -Instant createdAt
+      -Instant updatedAt
+      +FixedCost(CreateFixedCostCommand)
+      +update(UpdateFixedCostCommand) : void
+      +deactivate() : void
+      +registerPayment(RegisterFixedCostPaymentCommand) : FixedCostPayment
+      +paidIn(Period) : Money
+      +pendingIn(Period) : Money
+    }
+  }
+
+  package "domain.model.entities" {
+    class FixedCostPayment <<entity>> {
+      -Long id
+      -FixedCost fixedCost
+      -LocalDate paidOn
+      -Period period
+      -Money amount
+      -Long bankAccountId
+      -String notes
+    }
+  }
+
+  package "domain.model.valueobjects" {
+    class Dni <<value-object>> {
+      +String value
+    }
+
+    class CostCode <<value-object>> {
+      +String value
+    }
+
+    enum FixedCostType <<value-object>> {
+      SALARY
+      OVERTIME
+      ACCOUNTING
+      SCTR_INSURANCE
+      LIFE_INSURANCE
+      OFFICE_RENT
+      CLEANING
+      BANK_FEES
+      ITF
+      HOSTING
+      ADMINISTRATIVE
+    }
+
+    class PaymentSchedule <<embeddable-value-object>> {
+      +List<Integer> expectedWeeks
+      +expectedWeeksIn(Period) : List<CashFlowWeek>
+      +amountPerWeek(Money) : Money
+    }
+  }
+
+  package "domain.model.commands" {
+    class HireEmployeeCommand <<command>> {
+      +String fullName
+      +Dni dni
+      +String position
+      +Money monthlySalary
+      +LocalDate hiredOn
+    }
+
+    class UpdateEmployeeCommand <<command>> {
+      +Long employeeId
+      +String position
+      +Money monthlySalary
+    }
+
+    class TerminateEmployeeCommand <<command>> {
+      +Long employeeId
+      +LocalDate terminatedOn
+    }
+
+    class CreateFixedCostCommand <<command>> {
+      +CostCode code
+      +String concept
+      +FixedCostType type
+      +Money monthlyAmount
+      +Long employeeId
+      +PaymentSchedule schedule
+    }
+
+    class UpdateFixedCostCommand <<command>> {
+      +Long fixedCostId
+      +String concept
+      +Money monthlyAmount
+      +PaymentSchedule schedule
+    }
+
+    class DeactivateFixedCostCommand <<command>> {
+      +Long fixedCostId
+    }
+
+    class RegisterFixedCostPaymentCommand <<command>> {
+      +Long fixedCostId
+      +LocalDate paidOn
+      +Period period
+      +Money amount
+      +Long bankAccountId
+      +String notes
+    }
+  }
+
+  package "domain.model.queries" {
+    class GetAllEmployeesQuery <<query>> {
+      +Boolean active
+    }
+
+    class GetEmployeeByIdQuery <<query>> {
+      +Long id
+    }
+
+    class GetAllFixedCostsQuery <<query>> {
+      +Boolean active
+    }
+
+    class GetFixedCostByIdQuery <<query>> {
+      +Long id
+    }
+
+    class GetFixedCostPaymentsByPeriodQuery <<query>> {
+      +Period period
+    }
+  }
+
+  package "domain.model.events" {
+    class FixedCostPaidEvent <<domain-event>> {
+      +Long fixedCostId
+      +Long paymentId
+      +FixedCostType type
+      +Period period
+      +LocalDate paidOn
+      +Money amount
+      +Long bankAccountId
+    }
+  }
+
+  package "infrastructure.persistence.jpa" {
+    interface EmployeeRepository <<spring-data-repository>> {
+      +findByDni(Dni) : Optional<Employee>
+      +existsByDni(Dni) : boolean
+      +findAllByActive(boolean) : List<Employee>
+    }
+
+    interface FixedCostRepository <<spring-data-repository>> {
+      +findByCode(CostCode) : Optional<FixedCost>
+      +existsByCode(CostCode) : boolean
+      +findAllByActive(boolean) : List<FixedCost>
+      +findAllByEmployeeId(Long) : List<FixedCost>
+    }
+
+    class DniAttributeConverter <<jpa-converter>> {
+      +convertToDatabaseColumn(Dni) : String
+      +convertToEntityAttribute(String) : Dni
+    }
+
+    class CostCodeAttributeConverter <<jpa-converter>> {
+      +convertToDatabaseColumn(CostCode) : String
+      +convertToEntityAttribute(String) : CostCode
+    }
+  }
+}
+
+package "shared" {
+  interface "Result<T, E>" as Result <<sealed-result>>
+  interface CommandFailure <<failure>>
+  class Money <<embeddable-value-object>>
+  class Period <<embeddable-value-object>>
+  class CashFlowWeek <<embeddable-value-object>>
+}
+
+package "other bounded contexts" {
+  interface TreasuryContextFacade <<context-facade>>
+}
+
+package "org.springframework" {
+  interface "JpaRepository<T, ID>" as JpaRepository <<Spring Data>>
+  abstract class "AbstractAggregateRoot<A>" as AbstractAggregateRoot <<Spring Data>>
+}
+
+' Interfaces
+EmployeesController --> EmployeeCommandService : invokes
+EmployeesController --> EmployeeQueryService : invokes
+EmployeesController ..> HireEmployeeResource : accepts
+EmployeesController --> HireEmployeeCommandFromResourceAssembler : uses
+EmployeesController --> UpdateEmployeeCommandFromResourceAssembler : uses
+EmployeesController --> ResponseEntityFromEmployeeCommandResultAssembler : uses
+EmployeesController --> ResponseEntityFromStaffQueryResultAssembler : uses
+FixedCostsController --> FixedCostCommandService : invokes
+FixedCostsController --> FixedCostQueryService : invokes
+FixedCostsController ..> CreateFixedCostResource : accepts
+FixedCostsController --> CreateFixedCostCommandFromResourceAssembler : uses
+FixedCostsController --> ResponseEntityFromFixedCostCommandResultAssembler : uses
+FixedCostsController --> ResponseEntityFromStaffQueryResultAssembler : uses
+FixedCostPaymentsController --> FixedCostCommandService : invokes
+FixedCostPaymentsController --> FixedCostQueryService : invokes
+FixedCostPaymentsController --> RegisterFixedCostPaymentCommandFromResourceAssembler : uses
+FixedCostPaymentsController --> ResponseEntityFromFixedCostCommandResultAssembler : uses
+FixedCostPaymentsController --> ResponseEntityFromStaffQueryResultAssembler : uses
+
+' HTTP mapping
+HireEmployeeCommandFromResourceAssembler ..> HireEmployeeResource : reads
+HireEmployeeCommandFromResourceAssembler --> HireEmployeeCommand : creates
+HireEmployeeCommandFromResourceAssembler --> StaffValueObjectFromStringAssembler : uses
+UpdateEmployeeCommandFromResourceAssembler ..> UpdateEmployeeResource : reads
+UpdateEmployeeCommandFromResourceAssembler --> UpdateEmployeeCommand : creates
+CreateFixedCostCommandFromResourceAssembler ..> CreateFixedCostResource : reads
+CreateFixedCostCommandFromResourceAssembler --> CreateFixedCostCommand : creates
+CreateFixedCostCommandFromResourceAssembler --> StaffValueObjectFromStringAssembler : uses
+RegisterFixedCostPaymentCommandFromResourceAssembler ..> RegisterFixedCostPaymentResource : reads
+RegisterFixedCostPaymentCommandFromResourceAssembler --> RegisterFixedCostPaymentCommand : creates
+StaffValueObjectFromStringAssembler --> Dni : creates
+StaffValueObjectFromStringAssembler --> CostCode : creates
+StaffValueObjectFromStringAssembler --> FixedCostType : creates
+ResponseEntityFromEmployeeCommandResultAssembler --> Result : maps
+ResponseEntityFromEmployeeCommandResultAssembler --> EmployeeCommandFailure : maps
+ResponseEntityFromEmployeeCommandResultAssembler --> EmployeeResourceFromEntityAssembler : uses
+ResponseEntityFromFixedCostCommandResultAssembler --> Result : maps
+ResponseEntityFromFixedCostCommandResultAssembler --> FixedCostCommandFailure : maps
+ResponseEntityFromFixedCostCommandResultAssembler --> FixedCostResourceFromEntityAssembler : uses
+ResponseEntityFromFixedCostCommandResultAssembler --> FixedCostPaymentResourceFromEntityAssembler : uses
+ResponseEntityFromStaffQueryResultAssembler --> EmployeeResourceFromEntityAssembler : uses
+ResponseEntityFromStaffQueryResultAssembler --> FixedCostResourceFromEntityAssembler : uses
+ResponseEntityFromStaffQueryResultAssembler --> FixedCostPaymentResourceFromEntityAssembler : uses
+EmployeeResourceFromEntityAssembler ..> Employee : reads
+EmployeeResourceFromEntityAssembler --> EmployeeResource : creates
+FixedCostResourceFromEntityAssembler ..> FixedCost : reads
+FixedCostResourceFromEntityAssembler --> FixedCostResource : creates
+FixedCostPaymentResourceFromEntityAssembler ..> FixedCostPayment : reads
+FixedCostPaymentResourceFromEntityAssembler --> FixedCostPaymentResource : creates
+
+' Application
+EmployeeCommandServiceImpl ..|> EmployeeCommandService : implements
+EmployeeQueryServiceImpl ..|> EmployeeQueryService : implements
+FixedCostCommandServiceImpl ..|> FixedCostCommandService : implements
+FixedCostQueryServiceImpl ..|> FixedCostQueryService : implements
+StaffContextFacadeImpl ..|> StaffContextFacade : implements
+StaffContextFacadeImpl --> FixedCostRepository : uses
+EmployeeCommandFailure --|> CommandFailure : extends
+FixedCostCommandFailure --|> CommandFailure : extends
+EmployeeFailureDuplicateDni ..|> EmployeeCommandFailure : implements
+EmployeeFailureNotFound ..|> EmployeeCommandFailure : implements
+EmployeeFailureAlreadyTerminated ..|> EmployeeCommandFailure : implements
+FixedCostFailureDuplicateCode ..|> FixedCostCommandFailure : implements
+FixedCostFailureEmployeeRequired ..|> FixedCostCommandFailure : implements
+FixedCostFailureNotFound ..|> FixedCostCommandFailure : implements
+FixedCostFailureInactive ..|> FixedCostCommandFailure : implements
+FixedCostFailureBankAccountNotFound ..|> FixedCostCommandFailure : implements
+EmployeeCommandService --> Result : returns
+FixedCostCommandService --> Result : returns
+EmployeeCommandServiceImpl --> EmployeeRepository : uses
+EmployeeCommandServiceImpl --> Employee : creates
+EmployeeQueryServiceImpl --> EmployeeRepository : uses
+FixedCostCommandServiceImpl --> FixedCostRepository : uses
+FixedCostCommandServiceImpl --> EmployeeRepository : uses
+FixedCostCommandServiceImpl --> ExternalTreasuryService : uses
+FixedCostCommandServiceImpl --> FixedCost : creates
+FixedCostQueryServiceImpl --> FixedCostRepository : uses
+ExternalTreasuryService --> TreasuryContextFacade : uses
+
+' Domain model and persistence mapping
+Employee --|> AbstractAggregateRoot : extends
+FixedCost --|> AbstractAggregateRoot : extends
+Employee --> HireEmployeeCommand : constructed from
+FixedCost --> CreateFixedCostCommand : constructed from
+Employee --> Dni : contains
+Employee --> Money : contains
+FixedCost --> CostCode : contains
+FixedCost --> FixedCostType : has
+FixedCost --> PaymentSchedule : contains
+FixedCost "1" *-- "0..*" FixedCostPayment : contains
+FixedCost "0..*" ..> "0..1" Employee : employeeId
+FixedCostPayment --> Period : contains
+PaymentSchedule ..> CashFlowWeek : creates
+FixedCost ..> FixedCostPaidEvent : registers
+HireEmployeeCommand --> Dni : contains
+CreateFixedCostCommand --> CostCode : contains
+CreateFixedCostCommand --> FixedCostType : contains
+RegisterFixedCostPaymentCommand --> Period : contains
+EmployeeRepository --> Employee : persists
+EmployeeRepository --|> JpaRepository : extends
+EmployeeRepository --> Dni : queries by
+FixedCostRepository --> FixedCost : persists
+FixedCostRepository --|> JpaRepository : extends
+FixedCostRepository --> CostCode : queries by
+DniAttributeConverter ..> Dni : converts
+CostCodeAttributeConverter ..> CostCode : converts
+
+note right of FixedCost
+  Ejemplos del Excel:
+  BR0100_01 Sueldo Miguel Lopez (SALARY)
+  BR0100_04 Sueldo Harumi Higa (SALARY)
+  BR0800 SCTR, BR09000 Oficina,
+  BR3000_ITF ITF, BR010000 Comisiones
+  Invariantes:
+  - type = SALARY -> employeeId obligatorio
+  - pagos solo si active
+  - pendingIn(p) = monthlyAmount - paidIn(p)
+  Los gastos de proyecto NO van aquí (en Excel se
+  mezclaban en "Sueldo Miguel Lopez": 17,087.50
+  en setiembre) -> se registran en expenses.
+end note
+
+note right of PaymentSchedule
+  Semanas del mes en que se espera pagar
+  (ej. sueldo en semana 5; limpieza en 1 y 3).
+  Alimenta el flujo de caja proyectado.
+end note
+
+note bottom
+  The REST controllers delegate employee and fixed-cost use cases to application services.
+  FixedCost is the aggregate root of its monthly payments; each payment registers a
+  FixedCostPaidEvent consumed by treasury (cash outflow) and accounting (journal entry).
+end note
+@enduml

@@ -1,0 +1,537 @@
+@startuml
+' Brasper Platform - Reporting Bounded Context (Java 21 / Spring Boot 3)
+' Contexto de solo lectura (CQRS read side): sin agregados, sin comandos, sin tablas propias.
+
+skinparam classAttributeIconSize 0
+set separator none
+hide empty members
+
+package "reporting" {
+
+  package "interfaces.rest" {
+    class CashFlowController <<rest-controller>> {
+      +getWeeklyCashFlow(int, int) : ResponseEntity<?>
+      +getMonthlyCashFlow(int, int, int, int) : ResponseEntity<?>
+      +getCashFlowProjection(LocalDate, int) : ResponseEntity<?>
+    }
+
+    class FinancialStatementsController <<rest-controller>> {
+      +getIncomeStatement(int, int, int, int) : ResponseEntity<?>
+      +getBalanceSheet(int, int) : ResponseEntity<?>
+    }
+
+    class ProjectProfitabilityController <<rest-controller>> {
+      +getProjectProfitability(Long) : ResponseEntity<?>
+      +getPortfolioProfitability(int, int) : ResponseEntity<?>
+    }
+
+    class DashboardController <<rest-controller>> {
+      +getDashboard(int, int) : ResponseEntity<?>
+    }
+  }
+
+  package "interfaces.rest.resources" {
+    class CashFlowReportResource <<response-resource>> {
+      +LocalDate from
+      +LocalDate to
+      +List<CashFlowLineResource> lines
+    }
+
+    class CashFlowLineResource <<response-resource>> {
+      +String label
+      +LocalDate startDate
+      +LocalDate endDate
+      +boolean projected
+      +BigDecimal openingBalance
+      +Map<String, BigDecimal> inflows
+      +Map<String, BigDecimal> outflows
+      +BigDecimal totalInflows
+      +BigDecimal totalOutflows
+      +BigDecimal netFlow
+      +BigDecimal closingBalance
+    }
+
+    class IncomeStatementResource <<response-resource>> {
+      +int fromYear
+      +int fromMonth
+      +int toYear
+      +int toMonth
+      +BigDecimal revenue
+      +BigDecimal directCosts
+      +BigDecimal grossProfit
+      +BigDecimal operatingExpenses
+      +BigDecimal operatingProfit
+      +BigDecimal financialExpenses
+      +BigDecimal profitBeforeTax
+      +BigDecimal incomeTax
+      +BigDecimal netProfit
+    }
+
+    class BalanceSheetResource <<response-resource>> {
+      +LocalDate asOf
+      +Map<String, BigDecimal> assets
+      +Map<String, BigDecimal> liabilities
+      +Map<String, BigDecimal> equity
+      +BigDecimal totalAssets
+      +BigDecimal totalLiabilities
+      +BigDecimal totalEquity
+      +BigDecimal difference
+      +boolean balanced
+    }
+
+    class ProjectProfitabilityResource <<response-resource>> {
+      +Long projectId
+      +String code
+      +String name
+      +String clientName
+      +String status
+      +BigDecimal budget
+      +BigDecimal estimatedCost
+      +BigDecimal actualCost
+      +Map<String, BigDecimal> actualCostByCategory
+      +BigDecimal costDeviation
+      +BigDecimal salesCommission
+      +BigDecimal grossProfit
+      +BigDecimal margin
+      +BigDecimal accumulatedProgress
+      +BigDecimal recognizedProfitInPeriod
+      +BigDecimal invoiced
+      +BigDecimal collected
+    }
+
+    class DashboardResource <<response-resource>> {
+      +BigDecimal cashBalance
+      +BigDecimal receivablesOutstanding
+      +BigDecimal payablesOutstanding
+      +BigDecimal netProfitYtd
+      +BigDecimal projectedClosingBalance
+      +int projectsInProgress
+      +List<String> alerts
+    }
+  }
+
+  package "interfaces.rest.transform" {
+    class CashFlowReportResourceFromReadModelAssembler <<translator>> {
+      +toResourceFromReadModel(CashFlowReport) : CashFlowReportResource
+    }
+
+    class IncomeStatementResourceFromReadModelAssembler <<translator>> {
+      +toResourceFromReadModel(IncomeStatement) : IncomeStatementResource
+    }
+
+    class BalanceSheetResourceFromReadModelAssembler <<translator>> {
+      +toResourceFromReadModel(BalanceSheet) : BalanceSheetResource
+    }
+
+    class ProjectProfitabilityResourceFromReadModelAssembler <<translator>> {
+      +toResourceFromReadModel(ProjectProfitability) : ProjectProfitabilityResource
+    }
+
+    class DashboardResourceFromReadModelAssembler <<translator>> {
+      +toResourceFromReadModel(Dashboard) : DashboardResource
+    }
+
+    class ResponseEntityFromReportingQueryResultAssembler <<translator>> {
+      +toResponseEntityFromCashFlow(CashFlowReport) : ResponseEntity<?>
+      +toResponseEntityFromIncomeStatement(IncomeStatement) : ResponseEntity<?>
+      +toResponseEntityFromBalanceSheet(BalanceSheet) : ResponseEntity<?>
+      +toResponseEntityFromProfitability(ProjectProfitability) : ResponseEntity<?>
+      +toResponseEntityFromProfitabilityList(List<ProjectProfitability>) : ResponseEntity<?>
+      +toResponseEntityFromDashboard(Dashboard) : ResponseEntity<?>
+      +badRequest(MessageSource, String, Object...) : ResponseEntity<ProblemDetail>
+      +notFound(MessageSource, String, Object...) : ResponseEntity<ProblemDetail>
+    }
+  }
+
+  package "application.queryservices" {
+    interface CashFlowQueryService <<application-service>> {
+      +handle(GetWeeklyCashFlowQuery) : CashFlowReport
+      +handle(GetMonthlyCashFlowQuery) : CashFlowReport
+      +handle(GetCashFlowProjectionQuery) : CashFlowReport
+    }
+
+    interface FinancialStatementsQueryService <<application-service>> {
+      +handle(GetIncomeStatementQuery) : IncomeStatement
+      +handle(GetBalanceSheetQuery) : BalanceSheet
+    }
+
+    interface ProjectProfitabilityQueryService <<application-service>> {
+      +handle(GetProjectProfitabilityQuery) : Optional<ProjectProfitability>
+      +handle(GetPortfolioProfitabilityQuery) : List<ProjectProfitability>
+    }
+
+    interface DashboardQueryService <<application-service>> {
+      +handle(GetDashboardQuery) : Dashboard
+    }
+  }
+
+  package "application.internal.queryservices" {
+    class CashFlowQueryServiceImpl <<application-service>> {
+      +handle(GetWeeklyCashFlowQuery) : CashFlowReport
+      +handle(GetMonthlyCashFlowQuery) : CashFlowReport
+      +handle(GetCashFlowProjectionQuery) : CashFlowReport
+    }
+
+    class FinancialStatementsQueryServiceImpl <<application-service>> {
+      +handle(GetIncomeStatementQuery) : IncomeStatement
+      +handle(GetBalanceSheetQuery) : BalanceSheet
+    }
+
+    class ProjectProfitabilityQueryServiceImpl <<application-service>> {
+      +handle(GetProjectProfitabilityQuery) : Optional<ProjectProfitability>
+      +handle(GetPortfolioProfitabilityQuery) : List<ProjectProfitability>
+    }
+
+    class DashboardQueryServiceImpl <<application-service>> {
+      +handle(GetDashboardQuery) : Dashboard
+    }
+  }
+
+  package "application.internal.outboundservices.acl" {
+    class AclCashFlowSource <<outbound-service>> {
+      +actualInflows(CashFlowWeek) : Map<CashFlowConcept, Money>
+      +actualOutflows(CashFlowWeek) : Map<CashFlowConcept, Money>
+      +projectedInflows(CashFlowWeek) : Map<CashFlowConcept, Money>
+      +projectedOutflows(CashFlowWeek) : Map<CashFlowConcept, Money>
+    }
+
+    class ExternalProjectsService <<outbound-service>> {
+      +fetchProjectSnapshot(Long) : Optional<ProjectSnapshot>
+      +fetchProjectSnapshots(Period) : List<ProjectSnapshot>
+      +fetchProgressByPeriod(Period) : Map<Long, BigDecimal>
+    }
+
+    class ExternalBillingService <<outbound-service>> {
+      +sumInvoicedByProject(Long) : BigDecimal
+      +sumCollectedByProject(Long) : BigDecimal
+      +sumOutstandingReceivablesAt(LocalDate) : BigDecimal
+      +sumScheduledCollectionsByWeek(CashFlowWeek) : BigDecimal
+    }
+
+    class ExternalExpensesService <<outbound-service>> {
+      +sumDirectCostByProject(Long) : BigDecimal
+      +fetchDirectCostByCategory(Long) : Map<String, BigDecimal>
+    }
+
+    class ExternalStaffService <<outbound-service>> {
+      +fetchFixedCostsScheduledByWeek(CashFlowWeek) : Map<String, BigDecimal>
+    }
+
+    class ExternalTreasuryService <<outbound-service>> {
+      +fetchCashBalanceAt(LocalDate) : BigDecimal
+      +sumInflowsByWeek(CashFlowWeek) : Map<String, BigDecimal>
+      +sumOutflowsByWeek(CashFlowWeek) : Map<String, BigDecimal>
+      +sumScheduledPayablesByWeek(CashFlowWeek) : BigDecimal
+      +sumScheduledInstallmentsByWeek(CashFlowWeek) : BigDecimal
+    }
+
+    class ExternalAccountingService <<outbound-service>> {
+      +fetchBalancesByAccountTypeAt(LocalDate) : Map<String, BigDecimal>
+      +fetchResultByPeriod(Period) : Map<String, BigDecimal>
+      +fetchTaxRatesAt(LocalDate) : TaxRates
+    }
+  }
+
+  package "domain.model.queries" {
+    class GetWeeklyCashFlowQuery <<query>> {
+      +Period period
+    }
+
+    class GetMonthlyCashFlowQuery <<query>> {
+      +Period from
+      +Period to
+    }
+
+    class GetCashFlowProjectionQuery <<query>> {
+      +LocalDate from
+      +int weeks
+    }
+
+    class GetIncomeStatementQuery <<query>> {
+      +Period from
+      +Period to
+    }
+
+    class GetBalanceSheetQuery <<query>> {
+      +Period period
+    }
+
+    class GetProjectProfitabilityQuery <<query>> {
+      +Long projectId
+    }
+
+    class GetPortfolioProfitabilityQuery <<query>> {
+      +Period period
+    }
+
+    class GetDashboardQuery <<query>> {
+      +Period period
+    }
+  }
+
+  package "domain.model.readmodels" {
+    class CashFlowReport <<read-model>> {
+      +LocalDate from
+      +LocalDate to
+      +List<CashFlowLine> lines
+      +finalBalance() : Money
+      +hasNegativeBalance() : boolean
+    }
+
+    class CashFlowLine <<read-model>> {
+      +String label
+      +LocalDate startDate
+      +LocalDate endDate
+      +boolean projected
+      +Money openingBalance
+      +Map<CashFlowConcept, Money> inflows
+      +Map<CashFlowConcept, Money> outflows
+      +totalInflows() : Money
+      +totalOutflows() : Money
+      +netFlow() : Money
+      +closingBalance() : Money
+    }
+
+    class IncomeStatement <<read-model>> {
+      +Period from
+      +Period to
+      +Money revenue
+      +Money directCosts
+      +Money operatingExpenses
+      +Money financialExpenses
+      +Money incomeTax
+      +grossProfit() : Money
+      +operatingProfit() : Money
+      +profitBeforeTax() : Money
+      +netProfit() : Money
+    }
+
+    class BalanceSheet <<read-model>> {
+      +LocalDate asOf
+      +Map<String, Money> assets
+      +Map<String, Money> liabilities
+      +Map<String, Money> equity
+      +totalAssets() : Money
+      +totalLiabilities() : Money
+      +totalEquity() : Money
+      +difference() : Money
+      +isBalanced() : boolean
+    }
+
+    class ProjectProfitability <<read-model>> {
+      +Long projectId
+      +String code
+      +String name
+      +String clientName
+      +String status
+      +Money budget
+      +Money estimatedCost
+      +Money actualCost
+      +Map<CostCategory, Money> actualCostByCategory
+      +Money salesCommission
+      +Percentage participation
+      +Percentage accumulatedProgress
+      +Money invoiced
+      +Money collected
+      +costDeviation() : Money
+      +grossProfit() : Money
+      +margin() : Percentage
+      +recognizedProfit(Percentage) : Money
+    }
+
+    class Dashboard <<read-model>> {
+      +Money cashBalance
+      +Money receivablesOutstanding
+      +Money payablesOutstanding
+      +Money netProfitYtd
+      +Money projectedClosingBalance
+      +int projectsInProgress
+      +List<String> alerts
+    }
+  }
+
+  package "domain.model.valueobjects" {
+    enum CashFlowConcept <<value-object>> {
+      SALES
+      INVOICE_COLLECTIONS
+      DETRACTIONS
+      LOANS
+      PARTNER_CONTRIBUTIONS
+      OTHER_INCOME
+      SUPPLIERS
+      PAYROLL
+      OFFICE_RENT
+      CLEANING
+      INSURANCE
+      TAXES
+      PENDING_PAYABLES
+      LOAN_REPAYMENTS
+      OTHER_EXPENSES
+    }
+  }
+
+  package "domain.services" {
+    interface CashFlowSource <<port>> {
+      +actualInflows(CashFlowWeek) : Map<CashFlowConcept, Money>
+      +actualOutflows(CashFlowWeek) : Map<CashFlowConcept, Money>
+      +projectedInflows(CashFlowWeek) : Map<CashFlowConcept, Money>
+      +projectedOutflows(CashFlowWeek) : Map<CashFlowConcept, Money>
+    }
+
+    class CashFlowCalculator <<domain-service>> {
+      +buildWeekly(Money, List<CashFlowWeek>, CashFlowSource, LocalDate) : CashFlowReport
+      +buildMonthly(Money, List<Period>, CashFlowSource, LocalDate) : CashFlowReport
+    }
+
+    class ProfitRecognitionService <<domain-service>> {
+      +recognizedProfit(ProjectProfitability, Percentage) : Money
+    }
+  }
+}
+
+package "shared" {
+  class Money <<embeddable-value-object>>
+  class Percentage <<value-object>>
+  class Period <<embeddable-value-object>>
+  class CashFlowWeek <<embeddable-value-object>>
+  class TaxRates <<embeddable-value-object>>
+  enum CostCategory <<value-object>>
+}
+
+package "other bounded contexts" {
+  interface ProjectsContextFacade <<context-facade>>
+  class ProjectSnapshot <<record>>
+  interface BillingContextFacade <<context-facade>>
+  interface ExpensesContextFacade <<context-facade>>
+  interface StaffContextFacade <<context-facade>>
+  interface TreasuryContextFacade <<context-facade>>
+  interface AccountingContextFacade <<context-facade>>
+}
+
+' Interfaces
+CashFlowController --> CashFlowQueryService : invokes
+CashFlowController --> ResponseEntityFromReportingQueryResultAssembler : uses
+FinancialStatementsController --> FinancialStatementsQueryService : invokes
+FinancialStatementsController --> ResponseEntityFromReportingQueryResultAssembler : uses
+ProjectProfitabilityController --> ProjectProfitabilityQueryService : invokes
+ProjectProfitabilityController --> ResponseEntityFromReportingQueryResultAssembler : uses
+DashboardController --> DashboardQueryService : invokes
+DashboardController --> ResponseEntityFromReportingQueryResultAssembler : uses
+
+ResponseEntityFromReportingQueryResultAssembler --> CashFlowReportResourceFromReadModelAssembler : uses
+ResponseEntityFromReportingQueryResultAssembler --> IncomeStatementResourceFromReadModelAssembler : uses
+ResponseEntityFromReportingQueryResultAssembler --> BalanceSheetResourceFromReadModelAssembler : uses
+ResponseEntityFromReportingQueryResultAssembler --> ProjectProfitabilityResourceFromReadModelAssembler : uses
+ResponseEntityFromReportingQueryResultAssembler --> DashboardResourceFromReadModelAssembler : uses
+CashFlowReportResourceFromReadModelAssembler ..> CashFlowReport : reads
+CashFlowReportResourceFromReadModelAssembler --> CashFlowReportResource : creates
+IncomeStatementResourceFromReadModelAssembler ..> IncomeStatement : reads
+IncomeStatementResourceFromReadModelAssembler --> IncomeStatementResource : creates
+BalanceSheetResourceFromReadModelAssembler ..> BalanceSheet : reads
+BalanceSheetResourceFromReadModelAssembler --> BalanceSheetResource : creates
+ProjectProfitabilityResourceFromReadModelAssembler ..> ProjectProfitability : reads
+ProjectProfitabilityResourceFromReadModelAssembler --> ProjectProfitabilityResource : creates
+DashboardResourceFromReadModelAssembler ..> Dashboard : reads
+DashboardResourceFromReadModelAssembler --> DashboardResource : creates
+CashFlowReportResource *-- CashFlowLineResource
+
+' Application
+CashFlowQueryServiceImpl ..|> CashFlowQueryService : implements
+FinancialStatementsQueryServiceImpl ..|> FinancialStatementsQueryService : implements
+ProjectProfitabilityQueryServiceImpl ..|> ProjectProfitabilityQueryService : implements
+DashboardQueryServiceImpl ..|> DashboardQueryService : implements
+AclCashFlowSource ..|> CashFlowSource : implements
+
+CashFlowQueryServiceImpl --> CashFlowCalculator : uses
+CashFlowQueryServiceImpl --> AclCashFlowSource : uses
+CashFlowQueryServiceImpl --> ExternalTreasuryService : opening balance
+FinancialStatementsQueryServiceImpl --> ExternalAccountingService : uses
+FinancialStatementsQueryServiceImpl --> IncomeStatement : creates
+FinancialStatementsQueryServiceImpl --> BalanceSheet : creates
+ProjectProfitabilityQueryServiceImpl --> ExternalProjectsService : uses
+ProjectProfitabilityQueryServiceImpl --> ExternalExpensesService : uses
+ProjectProfitabilityQueryServiceImpl --> ExternalBillingService : uses
+ProjectProfitabilityQueryServiceImpl --> ExternalAccountingService : uses
+ProjectProfitabilityQueryServiceImpl --> ProfitRecognitionService : uses
+ProjectProfitabilityQueryServiceImpl --> ProjectProfitability : creates
+DashboardQueryServiceImpl --> CashFlowQueryService : uses
+DashboardQueryServiceImpl --> FinancialStatementsQueryService : uses
+DashboardQueryServiceImpl --> ProjectProfitabilityQueryService : uses
+DashboardQueryServiceImpl --> ExternalBillingService : uses
+DashboardQueryServiceImpl --> ExternalTreasuryService : uses
+DashboardQueryServiceImpl --> Dashboard : creates
+
+AclCashFlowSource --> ExternalTreasuryService : actual + payables + loans
+AclCashFlowSource --> ExternalBillingService : scheduled collections
+AclCashFlowSource --> ExternalStaffService : scheduled fixed costs
+
+ExternalProjectsService --> ProjectsContextFacade : uses
+ExternalProjectsService ..> ProjectSnapshot : reads
+ExternalBillingService --> BillingContextFacade : uses
+ExternalExpensesService --> ExpensesContextFacade : uses
+ExternalStaffService --> StaffContextFacade : uses
+ExternalTreasuryService --> TreasuryContextFacade : uses
+ExternalAccountingService --> AccountingContextFacade : uses
+
+' Domain
+CashFlowReport "1" *-- "1..*" CashFlowLine : contains
+CashFlowLine --> CashFlowConcept : keyed by
+CashFlowLine --> Money : contains
+CashFlowCalculator ..> CashFlowSource : reads
+CashFlowCalculator ..> CashFlowReport : creates
+CashFlowCalculator ..> CashFlowWeek : iterates
+ProfitRecognitionService ..> ProjectProfitability : reads
+ProjectProfitability --> CostCategory : groups by
+ProjectProfitability --> Percentage : contains
+IncomeStatement --> Period : covers
+BalanceSheet --> Money : contains
+GetWeeklyCashFlowQuery --> Period : contains
+GetBalanceSheetQuery --> Period : contains
+
+note right of CashFlowCalculator
+  Encadenamiento automático:
+  openingBalance(semana 1) = saldo real de
+    treasury.fetchCashBalanceAt(inicio - 1 día)
+  openingBalance(semana N+1) = closingBalance(semana N)
+  closingBalance = opening + totalInflows - totalOutflows
+  semanas pasadas (< hoy) -> movimientos REALES
+  semanas futuras -> PROGRAMADOS (projected = true):
+    ScheduledCollection, Payable.scheduledWeek,
+    LoanInstallment.dueWeek, FixedCost.schedule
+  Corrige del Excel: Agosto!B15 -> Julio!F36,
+  saldos tipeados a mano y meses desconectados.
+end note
+
+note right of BalanceSheet
+  Sale del Libro Diario (accounting), agrupado por PCGE:
+  Activo: 10 Caja y Bancos, 12 CxC, 16 Préstamos por cobrar,
+    40111 Crédito fiscal, 23 Productos en proceso,
+    33 - 39 Activo fijo neto
+  Pasivo: 40 Tributos, 42/46 CxP, 45 Préstamos,
+    122 Anticipos de clientes
+  Patrimonio: 50 Capital, 59 Resultados acumulados,
+    resultado del ejercicio
+  isBalanced() = difference == 0 (garantizado por
+  partida doble; se muestra como control).
+end note
+
+note right of ProjectProfitability
+  Vista gerencial (hoja "Proyectos" del Excel):
+  salesCommission = budget x (1 + IGV) x rate
+  grossProfit = (budget - actualCost - salesCommission)
+                x participation
+  margin = grossProfit / budget
+  costDeviation = actualCost - estimatedCost
+  recognizedProfit(avance%) = grossProfit x avance%
+  actualCost viene de expenses (por projectId).
+end note
+
+note bottom
+  Reporting is a read-only bounded context: REST controllers call query services that
+  compose read models from the upstream context facades (anti-corruption layer).
+  Nothing here is persisted; every figure is recalculated from the source of truth
+  (treasury for cash, accounting for statements, projects + expenses + billing for
+  project profitability). Dashboard alerts: negative projected balance, overdue
+  invoices, projects with costDeviation > 0.
+end note
+@enduml

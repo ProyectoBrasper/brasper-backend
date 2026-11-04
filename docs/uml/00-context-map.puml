@@ -1,0 +1,93 @@
+@startuml
+' Brasper Platform - Context Map (DDD, Java 21 / Spring Boot 3)
+
+skinparam classAttributeIconSize 0
+skinparam rectangle {
+  BackgroundColor<<core>> #E8F5E9
+  BackgroundColor<<supporting>> #E3F2FD
+  BackgroundColor<<generic>> #F5F5F5
+}
+set separator none
+hide empty members
+
+title Brasper Platform - Context Map
+
+rectangle "iam\n(Usuarios y Roles)" as iam <<generic>>
+rectangle "projects\n(Clientes, Proyectos, Avance)" as projects <<core>>
+rectangle "billing\n(Facturación y Cobranza)" as billing <<core>>
+rectangle "expenses\n(Proveedores y Gastos)" as expenses <<core>>
+rectangle "staff\n(Personal y Costos Fijos)" as staff <<supporting>>
+rectangle "treasury\n(Bancos, Pagos, Préstamos, Aportes)" as treasury <<core>>
+rectangle "accounting\n(Libro Diario, IGV, Activos)" as accounting <<supporting>>
+rectangle "reporting\n(Flujo de Caja, EERR, Balance, Rentabilidad)" as reporting <<supporting>>
+rectangle "shared\n(Result, Money, Period, TaxBreakdown, GlobalExceptionHandler)" as shared <<generic>>
+
+' Upstream (U) -> Downstream (D) via ACL context facades
+projects --> billing : U/D\nProjectsContextFacade
+projects --> expenses : U/D\nProjectsContextFacade
+projects --> reporting : U/D\nProjectsContextFacade
+treasury --> billing : U/D\nTreasuryContextFacade
+treasury --> expenses : U/D\nTreasuryContextFacade
+treasury --> staff : U/D\nTreasuryContextFacade
+treasury --> accounting : U/D\nTreasuryContextFacade
+treasury --> reporting : U/D\nTreasuryContextFacade
+accounting --> billing : U/D\nAccountingContextFacade (TaxRates)
+accounting --> expenses : U/D\nAccountingContextFacade (TaxRates)
+accounting --> reporting : U/D\nAccountingContextFacade
+billing --> reporting : U/D\nBillingContextFacade
+expenses --> reporting : U/D\nExpensesContextFacade
+staff --> reporting : U/D\nStaffContextFacade
+
+' Domain events (publisher ..> subscriber)
+billing ..> treasury : InvoicePaymentReceivedEvent\nInvoiceIssuedEvent (autodetracción)
+billing ..> accounting : InvoiceIssuedEvent\nInvoicePaymentReceivedEvent
+expenses ..> treasury : ExpenseRegisteredEvent
+expenses ..> accounting : ExpenseRegisteredEvent
+staff ..> treasury : FixedCostPaidEvent
+staff ..> accounting : FixedCostPaidEvent
+treasury ..> expenses : PayablePaidEvent
+treasury ..> accounting : LoanDisbursedEvent\nLoanInstallmentPaidEvent\nPayablePaidEvent\nPartnerContributionRegisteredEvent\nFundsTransferredEvent
+accounting ..> treasury : TaxReturnPaidEvent
+projects ..> accounting : ProjectCompletedEvent
+
+note right of iam
+  Transversal: todos los contextos se protegen
+  con Spring Security (BearerAuthorizationRequestFilter
+  + @PreAuthorize por rol).
+end note
+
+note as glossary
+  <b>Lenguaje ubicuo (EN -> ES)</b>
+  Project = Proyecto (código NNNBR-MES-AAAA)
+  ProgressRecord = Avance mensual (%)
+  CostEstimate = Estimación de costo
+  Invoice / InvoicePayment = Factura / Cobro
+  ScheduledCollection = Cobranza programada (venta proyectada)
+  Expense / Supplier = Gasto / Proveedor
+  FixedCost / FixedCostPayment = Costo fijo / Pago de costo fijo
+  BankAccount / CashMovement = Cuenta bancaria / Movimiento de caja
+  Payable = Obligación por pagar (pagos pendientes)
+  Loan / LoanInstallment = Préstamo / Cuota
+  Partner / PartnerContribution = Socio / Aporte (Aportes Ingeniero)
+  JournalEntry / LedgerAccount = Asiento contable / Cuenta contable (PCGE)
+  TaxReturn = Declaración mensual (IGV + pago a cuenta renta)
+  FixedAsset = Activo fijo
+  CashFlowWeek = Semana del flujo de caja (Semana 01..05)
+  Detraction / Retention = Detracción (12%) / Retención (3%)
+end note
+
+note as rules
+  <b>Reglas de integración</b>
+  - Un contexto NUNCA usa el repositorio JPA de otro:
+    consume la fachada (interfaces.acl.*ContextFacade)
+    a través de application.internal.outboundservices.acl.
+  - Efectos colaterales entre contextos (caja, asientos)
+    viajan como eventos de dominio: el agregado los registra
+    (AbstractAggregateRoot.registerEvent) y se consumen con
+    @TransactionalEventListener(phase = BEFORE_COMMIT):
+    misma transacción -> si falla el asiento o el movimiento
+    de caja, se revierte todo (consistencia del balance).
+  - Referencias entre agregados de distintos contextos
+    solo por Id (Long), nunca por @ManyToOne.
+end note
+@enduml

@@ -1,0 +1,926 @@
+@startuml
+' Brasper Platform - Accounting Bounded Context (Java 21 / Spring Boot 3)
+
+skinparam classAttributeIconSize 0
+set separator none
+hide empty members
+
+package "accounting" {
+
+  package "interfaces.rest" {
+    class LedgerAccountsController <<rest-controller>> {
+      +createLedgerAccount(CreateLedgerAccountResource) : ResponseEntity<?>
+      +getAllLedgerAccounts() : ResponseEntity<?>
+      +getTrialBalance(int, int) : ResponseEntity<?>
+    }
+
+    class JournalEntriesController <<rest-controller>> {
+      +registerManualEntry(RegisterJournalEntryResource) : ResponseEntity<?>
+      +reverseEntry(Long) : ResponseEntity<?>
+      +getJournalEntryById(Long) : ResponseEntity<?>
+      +getJournalEntriesByPeriod(int, int) : ResponseEntity<?>
+    }
+
+    class TaxReturnsController <<rest-controller>> {
+      +prepareTaxReturn(PrepareTaxReturnResource) : ResponseEntity<?>
+      +payTaxReturn(Long, PayTaxReturnResource) : ResponseEntity<?>
+      +getTaxReturnByPeriod(int, int) : ResponseEntity<?>
+    }
+
+    class TaxParametersController <<rest-controller>> {
+      +setTaxParameters(SetTaxParametersResource) : ResponseEntity<?>
+      +getCurrentTaxParameters() : ResponseEntity<?>
+    }
+
+    class FixedAssetsController <<rest-controller>> {
+      +registerFixedAsset(RegisterFixedAssetResource) : ResponseEntity<?>
+      +disposeFixedAsset(Long) : ResponseEntity<?>
+      +runMonthlyDepreciation(int, int) : ResponseEntity<?>
+      +getAllFixedAssets() : ResponseEntity<?>
+      +getFixedAssetById(Long) : ResponseEntity<?>
+    }
+  }
+
+  package "interfaces.rest.resources" {
+    class CreateLedgerAccountResource <<request-resource>> {
+      +String code
+      +String name
+      +String type
+    }
+
+    class LedgerAccountResource <<response-resource>> {
+      +Long id
+      +String code
+      +String name
+      +String type
+      +boolean active
+    }
+
+    class JournalLineResource <<request-resource>> {
+      +String accountCode
+      +BigDecimal debit
+      +BigDecimal credit
+      +Long projectId
+    }
+
+    class RegisterJournalEntryResource <<request-resource>> {
+      +LocalDate entryDate
+      +String description
+      +List<JournalLineResource> lines
+    }
+
+    class JournalEntryResource <<response-resource>> {
+      +Long id
+      +LocalDate entryDate
+      +String description
+      +String source
+      +Long sourceId
+      +boolean reversed
+      +List<JournalLineResource> lines
+    }
+
+    class TrialBalanceResource <<response-resource>> {
+      +int year
+      +int month
+      +List<TrialBalanceLineResource> lines
+      +BigDecimal totalDebit
+      +BigDecimal totalCredit
+    }
+
+    class TrialBalanceLineResource <<response-resource>> {
+      +String accountCode
+      +String accountName
+      +BigDecimal debit
+      +BigDecimal credit
+      +BigDecimal balance
+    }
+
+    class PrepareTaxReturnResource <<request-resource>> {
+      +int year
+      +int month
+    }
+
+    class PayTaxReturnResource <<request-resource>> {
+      +LocalDate paidOn
+      +Long bankAccountId
+    }
+
+    class TaxReturnResource <<response-resource>> {
+      +Long id
+      +int year
+      +int month
+      +BigDecimal outputIgv
+      +BigDecimal inputIgv
+      +BigDecimal carriedCredit
+      +BigDecimal igvPayable
+      +BigDecimal incomeTaxPrepayment
+      +BigDecimal totalPayable
+      +String status
+      +LocalDate paidOn
+    }
+
+    class SetTaxParametersResource <<request-resource>> {
+      +BigDecimal igv
+      +BigDecimal detraction
+      +BigDecimal retention
+      +BigDecimal incomeTaxPrepayment
+      +LocalDate effectiveFrom
+    }
+
+    class TaxParametersResource <<response-resource>> {
+      +Long id
+      +BigDecimal igv
+      +BigDecimal detraction
+      +BigDecimal retention
+      +BigDecimal incomeTaxPrepayment
+      +LocalDate effectiveFrom
+    }
+
+    class RegisterFixedAssetResource <<request-resource>> {
+      +String description
+      +LocalDate acquiredOn
+      +BigDecimal taxableBase
+      +String currency
+      +int usefulLifeMonths
+      +Long expenseId
+    }
+
+    class FixedAssetResource <<response-resource>> {
+      +Long id
+      +String description
+      +LocalDate acquiredOn
+      +BigDecimal taxableBase
+      +BigDecimal igv
+      +BigDecimal total
+      +int usefulLifeMonths
+      +BigDecimal bookValue
+      +boolean disposed
+    }
+  }
+
+  package "interfaces.rest.transform" {
+    class CreateLedgerAccountCommandFromResourceAssembler <<translator>> {
+      +toCommandFromResource(CreateLedgerAccountResource) : CreateLedgerAccountCommand
+    }
+
+    class RegisterJournalEntryCommandFromResourceAssembler <<translator>> {
+      +toCommandFromResource(RegisterJournalEntryResource) : RegisterJournalEntryCommand
+    }
+
+    class SetTaxParametersCommandFromResourceAssembler <<translator>> {
+      +toCommandFromResource(SetTaxParametersResource) : SetTaxParametersCommand
+    }
+
+    class RegisterFixedAssetCommandFromResourceAssembler <<translator>> {
+      +toCommandFromResource(RegisterFixedAssetResource) : RegisterFixedAssetCommand
+    }
+
+    class AccountingValueObjectFromStringAssembler <<translator>> {
+      +toAccountCodeFromString(String) : AccountCode
+      +toLedgerAccountTypeFromString(String) : LedgerAccountType
+    }
+
+    class LedgerAccountResourceFromEntityAssembler <<translator>> {
+      +toResourceFromEntity(LedgerAccount) : LedgerAccountResource
+    }
+
+    class JournalEntryResourceFromEntityAssembler <<translator>> {
+      +toResourceFromEntity(JournalEntry) : JournalEntryResource
+    }
+
+    class TrialBalanceResourceFromReadModelAssembler <<translator>> {
+      +toResourceFromReadModel(TrialBalance) : TrialBalanceResource
+    }
+
+    class TaxReturnResourceFromEntityAssembler <<translator>> {
+      +toResourceFromEntity(TaxReturn) : TaxReturnResource
+    }
+
+    class TaxParametersResourceFromEntityAssembler <<translator>> {
+      +toResourceFromEntity(TaxParameters) : TaxParametersResource
+    }
+
+    class FixedAssetResourceFromEntityAssembler <<translator>> {
+      +toResourceFromEntity(FixedAsset) : FixedAssetResource
+    }
+
+    class ResponseEntityFromAccountingCommandResultAssembler <<translator>> {
+      +toResponseEntityFromLedgerAccountResult(Result<LedgerAccount, LedgerCommandFailure>, MessageSource) : ResponseEntity<?>
+      +toResponseEntityFromJournalEntryResult(Result<JournalEntry, LedgerCommandFailure>, MessageSource) : ResponseEntity<?>
+      +toResponseEntityFromTaxReturnResult(Result<TaxReturn, TaxCommandFailure>, MessageSource) : ResponseEntity<?>
+      +toResponseEntityFromTaxParametersResult(Result<TaxParameters, TaxCommandFailure>, MessageSource) : ResponseEntity<?>
+      +toResponseEntityFromFixedAssetResult(Result<FixedAsset, FixedAssetCommandFailure>, MessageSource) : ResponseEntity<?>
+    }
+
+    class ResponseEntityFromAccountingQueryResultAssembler <<translator>> {
+      +toResponseEntityFromLedgerAccountList(List<LedgerAccount>) : ResponseEntity<?>
+      +toResponseEntityFromJournalEntry(JournalEntry) : ResponseEntity<?>
+      +toResponseEntityFromJournalEntryList(List<JournalEntry>) : ResponseEntity<?>
+      +toResponseEntityFromTrialBalance(TrialBalance) : ResponseEntity<?>
+      +toResponseEntityFromTaxReturn(TaxReturn) : ResponseEntity<?>
+      +toResponseEntityFromTaxParameters(TaxParameters) : ResponseEntity<?>
+      +toResponseEntityFromFixedAssetList(List<FixedAsset>) : ResponseEntity<?>
+      +notFound(MessageSource, String, Object...) : ResponseEntity<ProblemDetail>
+    }
+  }
+
+  package "interfaces.acl" {
+    interface AccountingContextFacade <<context-facade>> {
+      +fetchTaxRatesAt(LocalDate) : TaxRates
+      +fetchAccountBalancesAt(LocalDate) : Map<String, BigDecimal>
+      +fetchBalancesByAccountTypeAt(LocalDate) : Map<String, BigDecimal>
+      +fetchResultByPeriod(int, int) : Map<String, BigDecimal>
+      +fetchTaxPayableByPeriod(int, int) : BigDecimal
+    }
+  }
+
+  package "application.commandservices" {
+    interface LedgerCommandService <<application-service>> {
+      +handle(CreateLedgerAccountCommand) : Result<LedgerAccount, LedgerCommandFailure>
+      +handle(RegisterJournalEntryCommand) : Result<JournalEntry, LedgerCommandFailure>
+      +handle(ReverseJournalEntryCommand) : Result<JournalEntry, LedgerCommandFailure>
+    }
+
+    interface TaxCommandService <<application-service>> {
+      +handle(PrepareTaxReturnCommand) : Result<TaxReturn, TaxCommandFailure>
+      +handle(PayTaxReturnCommand) : Result<TaxReturn, TaxCommandFailure>
+      +handle(SetTaxParametersCommand) : Result<TaxParameters, TaxCommandFailure>
+    }
+
+    interface FixedAssetCommandService <<application-service>> {
+      +handle(RegisterFixedAssetCommand) : Result<FixedAsset, FixedAssetCommandFailure>
+      +handle(DisposeFixedAssetCommand) : Result<FixedAsset, FixedAssetCommandFailure>
+      +handle(RunMonthlyDepreciationCommand) : Result<JournalEntry, FixedAssetCommandFailure>
+    }
+
+    interface LedgerCommandFailure <<failure>> {
+      +messageKey() : String
+    }
+
+    class "LedgerCommandFailure.DuplicateAccountCode" as LedgerFailureDuplicateAccountCode <<failure>>
+    class "LedgerCommandFailure.UnbalancedEntry" as LedgerFailureUnbalancedEntry <<failure>>
+    class "LedgerCommandFailure.AccountNotFound" as LedgerFailureAccountNotFound <<failure>>
+    class "LedgerCommandFailure.PeriodClosed" as LedgerFailurePeriodClosed <<failure>>
+    class "LedgerCommandFailure.DuplicateSource" as LedgerFailureDuplicateSource <<failure>>
+    class "LedgerCommandFailure.AlreadyReversed" as LedgerFailureAlreadyReversed <<failure>>
+
+    interface TaxCommandFailure <<failure>> {
+      +messageKey() : String
+    }
+
+    class "TaxCommandFailure.PeriodAlreadyDeclared" as TaxFailurePeriodAlreadyDeclared <<failure>>
+    class "TaxCommandFailure.NotFound" as TaxFailureNotFound <<failure>>
+    class "TaxCommandFailure.AlreadyPaid" as TaxFailureAlreadyPaid <<failure>>
+    class "TaxCommandFailure.InvalidRate" as TaxFailureInvalidRate <<failure>>
+    class "TaxCommandFailure.BankAccountNotFound" as TaxFailureBankAccountNotFound <<failure>>
+
+    interface FixedAssetCommandFailure <<failure>> {
+      +messageKey() : String
+    }
+
+    class "FixedAssetCommandFailure.NotFound" as FixedAssetFailureNotFound <<failure>>
+    class "FixedAssetCommandFailure.InvalidUsefulLife" as FixedAssetFailureInvalidUsefulLife <<failure>>
+    class "FixedAssetCommandFailure.AlreadyDisposed" as FixedAssetFailureAlreadyDisposed <<failure>>
+  }
+
+  package "application.queryservices" {
+    interface LedgerQueryService <<application-service>> {
+      +handle(GetAllLedgerAccountsQuery) : List<LedgerAccount>
+      +handle(GetTrialBalanceQuery) : TrialBalance
+      +handle(GetJournalEntriesByPeriodQuery) : List<JournalEntry>
+      +handle(GetJournalEntryByIdQuery) : Optional<JournalEntry>
+    }
+
+    interface TaxQueryService <<application-service>> {
+      +handle(GetTaxReturnByPeriodQuery) : Optional<TaxReturn>
+      +handle(GetTaxParametersAtQuery) : Optional<TaxParameters>
+    }
+
+    interface FixedAssetQueryService <<application-service>> {
+      +handle(GetAllFixedAssetsQuery) : List<FixedAsset>
+      +handle(GetFixedAssetByIdQuery) : Optional<FixedAsset>
+    }
+  }
+
+  package "application.internal.commandservices" {
+    class LedgerCommandServiceImpl <<application-service>> {
+      +handle(CreateLedgerAccountCommand) : Result<LedgerAccount, LedgerCommandFailure>
+      +handle(RegisterJournalEntryCommand) : Result<JournalEntry, LedgerCommandFailure>
+      +handle(ReverseJournalEntryCommand) : Result<JournalEntry, LedgerCommandFailure>
+    }
+
+    class TaxCommandServiceImpl <<application-service>> {
+      +handle(PrepareTaxReturnCommand) : Result<TaxReturn, TaxCommandFailure>
+      +handle(PayTaxReturnCommand) : Result<TaxReturn, TaxCommandFailure>
+      +handle(SetTaxParametersCommand) : Result<TaxParameters, TaxCommandFailure>
+    }
+
+    class FixedAssetCommandServiceImpl <<application-service>> {
+      +handle(RegisterFixedAssetCommand) : Result<FixedAsset, FixedAssetCommandFailure>
+      +handle(DisposeFixedAssetCommand) : Result<FixedAsset, FixedAssetCommandFailure>
+      +handle(RunMonthlyDepreciationCommand) : Result<JournalEntry, FixedAssetCommandFailure>
+    }
+  }
+
+  package "application.internal.queryservices" {
+    class LedgerQueryServiceImpl <<application-service>> {
+      +handle(GetAllLedgerAccountsQuery) : List<LedgerAccount>
+      +handle(GetTrialBalanceQuery) : TrialBalance
+      +handle(GetJournalEntriesByPeriodQuery) : List<JournalEntry>
+      +handle(GetJournalEntryByIdQuery) : Optional<JournalEntry>
+    }
+
+    class TaxQueryServiceImpl <<application-service>> {
+      +handle(GetTaxReturnByPeriodQuery) : Optional<TaxReturn>
+      +handle(GetTaxParametersAtQuery) : Optional<TaxParameters>
+    }
+
+    class FixedAssetQueryServiceImpl <<application-service>> {
+      +handle(GetAllFixedAssetsQuery) : List<FixedAsset>
+      +handle(GetFixedAssetByIdQuery) : Optional<FixedAsset>
+    }
+  }
+
+  package "application.internal.eventhandlers" {
+    class PostingEventHandler <<event-handler>> {
+      +on(InvoiceIssuedEvent) : void
+      +on(InvoicePaymentReceivedEvent) : void
+      +on(ExpenseRegisteredEvent) : void
+      +on(FixedCostPaidEvent) : void
+      +on(PayablePaidEvent) : void
+      +on(LoanDisbursedEvent) : void
+      +on(LoanInstallmentPaidEvent) : void
+      +on(PartnerContributionRegisteredEvent) : void
+      +on(FundsTransferredEvent) : void
+      +on(ProjectCompletedEvent) : void
+    }
+  }
+
+  package "application.internal.outboundservices.acl" {
+    class ExternalTreasuryService <<outbound-service>> {
+      +existsBankAccountById(Long) : boolean
+    }
+  }
+
+  package "application.acl" {
+    class AccountingContextFacadeImpl <<context-facade>> {
+      +fetchTaxRatesAt(LocalDate) : TaxRates
+      +fetchAccountBalancesAt(LocalDate) : Map<String, BigDecimal>
+      +fetchBalancesByAccountTypeAt(LocalDate) : Map<String, BigDecimal>
+      +fetchResultByPeriod(int, int) : Map<String, BigDecimal>
+      +fetchTaxPayableByPeriod(int, int) : BigDecimal
+    }
+  }
+
+  package "domain.model.aggregates" {
+    class LedgerAccount <<aggregate-root>> {
+      +CODE_UNIQUE_CONSTRAINT : String
+      -Long id
+      -AccountCode code
+      -String name
+      -LedgerAccountType type
+      -boolean active
+      -Instant createdAt
+      -Instant updatedAt
+      +LedgerAccount(CreateLedgerAccountCommand)
+      +deactivate() : void
+    }
+
+    class JournalEntry <<aggregate-root>> {
+      +SOURCE_UNIQUE_CONSTRAINT : String
+      -Long id
+      -LocalDate entryDate
+      -Period period
+      -String description
+      -EntrySource source
+      -Long sourceId
+      -boolean reversed
+      -Long reversalOfId
+      -List<JournalLine> lines
+      -Instant createdAt
+      -Instant updatedAt
+      +JournalEntry(RegisterJournalEntryCommand)
+      +reverse(LocalDate) : JournalEntry
+      +totalDebit() : Money
+      +totalCredit() : Money
+    }
+
+    class TaxReturn <<aggregate-root>> {
+      +PERIOD_UNIQUE_CONSTRAINT : String
+      -Long id
+      -Period period
+      -Money outputIgv
+      -Money inputIgv
+      -Money carriedCredit
+      -Money incomeTaxPrepayment
+      -TaxReturnStatus status
+      -LocalDate paidOn
+      -Long bankAccountId
+      -Instant createdAt
+      -Instant updatedAt
+      +TaxReturn(PrepareTaxReturnCommand, Money, Money, Money, Money)
+      +igvPayable() : Money
+      +nextCarriedCredit() : Money
+      +totalPayable() : Money
+      +file() : void
+      +markAsPaid(LocalDate, Long) : void
+    }
+
+    class TaxParameters <<aggregate-root>> {
+      -Long id
+      -TaxRates rates
+      -LocalDate effectiveFrom
+      -Instant createdAt
+      -Instant updatedAt
+      +TaxParameters(SetTaxParametersCommand)
+    }
+
+    class FixedAsset <<aggregate-root>> {
+      -Long id
+      -String description
+      -LocalDate acquiredOn
+      -TaxBreakdown amounts
+      -int usefulLifeMonths
+      -Long expenseId
+      -LocalDate disposedOn
+      -Instant createdAt
+      -Instant updatedAt
+      +FixedAsset(RegisterFixedAssetCommand, TaxRates)
+      +monthlyDepreciation() : Money
+      +accumulatedDepreciationAt(LocalDate) : Money
+      +bookValueAt(LocalDate) : Money
+      +dispose(LocalDate) : void
+    }
+  }
+
+  package "domain.model.entities" {
+    class JournalLine <<entity>> {
+      -Long id
+      -JournalEntry journalEntry
+      -AccountCode accountCode
+      -Money debit
+      -Money credit
+      -Long projectId
+    }
+  }
+
+  package "domain.model.valueobjects" {
+    class AccountCode <<value-object>> {
+      +String value
+      +element() : int
+    }
+
+    enum LedgerAccountType <<value-object>> {
+      ASSET
+      LIABILITY
+      EQUITY
+      REVENUE
+      EXPENSE
+    }
+
+    enum EntrySource <<value-object>> {
+      MANUAL
+      INVOICE_ISSUED
+      INVOICE_PAYMENT
+      EXPENSE
+      FIXED_COST_PAYMENT
+      PAYABLE_PAYMENT
+      LOAN_DISBURSEMENT
+      LOAN_INSTALLMENT
+      PARTNER_CONTRIBUTION
+      FUNDS_TRANSFER
+      PROJECT_COMPLETED
+      TAX_RETURN
+      DEPRECIATION
+    }
+
+    enum TaxReturnStatus <<value-object>> {
+      DRAFT
+      FILED
+      PAID
+    }
+
+    class TrialBalance <<read-model>> {
+      +Period period
+      +List<TrialBalanceLine> lines
+      +totalDebit() : Money
+      +totalCredit() : Money
+      +isBalanced() : boolean
+    }
+
+    class TrialBalanceLine <<read-model>> {
+      +AccountCode accountCode
+      +String accountName
+      +LedgerAccountType type
+      +Money debit
+      +Money credit
+      +balance() : Money
+    }
+  }
+
+  package "domain.model.commands" {
+    class CreateLedgerAccountCommand <<command>> {
+      +AccountCode code
+      +String name
+      +LedgerAccountType type
+    }
+
+    class RegisterJournalEntryCommand <<command>> {
+      +LocalDate entryDate
+      +String description
+      +EntrySource source
+      +Long sourceId
+      +List<JournalLineData> lines
+    }
+
+    class JournalLineData <<command>> {
+      +AccountCode accountCode
+      +Money debit
+      +Money credit
+      +Long projectId
+    }
+
+    class ReverseJournalEntryCommand <<command>> {
+      +Long journalEntryId
+      +LocalDate reversedOn
+    }
+
+    class PrepareTaxReturnCommand <<command>> {
+      +Period period
+    }
+
+    class PayTaxReturnCommand <<command>> {
+      +Long taxReturnId
+      +LocalDate paidOn
+      +Long bankAccountId
+    }
+
+    class SetTaxParametersCommand <<command>> {
+      +TaxRates rates
+      +LocalDate effectiveFrom
+    }
+
+    class RegisterFixedAssetCommand <<command>> {
+      +String description
+      +LocalDate acquiredOn
+      +Money taxableBase
+      +int usefulLifeMonths
+      +Long expenseId
+    }
+
+    class DisposeFixedAssetCommand <<command>> {
+      +Long fixedAssetId
+      +LocalDate disposedOn
+    }
+
+    class RunMonthlyDepreciationCommand <<command>> {
+      +Period period
+    }
+  }
+
+  package "domain.model.queries" {
+    class GetAllLedgerAccountsQuery <<query>>
+
+    class GetTrialBalanceQuery <<query>> {
+      +Period period
+    }
+
+    class GetJournalEntriesByPeriodQuery <<query>> {
+      +Period period
+    }
+
+    class GetJournalEntryByIdQuery <<query>> {
+      +Long id
+    }
+
+    class GetTaxReturnByPeriodQuery <<query>> {
+      +Period period
+    }
+
+    class GetTaxParametersAtQuery <<query>> {
+      +LocalDate date
+    }
+
+    class GetAllFixedAssetsQuery <<query>>
+
+    class GetFixedAssetByIdQuery <<query>> {
+      +Long id
+    }
+  }
+
+  package "domain.model.events" {
+    class TaxReturnPaidEvent <<domain-event>> {
+      +Long taxReturnId
+      +Period period
+      +LocalDate paidOn
+      +Money amount
+      +Long bankAccountId
+    }
+  }
+
+  package "domain.services" {
+    class PostingRulesDomainService <<domain-service>> {
+      +forInvoiceIssued(InvoiceIssuedEvent) : RegisterJournalEntryCommand
+      +forInvoicePayment(InvoicePaymentReceivedEvent) : RegisterJournalEntryCommand
+      +forExpense(ExpenseRegisteredEvent) : RegisterJournalEntryCommand
+      +forFixedCostPayment(FixedCostPaidEvent) : RegisterJournalEntryCommand
+      +forPayablePayment(PayablePaidEvent) : RegisterJournalEntryCommand
+      +forLoanDisbursement(LoanDisbursedEvent) : RegisterJournalEntryCommand
+      +forLoanInstallment(LoanInstallmentPaidEvent) : RegisterJournalEntryCommand
+      +forPartnerContribution(PartnerContributionRegisteredEvent) : RegisterJournalEntryCommand
+      +forFundsTransfer(FundsTransferredEvent) : RegisterJournalEntryCommand
+      +forProjectCompleted(ProjectCompletedEvent) : RegisterJournalEntryCommand
+      +forTaxReturnPaid(TaxReturn) : RegisterJournalEntryCommand
+      +forDepreciation(List<FixedAsset>, Period) : RegisterJournalEntryCommand
+    }
+  }
+
+  package "infrastructure.persistence.jpa" {
+    interface LedgerAccountRepository <<spring-data-repository>> {
+      +findByCode(AccountCode) : Optional<LedgerAccount>
+      +existsByCode(AccountCode) : boolean
+    }
+
+    interface JournalEntryRepository <<spring-data-repository>> {
+      +findAllByEntryDateBetween(LocalDate, LocalDate) : List<JournalEntry>
+      +existsBySourceAndSourceId(EntrySource, Long) : boolean
+      +sumBalancesByAccountUntil(LocalDate) : List<AccountBalanceProjection>
+    }
+
+    interface TaxReturnRepository <<spring-data-repository>> {
+      +findByPeriod(Period) : Optional<TaxReturn>
+      +existsByPeriod(Period) : boolean
+    }
+
+    interface TaxParametersRepository <<spring-data-repository>> {
+      +findFirstByEffectiveFromLessThanEqualOrderByEffectiveFromDesc(LocalDate) : Optional<TaxParameters>
+    }
+
+    interface FixedAssetRepository <<spring-data-repository>> {
+      +findAllByDisposedOnIsNull() : List<FixedAsset>
+    }
+
+    class AccountCodeAttributeConverter <<jpa-converter>> {
+      +convertToDatabaseColumn(AccountCode) : String
+      +convertToEntityAttribute(String) : AccountCode
+    }
+
+    class PcgeLedgerAccountSeeder <<application-ready-listener>> {
+      +on(ApplicationReadyEvent) : void
+    }
+  }
+}
+
+package "shared" {
+  interface "Result<T, E>" as Result <<sealed-result>>
+  interface CommandFailure <<failure>>
+  class Money <<embeddable-value-object>>
+  class Period <<embeddable-value-object>>
+  class TaxRates <<embeddable-value-object>>
+  class TaxBreakdown <<embeddable-value-object>>
+}
+
+package "other bounded contexts" {
+  interface TreasuryContextFacade <<context-facade>>
+  class InvoiceIssuedEvent <<domain-event>>
+  class InvoicePaymentReceivedEvent <<domain-event>>
+  class ExpenseRegisteredEvent <<domain-event>>
+  class FixedCostPaidEvent <<domain-event>>
+  class PayablePaidEvent <<domain-event>>
+  class LoanDisbursedEvent <<domain-event>>
+  class LoanInstallmentPaidEvent <<domain-event>>
+  class PartnerContributionRegisteredEvent <<domain-event>>
+  class FundsTransferredEvent <<domain-event>>
+  class ProjectCompletedEvent <<domain-event>>
+}
+
+package "org.springframework" {
+  interface "JpaRepository<T, ID>" as JpaRepository <<Spring Data>>
+  abstract class "AbstractAggregateRoot<A>" as AbstractAggregateRoot <<Spring Data>>
+}
+
+' Interfaces
+LedgerAccountsController --> LedgerCommandService : invokes
+LedgerAccountsController --> LedgerQueryService : invokes
+LedgerAccountsController ..> CreateLedgerAccountResource : accepts
+LedgerAccountsController --> CreateLedgerAccountCommandFromResourceAssembler : uses
+LedgerAccountsController --> ResponseEntityFromAccountingCommandResultAssembler : uses
+LedgerAccountsController --> ResponseEntityFromAccountingQueryResultAssembler : uses
+JournalEntriesController --> LedgerCommandService : invokes
+JournalEntriesController --> LedgerQueryService : invokes
+JournalEntriesController ..> RegisterJournalEntryResource : accepts
+JournalEntriesController --> RegisterJournalEntryCommandFromResourceAssembler : uses
+JournalEntriesController --> ResponseEntityFromAccountingCommandResultAssembler : uses
+JournalEntriesController --> ResponseEntityFromAccountingQueryResultAssembler : uses
+TaxReturnsController --> TaxCommandService : invokes
+TaxReturnsController --> TaxQueryService : invokes
+TaxReturnsController --> ResponseEntityFromAccountingCommandResultAssembler : uses
+TaxReturnsController --> ResponseEntityFromAccountingQueryResultAssembler : uses
+TaxParametersController --> TaxCommandService : invokes
+TaxParametersController --> TaxQueryService : invokes
+TaxParametersController --> SetTaxParametersCommandFromResourceAssembler : uses
+TaxParametersController --> ResponseEntityFromAccountingCommandResultAssembler : uses
+TaxParametersController --> ResponseEntityFromAccountingQueryResultAssembler : uses
+FixedAssetsController --> FixedAssetCommandService : invokes
+FixedAssetsController --> FixedAssetQueryService : invokes
+FixedAssetsController --> RegisterFixedAssetCommandFromResourceAssembler : uses
+FixedAssetsController --> ResponseEntityFromAccountingCommandResultAssembler : uses
+FixedAssetsController --> ResponseEntityFromAccountingQueryResultAssembler : uses
+
+' HTTP mapping
+CreateLedgerAccountCommandFromResourceAssembler ..> CreateLedgerAccountResource : reads
+CreateLedgerAccountCommandFromResourceAssembler --> CreateLedgerAccountCommand : creates
+CreateLedgerAccountCommandFromResourceAssembler --> AccountingValueObjectFromStringAssembler : uses
+RegisterJournalEntryCommandFromResourceAssembler ..> RegisterJournalEntryResource : reads
+RegisterJournalEntryCommandFromResourceAssembler --> RegisterJournalEntryCommand : creates
+RegisterJournalEntryCommandFromResourceAssembler --> AccountingValueObjectFromStringAssembler : uses
+SetTaxParametersCommandFromResourceAssembler ..> SetTaxParametersResource : reads
+SetTaxParametersCommandFromResourceAssembler --> SetTaxParametersCommand : creates
+RegisterFixedAssetCommandFromResourceAssembler ..> RegisterFixedAssetResource : reads
+RegisterFixedAssetCommandFromResourceAssembler --> RegisterFixedAssetCommand : creates
+AccountingValueObjectFromStringAssembler --> AccountCode : creates
+AccountingValueObjectFromStringAssembler --> LedgerAccountType : creates
+ResponseEntityFromAccountingCommandResultAssembler --> Result : maps
+ResponseEntityFromAccountingCommandResultAssembler --> LedgerCommandFailure : maps
+ResponseEntityFromAccountingCommandResultAssembler --> TaxCommandFailure : maps
+ResponseEntityFromAccountingCommandResultAssembler --> FixedAssetCommandFailure : maps
+ResponseEntityFromAccountingCommandResultAssembler --> LedgerAccountResourceFromEntityAssembler : uses
+ResponseEntityFromAccountingCommandResultAssembler --> JournalEntryResourceFromEntityAssembler : uses
+ResponseEntityFromAccountingCommandResultAssembler --> TaxReturnResourceFromEntityAssembler : uses
+ResponseEntityFromAccountingCommandResultAssembler --> TaxParametersResourceFromEntityAssembler : uses
+ResponseEntityFromAccountingCommandResultAssembler --> FixedAssetResourceFromEntityAssembler : uses
+ResponseEntityFromAccountingQueryResultAssembler --> LedgerAccountResourceFromEntityAssembler : uses
+ResponseEntityFromAccountingQueryResultAssembler --> JournalEntryResourceFromEntityAssembler : uses
+ResponseEntityFromAccountingQueryResultAssembler --> TrialBalanceResourceFromReadModelAssembler : uses
+ResponseEntityFromAccountingQueryResultAssembler --> TaxReturnResourceFromEntityAssembler : uses
+ResponseEntityFromAccountingQueryResultAssembler --> TaxParametersResourceFromEntityAssembler : uses
+ResponseEntityFromAccountingQueryResultAssembler --> FixedAssetResourceFromEntityAssembler : uses
+LedgerAccountResourceFromEntityAssembler ..> LedgerAccount : reads
+LedgerAccountResourceFromEntityAssembler --> LedgerAccountResource : creates
+JournalEntryResourceFromEntityAssembler ..> JournalEntry : reads
+JournalEntryResourceFromEntityAssembler --> JournalEntryResource : creates
+TrialBalanceResourceFromReadModelAssembler ..> TrialBalance : reads
+TrialBalanceResourceFromReadModelAssembler --> TrialBalanceResource : creates
+TaxReturnResourceFromEntityAssembler ..> TaxReturn : reads
+TaxReturnResourceFromEntityAssembler --> TaxReturnResource : creates
+TaxParametersResourceFromEntityAssembler ..> TaxParameters : reads
+TaxParametersResourceFromEntityAssembler --> TaxParametersResource : creates
+FixedAssetResourceFromEntityAssembler ..> FixedAsset : reads
+FixedAssetResourceFromEntityAssembler --> FixedAssetResource : creates
+RegisterJournalEntryResource *-- JournalLineResource
+JournalEntryResource *-- JournalLineResource
+TrialBalanceResource *-- TrialBalanceLineResource
+
+' Application
+LedgerCommandServiceImpl ..|> LedgerCommandService : implements
+LedgerQueryServiceImpl ..|> LedgerQueryService : implements
+TaxCommandServiceImpl ..|> TaxCommandService : implements
+TaxQueryServiceImpl ..|> TaxQueryService : implements
+FixedAssetCommandServiceImpl ..|> FixedAssetCommandService : implements
+FixedAssetQueryServiceImpl ..|> FixedAssetQueryService : implements
+AccountingContextFacadeImpl ..|> AccountingContextFacade : implements
+AccountingContextFacadeImpl --> JournalEntryRepository : uses
+AccountingContextFacadeImpl --> TaxParametersRepository : uses
+AccountingContextFacadeImpl --> TaxReturnRepository : uses
+LedgerCommandFailure --|> CommandFailure : extends
+TaxCommandFailure --|> CommandFailure : extends
+FixedAssetCommandFailure --|> CommandFailure : extends
+LedgerFailureDuplicateAccountCode ..|> LedgerCommandFailure : implements
+LedgerFailureUnbalancedEntry ..|> LedgerCommandFailure : implements
+LedgerFailureAccountNotFound ..|> LedgerCommandFailure : implements
+LedgerFailurePeriodClosed ..|> LedgerCommandFailure : implements
+LedgerFailureDuplicateSource ..|> LedgerCommandFailure : implements
+LedgerFailureAlreadyReversed ..|> LedgerCommandFailure : implements
+TaxFailurePeriodAlreadyDeclared ..|> TaxCommandFailure : implements
+TaxFailureNotFound ..|> TaxCommandFailure : implements
+TaxFailureAlreadyPaid ..|> TaxCommandFailure : implements
+TaxFailureInvalidRate ..|> TaxCommandFailure : implements
+TaxFailureBankAccountNotFound ..|> TaxCommandFailure : implements
+FixedAssetFailureNotFound ..|> FixedAssetCommandFailure : implements
+FixedAssetFailureInvalidUsefulLife ..|> FixedAssetCommandFailure : implements
+FixedAssetFailureAlreadyDisposed ..|> FixedAssetCommandFailure : implements
+LedgerCommandService --> Result : returns
+TaxCommandService --> Result : returns
+FixedAssetCommandService --> Result : returns
+LedgerCommandServiceImpl --> LedgerAccountRepository : uses
+LedgerCommandServiceImpl --> JournalEntryRepository : uses
+LedgerCommandServiceImpl --> JournalEntry : creates
+LedgerQueryServiceImpl --> LedgerAccountRepository : uses
+LedgerQueryServiceImpl --> JournalEntryRepository : uses
+LedgerQueryServiceImpl --> TrialBalance : creates
+TaxCommandServiceImpl --> TaxReturnRepository : uses
+TaxCommandServiceImpl --> TaxParametersRepository : uses
+TaxCommandServiceImpl --> JournalEntryRepository : reads IGV accounts
+TaxCommandServiceImpl --> LedgerCommandService : posts entry
+TaxCommandServiceImpl --> PostingRulesDomainService : uses
+TaxCommandServiceImpl --> ExternalTreasuryService : uses
+TaxCommandServiceImpl --> TaxReturn : creates
+TaxQueryServiceImpl --> TaxReturnRepository : uses
+TaxQueryServiceImpl --> TaxParametersRepository : uses
+FixedAssetCommandServiceImpl --> FixedAssetRepository : uses
+FixedAssetCommandServiceImpl --> TaxParametersRepository : uses
+FixedAssetCommandServiceImpl --> LedgerCommandService : posts depreciation
+FixedAssetCommandServiceImpl --> PostingRulesDomainService : uses
+FixedAssetCommandServiceImpl --> FixedAsset : creates
+FixedAssetQueryServiceImpl --> FixedAssetRepository : uses
+ExternalTreasuryService --> TreasuryContextFacade : uses
+PostingEventHandler --> PostingRulesDomainService : uses
+PostingEventHandler --> LedgerCommandService : posts entries
+PostingEventHandler ..> InvoiceIssuedEvent : listens
+PostingEventHandler ..> InvoicePaymentReceivedEvent : listens
+PostingEventHandler ..> ExpenseRegisteredEvent : listens
+PostingEventHandler ..> FixedCostPaidEvent : listens
+PostingEventHandler ..> PayablePaidEvent : listens
+PostingEventHandler ..> LoanDisbursedEvent : listens
+PostingEventHandler ..> LoanInstallmentPaidEvent : listens
+PostingEventHandler ..> PartnerContributionRegisteredEvent : listens
+PostingEventHandler ..> FundsTransferredEvent : listens
+PostingEventHandler ..> ProjectCompletedEvent : listens
+
+' Domain model and persistence mapping
+LedgerAccount --|> AbstractAggregateRoot : extends
+JournalEntry --|> AbstractAggregateRoot : extends
+TaxReturn --|> AbstractAggregateRoot : extends
+TaxParameters --|> AbstractAggregateRoot : extends
+FixedAsset --|> AbstractAggregateRoot : extends
+LedgerAccount --> CreateLedgerAccountCommand : constructed from
+JournalEntry --> RegisterJournalEntryCommand : constructed from
+TaxParameters --> SetTaxParametersCommand : constructed from
+FixedAsset --> RegisterFixedAssetCommand : constructed from
+LedgerAccount --> AccountCode : contains
+LedgerAccount --> LedgerAccountType : has
+JournalEntry --> EntrySource : has
+JournalEntry --> Period : contains
+JournalEntry "1" *-- "2..*" JournalLine : contains
+JournalLine --> AccountCode : contains
+JournalLine "0..*" ..> "1" LedgerAccount : accountCode
+TrialBalance "1" *-- "0..*" TrialBalanceLine : contains
+TaxReturn --> TaxReturnStatus : has
+TaxReturn --> Period : contains
+TaxParameters --> TaxRates : contains
+FixedAsset --> TaxBreakdown : contains
+TaxReturn ..> TaxReturnPaidEvent : registers
+RegisterJournalEntryCommand *-- JournalLineData
+PostingRulesDomainService ..> RegisterJournalEntryCommand : creates
+LedgerAccountRepository --> LedgerAccount : persists
+LedgerAccountRepository --|> JpaRepository : extends
+LedgerAccountRepository --> AccountCode : queries by
+JournalEntryRepository --> JournalEntry : persists
+JournalEntryRepository --|> JpaRepository : extends
+TaxReturnRepository --> TaxReturn : persists
+TaxReturnRepository --|> JpaRepository : extends
+TaxParametersRepository --> TaxParameters : persists
+TaxParametersRepository --|> JpaRepository : extends
+FixedAssetRepository --> FixedAsset : persists
+FixedAssetRepository --|> JpaRepository : extends
+AccountCodeAttributeConverter ..> AccountCode : converts
+PcgeLedgerAccountSeeder --> LedgerCommandService : seeds PCGE accounts
+
+note right of JournalEntry
+  Partida doble (invariante):
+  - mínimo 2 líneas
+  - suma(debit) == suma(credit)
+  - cada línea: debit XOR credit > 0
+  - cuentas existentes y activas
+  - no se edita ni elimina: se revierte (reverse)
+  - (source, sourceId) único -> idempotencia
+  Así el Balance General SIEMPRE cuadra
+  (Excel: diferencias de -5,519 / -31,271 / -52,137).
+end note
+
+note right of PostingRulesDomainService
+  Plantillas de asiento (PCGE):
+  InvoiceIssued: D 12 CxC / H 40111 IGV + H 70 Ventas
+  InvoiceIssued (advance): D 12 / H 40111 + H 122 Anticipos
+  ProjectCompleted: D 122 Anticipos / H 70 Ventas
+  InvoicePayment: D 10 (o 107 Detracciones) / H 12
+  Expense pagado: D 60/63 + D 40111 (si crédito) / H 10
+  Expense pendiente: ... / H 42 Proveedores
+  Expense aporte socio: ... / H 455 o 50 Capital
+  FixedCostPayment: D 62/63/65 / H 10
+  PayablePayment: D 42/46 / H 10
+  LoanDisbursement (RECEIVED): D 10 / H 45
+  LoanInstallment (RECEIVED): D 45 + D 67 Intereses / H 10
+  Loan GRANTED: inverso con cuenta 16
+  FundsTransfer: D 10x destino / H 10x origen
+  TaxReturnPaid: D 40111 + D 4017 / H 10
+  Depreciation: D 68 / H 39
+end note
+
+note right of TaxReturn
+  igvPayable = max(0, outputIgv - inputIgv - carriedCredit)
+  nextCarriedCredit = max(0, inputIgv + carriedCredit - outputIgv)
+  incomeTaxPrepayment = ventas del mes x tasa pago a cuenta
+  totalPayable = igvPayable + incomeTaxPrepayment
+  outputIgv / inputIgv salen de la cuenta 40111
+  del Libro Diario del período.
+end note
+
+note bottom
+  The REST controllers delegate ledger, tax and fixed-asset use cases to application services.
+  PostingEventHandler listens to domain events from billing, expenses, staff, treasury and
+  projects (@TransactionalEventListener, BEFORE_COMMIT) and posts a balanced JournalEntry per
+  event. TaxParameters (IGV 18%, detracción 12%, retención 3%, pago a cuenta) are versioned by
+  effectiveFrom and exposed to billing / expenses through AccountingContextFacade.fetchTaxRatesAt().
+end note
+@enduml

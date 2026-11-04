@@ -1,0 +1,397 @@
+@startuml
+' Brasper Platform - IAM Bounded Context (Java 21 / Spring Boot 3 / Spring Security)
+
+skinparam classAttributeIconSize 0
+set separator none
+hide empty members
+
+package "iam" {
+
+  package "interfaces.rest" {
+    class AuthenticationController <<rest-controller>> {
+      +signIn(SignInResource) : ResponseEntity<?>
+      +signUp(SignUpResource) : ResponseEntity<?>
+    }
+
+    class UsersController <<rest-controller>> {
+      +getAllUsers() : ResponseEntity<?>
+      +getUserById(Long) : ResponseEntity<?>
+      +changeUserRole(Long, ChangeUserRoleResource) : ResponseEntity<?>
+      +deactivateUser(Long) : ResponseEntity<?>
+    }
+  }
+
+  package "interfaces.rest.resources" {
+    class SignInResource <<request-resource>> {
+      +String username
+      +String password
+    }
+
+    class SignUpResource <<request-resource>> {
+      +String username
+      +String password
+      +String fullName
+      +String role
+    }
+
+    class ChangeUserRoleResource <<request-resource>> {
+      +String role
+    }
+
+    class AuthenticatedUserResource <<response-resource>> {
+      +Long id
+      +String username
+      +String role
+      +String token
+    }
+
+    class UserResource <<response-resource>> {
+      +Long id
+      +String username
+      +String fullName
+      +String role
+      +boolean active
+    }
+  }
+
+  package "interfaces.rest.transform" {
+    class SignInCommandFromResourceAssembler <<translator>> {
+      +toCommandFromResource(SignInResource) : SignInCommand
+    }
+
+    class SignUpCommandFromResourceAssembler <<translator>> {
+      +toCommandFromResource(SignUpResource) : SignUpCommand
+    }
+
+    class ChangeUserRoleCommandFromResourceAssembler <<translator>> {
+      +toCommandFromResource(Long, ChangeUserRoleResource) : ChangeUserRoleCommand
+    }
+
+    class IamValueObjectFromStringAssembler <<translator>> {
+      +toUsernameFromString(String) : Username
+      +toRoleFromString(String) : Role
+    }
+
+    class AuthenticatedUserResourceFromEntityAssembler <<translator>> {
+      +toResourceFromEntity(User, String) : AuthenticatedUserResource
+    }
+
+    class UserResourceFromEntityAssembler <<translator>> {
+      +toResourceFromEntity(User) : UserResource
+    }
+
+    class ResponseEntityFromUserCommandResultAssembler <<translator>> {
+      +toResponseEntityFromResult(Result<User, UserCommandFailure>, MessageSource) : ResponseEntity<?>
+      +toResponseEntityFromSignInResult(Result<AuthenticatedUser, UserCommandFailure>, MessageSource) : ResponseEntity<?>
+    }
+
+    class ResponseEntityFromUserQueryResultAssembler <<translator>> {
+      +toResponseEntityFromUser(User) : ResponseEntity<?>
+      +toResponseEntityFromList(List<User>) : ResponseEntity<?>
+      +notFound(MessageSource, String, Object...) : ResponseEntity<ProblemDetail>
+    }
+  }
+
+  package "interfaces.acl" {
+    interface IamContextFacade <<context-facade>> {
+      +existsUserById(Long) : boolean
+      +fetchUsernameById(Long) : Optional<String>
+    }
+  }
+
+  package "application.commandservices" {
+    interface UserCommandService <<application-service>> {
+      +handle(SignInCommand) : Result<AuthenticatedUser, UserCommandFailure>
+      +handle(SignUpCommand) : Result<User, UserCommandFailure>
+      +handle(ChangeUserRoleCommand) : Result<User, UserCommandFailure>
+      +handle(DeactivateUserCommand) : Result<User, UserCommandFailure>
+    }
+
+    interface UserCommandFailure <<failure>> {
+      +messageKey() : String
+    }
+
+    class "UserCommandFailure.InvalidCredentials" as UserFailureInvalidCredentials <<failure>>
+    class "UserCommandFailure.UserInactive" as UserFailureUserInactive <<failure>>
+    class "UserCommandFailure.DuplicateUsername" as UserFailureDuplicateUsername <<failure>>
+    class "UserCommandFailure.WeakPassword" as UserFailureWeakPassword <<failure>>
+    class "UserCommandFailure.NotFound" as UserFailureNotFound <<failure>>
+    class "UserCommandFailure.LastAdmin" as UserFailureLastAdmin <<failure>>
+  }
+
+  package "application.queryservices" {
+    interface UserQueryService <<application-service>> {
+      +handle(GetAllUsersQuery) : List<User>
+      +handle(GetUserByIdQuery) : Optional<User>
+      +handle(GetUserByUsernameQuery) : Optional<User>
+    }
+  }
+
+  package "application.internal.commandservices" {
+    class UserCommandServiceImpl <<application-service>> {
+      +handle(SignInCommand) : Result<AuthenticatedUser, UserCommandFailure>
+      +handle(SignUpCommand) : Result<User, UserCommandFailure>
+      +handle(ChangeUserRoleCommand) : Result<User, UserCommandFailure>
+      +handle(DeactivateUserCommand) : Result<User, UserCommandFailure>
+    }
+  }
+
+  package "application.internal.queryservices" {
+    class UserQueryServiceImpl <<application-service>> {
+      +handle(GetAllUsersQuery) : List<User>
+      +handle(GetUserByIdQuery) : Optional<User>
+      +handle(GetUserByUsernameQuery) : Optional<User>
+    }
+  }
+
+  package "application.internal.outboundservices.hashing" {
+    interface HashingService <<outbound-service>> {
+      +encode(CharSequence) : String
+      +matches(CharSequence, String) : boolean
+    }
+  }
+
+  package "application.internal.outboundservices.tokens" {
+    interface TokenService <<outbound-service>> {
+      +generateToken(String) : String
+      +getUsernameFromToken(String) : String
+      +validateToken(String) : boolean
+    }
+  }
+
+  package "application.acl" {
+    class IamContextFacadeImpl <<context-facade>> {
+      +existsUserById(Long) : boolean
+      +fetchUsernameById(Long) : Optional<String>
+    }
+  }
+
+  package "domain.model.aggregates" {
+    class User <<aggregate-root>> {
+      -Long id
+      -Username username
+      -String passwordHash
+      -String fullName
+      -Role role
+      -boolean active
+      -Instant createdAt
+      -Instant updatedAt
+      +User(SignUpCommand, String)
+      +changeRole(Role) : void
+      +deactivate() : void
+    }
+  }
+
+  package "domain.model.valueobjects" {
+    class Username <<value-object>> {
+      +String value
+    }
+
+    enum Role <<value-object>> {
+      ROLE_ADMIN
+      ROLE_MANAGEMENT
+      ROLE_ACCOUNTING
+      ROLE_ENGINEER
+    }
+
+    class AuthenticatedUser <<value-object>> {
+      +User user
+      +String token
+    }
+  }
+
+  package "domain.model.commands" {
+    class SignInCommand <<command>> {
+      +Username username
+      +String password
+    }
+
+    class SignUpCommand <<command>> {
+      +Username username
+      +String password
+      +String fullName
+      +Role role
+    }
+
+    class ChangeUserRoleCommand <<command>> {
+      +Long userId
+      +Role role
+    }
+
+    class DeactivateUserCommand <<command>> {
+      +Long userId
+    }
+  }
+
+  package "domain.model.queries" {
+    class GetAllUsersQuery <<query>>
+
+    class GetUserByIdQuery <<query>> {
+      +Long id
+    }
+
+    class GetUserByUsernameQuery <<query>> {
+      +Username username
+    }
+  }
+
+  package "infrastructure.persistence.jpa" {
+    interface UserRepository <<spring-data-repository>> {
+      +findByUsername(Username) : Optional<User>
+      +existsByUsername(Username) : boolean
+      +countByRoleAndActiveTrue(Role) : long
+    }
+
+    class UsernameAttributeConverter <<jpa-converter>> {
+      +convertToDatabaseColumn(Username) : String
+      +convertToEntityAttribute(String) : Username
+    }
+  }
+
+  package "infrastructure.hashing.bcrypt" {
+    class BCryptHashingService <<service>> {
+      +encode(CharSequence) : String
+      +matches(CharSequence, String) : boolean
+    }
+  }
+
+  package "infrastructure.tokens.jwt" {
+    class JwtTokenService <<service>> {
+      +generateToken(String) : String
+      +getUsernameFromToken(String) : String
+      +validateToken(String) : boolean
+      +getBearerTokenFrom(HttpServletRequest) : String
+    }
+  }
+
+  package "infrastructure.authorization.sfs" {
+    class WebSecurityConfiguration <<configuration>> {
+      +securityFilterChain(HttpSecurity) : SecurityFilterChain
+      +authorizationRequestFilter() : BearerAuthorizationRequestFilter
+      +passwordEncoder() : PasswordEncoder
+    }
+
+    class BearerAuthorizationRequestFilter <<servlet-filter>> {
+      #doFilterInternal(HttpServletRequest, HttpServletResponse, FilterChain) : void
+    }
+
+    class UserDetailsServiceImpl <<service>> {
+      +loadUserByUsername(String) : UserDetails
+    }
+
+    class UserDetailsImpl <<user-details>> {
+      +getAuthorities() : Collection<GrantedAuthority>
+      +getUsername() : String
+      +getPassword() : String
+      +isEnabled() : boolean
+    }
+  }
+}
+
+package "shared" {
+  interface "Result<T, E>" as Result <<sealed-result>>
+  interface CommandFailure <<failure>>
+}
+
+package "org.springframework" {
+  interface "JpaRepository<T, ID>" as JpaRepository <<Spring Data>>
+  abstract class "AbstractAggregateRoot<A>" as AbstractAggregateRoot <<Spring Data>>
+}
+
+' Interfaces
+AuthenticationController --> UserCommandService : invokes
+AuthenticationController ..> SignInResource : accepts
+AuthenticationController ..> SignUpResource : accepts
+AuthenticationController --> SignInCommandFromResourceAssembler : uses
+AuthenticationController --> SignUpCommandFromResourceAssembler : uses
+AuthenticationController --> ResponseEntityFromUserCommandResultAssembler : uses
+UsersController --> UserCommandService : invokes
+UsersController --> UserQueryService : invokes
+UsersController --> ChangeUserRoleCommandFromResourceAssembler : uses
+UsersController --> ResponseEntityFromUserCommandResultAssembler : uses
+UsersController --> ResponseEntityFromUserQueryResultAssembler : uses
+
+SignInCommandFromResourceAssembler ..> SignInResource : reads
+SignInCommandFromResourceAssembler --> SignInCommand : creates
+SignInCommandFromResourceAssembler --> IamValueObjectFromStringAssembler : uses
+SignUpCommandFromResourceAssembler ..> SignUpResource : reads
+SignUpCommandFromResourceAssembler --> SignUpCommand : creates
+SignUpCommandFromResourceAssembler --> IamValueObjectFromStringAssembler : uses
+ChangeUserRoleCommandFromResourceAssembler ..> ChangeUserRoleResource : reads
+ChangeUserRoleCommandFromResourceAssembler --> ChangeUserRoleCommand : creates
+IamValueObjectFromStringAssembler --> Username : creates
+IamValueObjectFromStringAssembler --> Role : creates
+ResponseEntityFromUserCommandResultAssembler --> Result : maps
+ResponseEntityFromUserCommandResultAssembler --> UserCommandFailure : maps
+ResponseEntityFromUserCommandResultAssembler --> UserResourceFromEntityAssembler : uses
+ResponseEntityFromUserCommandResultAssembler --> AuthenticatedUserResourceFromEntityAssembler : uses
+ResponseEntityFromUserQueryResultAssembler --> UserResourceFromEntityAssembler : uses
+UserResourceFromEntityAssembler ..> User : reads
+UserResourceFromEntityAssembler --> UserResource : creates
+AuthenticatedUserResourceFromEntityAssembler ..> User : reads
+AuthenticatedUserResourceFromEntityAssembler --> AuthenticatedUserResource : creates
+
+' Application
+UserCommandServiceImpl ..|> UserCommandService : implements
+UserQueryServiceImpl ..|> UserQueryService : implements
+IamContextFacadeImpl ..|> IamContextFacade : implements
+IamContextFacadeImpl --> UserQueryService : uses
+UserCommandFailure --|> CommandFailure : extends
+UserFailureInvalidCredentials ..|> UserCommandFailure : implements
+UserFailureUserInactive ..|> UserCommandFailure : implements
+UserFailureDuplicateUsername ..|> UserCommandFailure : implements
+UserFailureWeakPassword ..|> UserCommandFailure : implements
+UserFailureNotFound ..|> UserCommandFailure : implements
+UserFailureLastAdmin ..|> UserCommandFailure : implements
+UserCommandService --> Result : returns
+UserCommandServiceImpl --> UserRepository : uses
+UserCommandServiceImpl --> HashingService : uses
+UserCommandServiceImpl --> TokenService : uses
+UserCommandServiceImpl --> User : creates
+UserCommandServiceImpl --> AuthenticatedUser : creates
+UserQueryServiceImpl --> UserRepository : uses
+UserQueryService --> User : returns
+
+' Domain and persistence
+User --|> AbstractAggregateRoot : extends
+User --> SignUpCommand : constructed from
+User --> Username : contains
+User --> Role : has
+AuthenticatedUser --> User : wraps
+SignInCommand --> Username : contains
+SignUpCommand --> Username : contains
+SignUpCommand --> Role : contains
+ChangeUserRoleCommand --> Role : contains
+GetUserByUsernameQuery --> Username : contains
+UserRepository --> User : persists
+UserRepository --|> JpaRepository : extends
+UserRepository --> Username : queries by
+UsernameAttributeConverter ..> Username : converts
+
+' Infrastructure
+BCryptHashingService ..|> HashingService : implements
+JwtTokenService ..|> TokenService : implements
+WebSecurityConfiguration --> BearerAuthorizationRequestFilter : registers
+BearerAuthorizationRequestFilter --> JwtTokenService : uses
+BearerAuthorizationRequestFilter --> UserDetailsServiceImpl : uses
+UserDetailsServiceImpl --> UserRepository : uses
+UserDetailsServiceImpl --> UserDetailsImpl : creates
+UserDetailsImpl ..> User : adapts
+
+note right of User
+  Roles (Spring Security):
+  - ROLE_ADMIN: usuarios y parámetros tributarios
+  - ROLE_MANAGEMENT: todos los reportes
+  - ROLE_ACCOUNTING: facturación, gastos, tesorería, contabilidad
+  - ROLE_ENGINEER: proyectos, avance y gastos de proyecto
+  Invariantes: username único; no se desactiva
+  ni se degrada al último ROLE_ADMIN activo.
+end note
+
+note bottom
+  The REST controllers delegate sign-in / sign-up and user management to
+  application services. Passwords are hashed with BCrypt; requests are
+  authenticated by BearerAuthorizationRequestFilter (JWT) and authorized
+  per endpoint with @PreAuthorize("hasRole(...)").
+end note
+@enduml

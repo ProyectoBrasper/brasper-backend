@@ -1,0 +1,569 @@
+@startuml
+' Brasper Platform - Expenses Bounded Context (Java 21 / Spring Boot 3)
+
+skinparam classAttributeIconSize 0
+set separator none
+hide empty members
+
+package "expenses" {
+
+  package "interfaces.rest" {
+    class SuppliersController <<rest-controller>> {
+      +createSupplier(CreateSupplierResource) : ResponseEntity<?>
+      +updateSupplier(Long, UpdateSupplierResource) : ResponseEntity<?>
+      +getAllSuppliers() : ResponseEntity<?>
+      +getSupplierById(Long) : ResponseEntity<?>
+    }
+
+    class ExpensesController <<rest-controller>> {
+      +registerExpense(RegisterExpenseResource) : ResponseEntity<?>
+      +correctExpense(Long, CorrectExpenseResource) : ResponseEntity<?>
+      +annulExpense(Long) : ResponseEntity<?>
+      +getExpenseById(Long) : ResponseEntity<?>
+      +getExpensesWithParameters(Long, Integer, Integer, String) : ResponseEntity<?>
+    }
+  }
+
+  package "interfaces.rest.resources" {
+    class CreateSupplierResource <<request-resource>> {
+      +String businessName
+      +String ruc
+      +String type
+      +String phone
+    }
+
+    class UpdateSupplierResource <<request-resource>> {
+      +String businessName
+      +String phone
+    }
+
+    class SupplierResource <<response-resource>> {
+      +Long id
+      +String businessName
+      +String ruc
+      +String type
+      +String phone
+    }
+
+    class RegisterExpenseResource <<request-resource>> {
+      +LocalDate spentOn
+      +Long projectId
+      +Long supplierId
+      +String category
+      +String description
+      +String voucherType
+      +String voucherNumber
+      +BigDecimal amount
+      +boolean amountIncludesIgv
+      +String currency
+      +String paymentMethod
+      +Long bankAccountId
+      +Long partnerId
+      +boolean paid
+    }
+
+    class CorrectExpenseResource <<request-resource>> {
+      +Long projectId
+      +String category
+      +String description
+    }
+
+    class ExpenseResource <<response-resource>> {
+      +Long id
+      +LocalDate spentOn
+      +Long projectId
+      +Long supplierId
+      +String category
+      +String description
+      +String voucherType
+      +String voucherNumber
+      +BigDecimal taxableBase
+      +BigDecimal igv
+      +BigDecimal total
+      +String paymentMethod
+      +Long bankAccountId
+      +Long partnerId
+      +String paymentStatus
+      +boolean annulled
+    }
+  }
+
+  package "interfaces.rest.transform" {
+    class CreateSupplierCommandFromResourceAssembler <<translator>> {
+      +toCommandFromResource(CreateSupplierResource) : CreateSupplierCommand
+    }
+
+    class UpdateSupplierCommandFromResourceAssembler <<translator>> {
+      +toCommandFromResource(Long, UpdateSupplierResource) : UpdateSupplierCommand
+    }
+
+    class RegisterExpenseCommandFromResourceAssembler <<translator>> {
+      +toCommandFromResource(RegisterExpenseResource) : RegisterExpenseCommand
+    }
+
+    class CorrectExpenseCommandFromResourceAssembler <<translator>> {
+      +toCommandFromResource(Long, CorrectExpenseResource) : CorrectExpenseCommand
+    }
+
+    class ExpensesValueObjectFromStringAssembler <<translator>> {
+      +toSupplierTypeFromString(String) : SupplierType
+      +toVoucherFromStrings(String, String) : Voucher
+      +toPaymentMethodFromString(String) : PaymentMethod
+      +toCostCategoryFromString(String) : CostCategory
+    }
+
+    class SupplierResourceFromEntityAssembler <<translator>> {
+      +toResourceFromEntity(Supplier) : SupplierResource
+    }
+
+    class ExpenseResourceFromEntityAssembler <<translator>> {
+      +toResourceFromEntity(Expense) : ExpenseResource
+    }
+
+    class ResponseEntityFromSupplierCommandResultAssembler <<translator>> {
+      +toResponseEntityFromResult(Result<Supplier, SupplierCommandFailure>, MessageSource) : ResponseEntity<?>
+    }
+
+    class ResponseEntityFromExpenseCommandResultAssembler <<translator>> {
+      +toResponseEntityFromResult(Result<Expense, ExpenseCommandFailure>, MessageSource) : ResponseEntity<?>
+    }
+
+    class ResponseEntityFromExpensesQueryResultAssembler <<translator>> {
+      +toResponseEntityFromSupplier(Supplier) : ResponseEntity<?>
+      +toResponseEntityFromSupplierList(List<Supplier>) : ResponseEntity<?>
+      +toResponseEntityFromExpense(Expense) : ResponseEntity<?>
+      +toResponseEntityFromExpenseList(List<Expense>) : ResponseEntity<?>
+      +badRequest(MessageSource, String, Object...) : ResponseEntity<ProblemDetail>
+      +notFound(MessageSource, String, Object...) : ResponseEntity<ProblemDetail>
+    }
+  }
+
+  package "interfaces.acl" {
+    interface ExpensesContextFacade <<context-facade>> {
+      +sumDirectCostByProject(Long) : BigDecimal
+      +fetchDirectCostByCategory(Long) : Map<String, BigDecimal>
+      +sumInputIgvByPeriod(int, int) : BigDecimal
+      +sumPaidByWeek(int, int, int) : BigDecimal
+    }
+  }
+
+  package "application.commandservices" {
+    interface SupplierCommandService <<application-service>> {
+      +handle(CreateSupplierCommand) : Result<Supplier, SupplierCommandFailure>
+      +handle(UpdateSupplierCommand) : Result<Supplier, SupplierCommandFailure>
+    }
+
+    interface ExpenseCommandService <<application-service>> {
+      +handle(RegisterExpenseCommand) : Result<Expense, ExpenseCommandFailure>
+      +handle(CorrectExpenseCommand) : Result<Expense, ExpenseCommandFailure>
+      +handle(AnnulExpenseCommand) : Result<Expense, ExpenseCommandFailure>
+    }
+
+    interface SupplierCommandFailure <<failure>> {
+      +messageKey() : String
+    }
+
+    class "SupplierCommandFailure.DuplicateRuc" as SupplierFailureDuplicateRuc <<failure>>
+    class "SupplierCommandFailure.RucRequiredForCompany" as SupplierFailureRucRequired <<failure>>
+    class "SupplierCommandFailure.NotFound" as SupplierFailureNotFound <<failure>>
+
+    interface ExpenseCommandFailure <<failure>> {
+      +messageKey() : String
+    }
+
+    class "ExpenseCommandFailure.ProjectNotFound" as ExpenseFailureProjectNotFound <<failure>>
+    class "ExpenseCommandFailure.ProjectClosed" as ExpenseFailureProjectClosed <<failure>>
+    class "ExpenseCommandFailure.SupplierNotFound" as ExpenseFailureSupplierNotFound <<failure>>
+    class "ExpenseCommandFailure.BankAccountRequired" as ExpenseFailureBankAccountRequired <<failure>>
+    class "ExpenseCommandFailure.PartnerRequired" as ExpenseFailurePartnerRequired <<failure>>
+    class "ExpenseCommandFailure.NotFound" as ExpenseFailureNotFound <<failure>>
+    class "ExpenseCommandFailure.AlreadyAnnulled" as ExpenseFailureAlreadyAnnulled <<failure>>
+  }
+
+  package "application.queryservices" {
+    interface SupplierQueryService <<application-service>> {
+      +handle(GetAllSuppliersQuery) : List<Supplier>
+      +handle(GetSupplierByIdQuery) : Optional<Supplier>
+    }
+
+    interface ExpenseQueryService <<application-service>> {
+      +handle(GetAllExpensesQuery) : List<Expense>
+      +handle(GetExpenseByIdQuery) : Optional<Expense>
+    }
+  }
+
+  package "application.internal.commandservices" {
+    class SupplierCommandServiceImpl <<application-service>> {
+      +handle(CreateSupplierCommand) : Result<Supplier, SupplierCommandFailure>
+      +handle(UpdateSupplierCommand) : Result<Supplier, SupplierCommandFailure>
+      -isDuplicateRucViolation(DataIntegrityViolationException) : boolean
+    }
+
+    class ExpenseCommandServiceImpl <<application-service>> {
+      +handle(RegisterExpenseCommand) : Result<Expense, ExpenseCommandFailure>
+      +handle(CorrectExpenseCommand) : Result<Expense, ExpenseCommandFailure>
+      +handle(AnnulExpenseCommand) : Result<Expense, ExpenseCommandFailure>
+    }
+  }
+
+  package "application.internal.queryservices" {
+    class SupplierQueryServiceImpl <<application-service>> {
+      +handle(GetAllSuppliersQuery) : List<Supplier>
+      +handle(GetSupplierByIdQuery) : Optional<Supplier>
+    }
+
+    class ExpenseQueryServiceImpl <<application-service>> {
+      +handle(GetAllExpensesQuery) : List<Expense>
+      +handle(GetExpenseByIdQuery) : Optional<Expense>
+    }
+  }
+
+  package "application.internal.eventhandlers" {
+    class PayablePaidEventHandler <<event-handler>> {
+      +on(PayablePaidEvent) : void
+    }
+  }
+
+  package "application.internal.outboundservices.acl" {
+    class ExternalProjectService <<outbound-service>> {
+      +existsProjectById(Long) : boolean
+      +fetchProjectStatus(Long) : Optional<String>
+    }
+
+    class ExternalTreasuryService <<outbound-service>> {
+      +existsBankAccountById(Long) : boolean
+      +existsPartnerById(Long) : boolean
+    }
+
+    class ExternalAccountingService <<outbound-service>> {
+      +fetchTaxRatesAt(LocalDate) : TaxRates
+    }
+  }
+
+  package "application.acl" {
+    class ExpensesContextFacadeImpl <<context-facade>> {
+      +sumDirectCostByProject(Long) : BigDecimal
+      +fetchDirectCostByCategory(Long) : Map<String, BigDecimal>
+      +sumInputIgvByPeriod(int, int) : BigDecimal
+      +sumPaidByWeek(int, int, int) : BigDecimal
+    }
+  }
+
+  package "domain.model.aggregates" {
+    class Supplier <<aggregate-root>> {
+      +RUC_UNIQUE_CONSTRAINT : String
+      -Long id
+      -String businessName
+      -Ruc ruc
+      -SupplierType type
+      -String phone
+      -Instant createdAt
+      -Instant updatedAt
+      +Supplier(CreateSupplierCommand)
+      +update(UpdateSupplierCommand) : void
+    }
+
+    class Expense <<aggregate-root>> {
+      -Long id
+      -LocalDate spentOn
+      -Long projectId
+      -Long supplierId
+      -CostCategory category
+      -String description
+      -Voucher voucher
+      -TaxBreakdown amounts
+      -PaymentMethod paymentMethod
+      -Long bankAccountId
+      -Long partnerId
+      -PaymentStatus paymentStatus
+      -boolean annulled
+      -Instant createdAt
+      -Instant updatedAt
+      +Expense(RegisterExpenseCommand, TaxRates)
+      +correct(CorrectExpenseCommand) : void
+      +annul() : void
+      +markAsPaid() : void
+      +isDirectCost() : boolean
+      +generatesTaxCredit() : boolean
+    }
+  }
+
+  package "domain.model.valueobjects" {
+    enum SupplierType <<value-object>> {
+      COMPANY
+      NATURAL_PERSON
+    }
+
+    enum VoucherType <<value-object>> {
+      INVOICE
+      SALES_RECEIPT
+      FEE_RECEIPT
+      NO_VOUCHER
+    }
+
+    class Voucher <<embeddable-value-object>> {
+      +VoucherType type
+      +String number
+      +allowsTaxCredit() : boolean
+    }
+
+    enum PaymentMethod <<value-object>> {
+      BANK_ACCOUNT
+      PETTY_CASH
+      PARTNER_CONTRIBUTION
+    }
+  }
+
+  package "domain.model.commands" {
+    class CreateSupplierCommand <<command>> {
+      +String businessName
+      +Ruc ruc
+      +SupplierType type
+      +String phone
+    }
+
+    class UpdateSupplierCommand <<command>> {
+      +Long supplierId
+      +String businessName
+      +String phone
+    }
+
+    class RegisterExpenseCommand <<command>> {
+      +LocalDate spentOn
+      +Long projectId
+      +Long supplierId
+      +CostCategory category
+      +String description
+      +Voucher voucher
+      +Money amount
+      +boolean amountIncludesIgv
+      +PaymentMethod paymentMethod
+      +Long bankAccountId
+      +Long partnerId
+      +boolean paid
+    }
+
+    class CorrectExpenseCommand <<command>> {
+      +Long expenseId
+      +Long projectId
+      +CostCategory category
+      +String description
+    }
+
+    class AnnulExpenseCommand <<command>> {
+      +Long expenseId
+    }
+  }
+
+  package "domain.model.queries" {
+    class GetAllSuppliersQuery <<query>>
+
+    class GetSupplierByIdQuery <<query>> {
+      +Long id
+    }
+
+    class GetAllExpensesQuery <<query>> {
+      +Long projectId
+      +Period period
+      +CostCategory category
+    }
+
+    class GetExpenseByIdQuery <<query>> {
+      +Long id
+    }
+  }
+
+  package "domain.model.events" {
+    class ExpenseRegisteredEvent <<domain-event>> {
+      +Long expenseId
+      +Long projectId
+      +Long supplierId
+      +LocalDate spentOn
+      +CostCategory category
+      +TaxBreakdown amounts
+      +boolean allowsTaxCredit
+      +PaymentMethod paymentMethod
+      +Long bankAccountId
+      +Long partnerId
+      +boolean paid
+    }
+
+    class ExpenseAnnulledEvent <<domain-event>> {
+      +Long expenseId
+      +LocalDate annulledOn
+    }
+  }
+
+  package "infrastructure.persistence.jpa" {
+    interface SupplierRepository <<spring-data-repository>> {
+      +findByRuc(Ruc) : Optional<Supplier>
+      +existsByRuc(Ruc) : boolean
+    }
+
+    interface ExpenseRepository <<spring-data-repository>> {
+      +findAllByProjectIdAndAnnulledFalse(Long) : List<Expense>
+      +findAllBySpentOnBetweenAndAnnulledFalse(LocalDate, LocalDate) : List<Expense>
+      +findAllByCategoryAndAnnulledFalse(CostCategory) : List<Expense>
+    }
+  }
+}
+
+package "shared" {
+  interface "Result<T, E>" as Result <<sealed-result>>
+  interface CommandFailure <<failure>>
+  class Money <<embeddable-value-object>>
+  class Period <<embeddable-value-object>>
+  class Ruc <<value-object>>
+  class TaxBreakdown <<embeddable-value-object>>
+  class TaxRates <<embeddable-value-object>>
+  enum CostCategory <<value-object>>
+  enum PaymentStatus <<value-object>>
+}
+
+package "other bounded contexts" {
+  interface ProjectsContextFacade <<context-facade>>
+  interface TreasuryContextFacade <<context-facade>>
+  interface AccountingContextFacade <<context-facade>>
+  class PayablePaidEvent <<domain-event>>
+}
+
+package "org.springframework" {
+  interface "JpaRepository<T, ID>" as JpaRepository <<Spring Data>>
+  abstract class "AbstractAggregateRoot<A>" as AbstractAggregateRoot <<Spring Data>>
+}
+
+' Interfaces
+SuppliersController --> SupplierCommandService : invokes
+SuppliersController --> SupplierQueryService : invokes
+SuppliersController ..> CreateSupplierResource : accepts
+SuppliersController --> CreateSupplierCommandFromResourceAssembler : uses
+SuppliersController --> UpdateSupplierCommandFromResourceAssembler : uses
+SuppliersController --> ResponseEntityFromSupplierCommandResultAssembler : uses
+SuppliersController --> ResponseEntityFromExpensesQueryResultAssembler : uses
+ExpensesController --> ExpenseCommandService : invokes
+ExpensesController --> ExpenseQueryService : invokes
+ExpensesController ..> RegisterExpenseResource : accepts
+ExpensesController --> RegisterExpenseCommandFromResourceAssembler : uses
+ExpensesController --> CorrectExpenseCommandFromResourceAssembler : uses
+ExpensesController --> ExpensesValueObjectFromStringAssembler : uses
+ExpensesController --> ResponseEntityFromExpenseCommandResultAssembler : uses
+ExpensesController --> ResponseEntityFromExpensesQueryResultAssembler : uses
+
+' HTTP mapping
+CreateSupplierCommandFromResourceAssembler ..> CreateSupplierResource : reads
+CreateSupplierCommandFromResourceAssembler --> CreateSupplierCommand : creates
+UpdateSupplierCommandFromResourceAssembler ..> UpdateSupplierResource : reads
+UpdateSupplierCommandFromResourceAssembler --> UpdateSupplierCommand : creates
+RegisterExpenseCommandFromResourceAssembler ..> RegisterExpenseResource : reads
+RegisterExpenseCommandFromResourceAssembler --> RegisterExpenseCommand : creates
+RegisterExpenseCommandFromResourceAssembler --> ExpensesValueObjectFromStringAssembler : uses
+CorrectExpenseCommandFromResourceAssembler ..> CorrectExpenseResource : reads
+CorrectExpenseCommandFromResourceAssembler --> CorrectExpenseCommand : creates
+ExpensesValueObjectFromStringAssembler --> SupplierType : creates
+ExpensesValueObjectFromStringAssembler --> Voucher : creates
+ExpensesValueObjectFromStringAssembler --> PaymentMethod : creates
+ExpensesValueObjectFromStringAssembler --> CostCategory : creates
+ResponseEntityFromSupplierCommandResultAssembler --> Result : maps
+ResponseEntityFromSupplierCommandResultAssembler --> SupplierCommandFailure : maps
+ResponseEntityFromSupplierCommandResultAssembler --> SupplierResourceFromEntityAssembler : uses
+ResponseEntityFromExpenseCommandResultAssembler --> Result : maps
+ResponseEntityFromExpenseCommandResultAssembler --> ExpenseCommandFailure : maps
+ResponseEntityFromExpenseCommandResultAssembler --> ExpenseResourceFromEntityAssembler : uses
+ResponseEntityFromExpensesQueryResultAssembler --> SupplierResourceFromEntityAssembler : uses
+ResponseEntityFromExpensesQueryResultAssembler --> ExpenseResourceFromEntityAssembler : uses
+SupplierResourceFromEntityAssembler ..> Supplier : reads
+SupplierResourceFromEntityAssembler --> SupplierResource : creates
+ExpenseResourceFromEntityAssembler ..> Expense : reads
+ExpenseResourceFromEntityAssembler --> ExpenseResource : creates
+
+' Application
+SupplierCommandServiceImpl ..|> SupplierCommandService : implements
+SupplierQueryServiceImpl ..|> SupplierQueryService : implements
+ExpenseCommandServiceImpl ..|> ExpenseCommandService : implements
+ExpenseQueryServiceImpl ..|> ExpenseQueryService : implements
+ExpensesContextFacadeImpl ..|> ExpensesContextFacade : implements
+ExpensesContextFacadeImpl --> ExpenseRepository : uses
+SupplierCommandFailure --|> CommandFailure : extends
+ExpenseCommandFailure --|> CommandFailure : extends
+SupplierFailureDuplicateRuc ..|> SupplierCommandFailure : implements
+SupplierFailureRucRequired ..|> SupplierCommandFailure : implements
+SupplierFailureNotFound ..|> SupplierCommandFailure : implements
+ExpenseFailureProjectNotFound ..|> ExpenseCommandFailure : implements
+ExpenseFailureProjectClosed ..|> ExpenseCommandFailure : implements
+ExpenseFailureSupplierNotFound ..|> ExpenseCommandFailure : implements
+ExpenseFailureBankAccountRequired ..|> ExpenseCommandFailure : implements
+ExpenseFailurePartnerRequired ..|> ExpenseCommandFailure : implements
+ExpenseFailureNotFound ..|> ExpenseCommandFailure : implements
+ExpenseFailureAlreadyAnnulled ..|> ExpenseCommandFailure : implements
+SupplierCommandService --> Result : returns
+ExpenseCommandService --> Result : returns
+SupplierCommandServiceImpl --> SupplierRepository : uses
+SupplierCommandServiceImpl --> Supplier : creates
+SupplierQueryServiceImpl --> SupplierRepository : uses
+ExpenseCommandServiceImpl --> ExpenseRepository : uses
+ExpenseCommandServiceImpl --> SupplierRepository : uses
+ExpenseCommandServiceImpl --> ExternalProjectService : uses
+ExpenseCommandServiceImpl --> ExternalTreasuryService : uses
+ExpenseCommandServiceImpl --> ExternalAccountingService : uses
+ExpenseCommandServiceImpl --> Expense : creates
+ExpenseQueryServiceImpl --> ExpenseRepository : uses
+PayablePaidEventHandler ..> PayablePaidEvent : listens
+PayablePaidEventHandler --> ExpenseRepository : marks paid
+ExternalProjectService --> ProjectsContextFacade : uses
+ExternalTreasuryService --> TreasuryContextFacade : uses
+ExternalAccountingService --> AccountingContextFacade : uses
+
+' Domain model and persistence mapping
+Supplier --|> AbstractAggregateRoot : extends
+Expense --|> AbstractAggregateRoot : extends
+Supplier --> CreateSupplierCommand : constructed from
+Expense --> RegisterExpenseCommand : constructed from
+Supplier --> SupplierType : has
+Supplier --> Ruc : contains
+Expense --> Voucher : contains
+Voucher --> VoucherType : has
+Expense --> TaxBreakdown : contains
+Expense --> CostCategory : has
+Expense --> PaymentMethod : has
+Expense --> PaymentStatus : has
+Expense ..> TaxRates : uses
+Expense "0..*" ..> "0..1" Supplier : supplierId
+Expense ..> ExpenseRegisteredEvent : registers
+Expense ..> ExpenseAnnulledEvent : registers
+RegisterExpenseCommand --> Voucher : contains
+RegisterExpenseCommand --> PaymentMethod : contains
+CreateSupplierCommand --> SupplierType : contains
+SupplierRepository --> Supplier : persists
+SupplierRepository --|> JpaRepository : extends
+SupplierRepository --> Ruc : queries by
+ExpenseRepository --> Expense : persists
+ExpenseRepository --|> JpaRepository : extends
+
+note right of Expense
+  Invariantes:
+  - BANK_ACCOUNT -> bankAccountId obligatorio
+  - PARTNER_CONTRIBUTION -> partnerId obligatorio
+    (en Excel: "Aportes Ingeniero")
+  - PETTY_CASH -> cuenta tipo PETTY_CASH
+  - siempre con paymentMethod (en Excel había
+    25,423.73 de 854BR sin forma de pago)
+  - amounts: si voucher.allowsTaxCredit() -> con IGV 18%;
+    si no -> TaxBreakdown.withoutIgv
+  - projectId null = gasto general (no costo directo)
+  - no se elimina: se anula (annul) para auditoría
+  paid = false -> treasury crea un Payable
+  (escucha ExpenseRegisteredEvent).
+end note
+
+note right of Voucher
+  allowsTaxCredit() = type == INVOICE
+  (solo factura genera crédito fiscal IGV)
+end note
+
+note bottom
+  The REST controllers delegate supplier and expense use cases to application services.
+  Expense references project, supplier, bank account and partner only by id; existence is
+  validated through the upstream context facades. Registered expenses feed treasury
+  (cash outflow / payable / partner contribution) and accounting (journal entry, IGV credit).
+end note
+@enduml
