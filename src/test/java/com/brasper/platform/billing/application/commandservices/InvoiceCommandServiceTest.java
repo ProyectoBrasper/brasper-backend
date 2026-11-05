@@ -103,6 +103,43 @@ class InvoiceCommandServiceTest {
         assertThat(paid.getStatus()).isEqualTo(InvoiceStatus.PARTIALLY_COLLECTED);
     }
 
+    private static RegisterInvoicePaymentCommand payment(String amount, Currency currency) {
+        return new RegisterInvoicePaymentCommand(5L, LocalDate.of(2026, 9, 1),
+                new Money(new BigDecimal(amount), currency), InvoicePaymentType.NET_DEPOSIT, 1L, "OP-1");
+    }
+
+    @Test
+    void registersPaymentsUntilTheBalanceIsCleared() {
+        Invoice invoice = storedInvoice();
+
+        var first = service.handle(payment("1000", Currency.PEN)).success().orElseThrow();
+        assertThat(first.getAmount().amount()).isEqualByComparingTo("1000");
+        assertThat(invoice.getStatus()).isEqualTo(InvoiceStatus.PARTIALLY_COLLECTED);
+
+        service.handle(payment("180", Currency.PEN));
+        assertThat(invoice.getStatus()).isEqualTo(InvoiceStatus.COLLECTED);
+    }
+
+    @Test
+    void paymentFailuresSayWhichRuleBrokeAndStoreNothing() {
+        Invoice invoice = storedInvoice();
+
+        assertThat(service.handle(payment("1180.01", Currency.PEN)).failure())
+                .contains(InvoiceCommandFailure.AMOUNT_EXCEEDS_BALANCE);
+        assertThat(service.handle(payment("10", Currency.USD)).failure())
+                .contains(InvoiceCommandFailure.PAYMENT_CURRENCY_MISMATCH);
+        assertThat(invoice.getPayments()).isEmpty();
+
+        invoice.voidInvoice();
+        assertThat(service.handle(payment("10", Currency.PEN)).failure())
+                .contains(InvoiceCommandFailure.ALREADY_VOIDED);
+
+        when(invoices.findById(9L)).thenReturn(Optional.empty());
+        assertThat(service.handle(new RegisterInvoicePaymentCommand(9L, LocalDate.of(2026, 9, 1),
+                new Money(BigDecimal.TEN, Currency.PEN), InvoicePaymentType.NET_DEPOSIT, 1L, null)).failure())
+                .contains(InvoiceCommandFailure.INVOICE_NOT_FOUND);
+    }
+
     @Test
     void voidingAnUnknownInvoiceFails() {
         when(invoices.findById(9L)).thenReturn(Optional.empty());

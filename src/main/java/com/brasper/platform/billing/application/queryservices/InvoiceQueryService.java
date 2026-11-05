@@ -1,6 +1,7 @@
 package com.brasper.platform.billing.application.queryservices;
 
 import com.brasper.platform.billing.domain.model.aggregates.Invoice;
+import com.brasper.platform.billing.domain.model.entities.InvoicePayment;
 import com.brasper.platform.billing.domain.model.valueobjects.InvoiceStatus;
 import com.brasper.platform.billing.domain.repositories.InvoiceRepository;
 import com.brasper.platform.shared.domain.model.valueobjects.Period;
@@ -28,6 +29,13 @@ public class InvoiceQueryService {
                 .filter(invoice -> issuedIn == null || Period.from(invoice.getIssuedOn()).equals(issuedIn))
                 .sorted(Comparator.comparing(Invoice::getIssuedOn).thenComparing(Invoice::getId).reversed())
                 .toList();
+    }
+
+    /** Empty when the invoice does not exist; oldest first. */
+    public Optional<List<InvoicePayment>> findPayments(Long invoiceId) {
+        return invoices.findById(invoiceId).map(invoice -> invoice.getPayments().stream()
+                .sorted(Comparator.comparing(InvoicePayment::getReceivedOn).thenComparing(InvoicePayment::getId))
+                .toList());
     }
 
     public Optional<Invoice> findById(Long id) {

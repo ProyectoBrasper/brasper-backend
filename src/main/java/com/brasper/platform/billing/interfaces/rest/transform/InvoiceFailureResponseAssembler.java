@@ -16,6 +16,7 @@ public final class InvoiceFailureResponseAssembler {
         return switch (failure) {
             case DUPLICATE_NUMBER, PROJECT_NOT_BILLABLE, ALREADY_VOIDED, HAS_PAYMENTS ->
                     ProblemDetailAssembler.conflict(messages, key);
+            case AMOUNT_EXCEEDS_BALANCE, PAYMENT_CURRENCY_MISMATCH -> ProblemDetailAssembler.unprocessable(messages, key);
             case PROJECT_NOT_FOUND, INVOICE_NOT_FOUND -> ProblemDetailAssembler.notFound(messages, key);
         };
     }

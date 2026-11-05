@@ -94,6 +94,18 @@ class InvoiceTest {
     }
 
     @Test
+    void aDepositNeedsABankAccountButARetentionCertificateDoesNot() {
+        Invoice invoice = invoice("1000", true, false, false);
+
+        assertThatThrownBy(() -> invoice.registerPayment(new RegisterInvoicePaymentCommand(1L,
+                LocalDate.of(2026, 9, 1), pen("10"), InvoicePaymentType.DETRACTION_DEPOSIT, null, null)))
+                .isInstanceOf(IllegalArgumentException.class);
+        invoice.registerPayment(new RegisterInvoicePaymentCommand(1L, LocalDate.of(2026, 9, 1), pen("35.40"),
+                InvoicePaymentType.RETENTION_CERTIFICATE, null, null));
+        assertThat(invoice.getPayments()).hasSize(1);
+    }
+
+    @Test
     void voidsOnlyAnInvoiceWithoutPayments() {
         Invoice unpaid = invoice("1000", false, false, false);
         unpaid.voidInvoice();

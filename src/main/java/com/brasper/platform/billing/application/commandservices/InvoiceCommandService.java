@@ -4,10 +4,13 @@ import com.brasper.platform.billing.application.outboundservices.ProjectLookup;
 import com.brasper.platform.billing.application.outboundservices.TaxRatesProvider;
 import com.brasper.platform.billing.domain.model.aggregates.Invoice;
 import com.brasper.platform.billing.domain.model.commands.IssueInvoiceCommand;
+import com.brasper.platform.billing.domain.model.commands.RegisterInvoicePaymentCommand;
 import com.brasper.platform.billing.domain.model.commands.VoidInvoiceCommand;
+import com.brasper.platform.billing.domain.model.entities.InvoicePayment;
 import com.brasper.platform.billing.domain.model.valueobjects.InvoiceStatus;
 import com.brasper.platform.billing.domain.repositories.InvoiceRepository;
 import com.brasper.platform.shared.application.result.Result;
+import java.util.List;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -40,6 +43,28 @@ public class InvoiceCommandService {
         // shortcut: two simultaneous requests with one number hit the unique constraint, which the global handler maps to 409.
         return Result.success(invoices.save(
                 new Invoice(command, project.clientId(), taxRates.ratesAt(command.issuedOn()))));
+    }
+
+    /** The aggregate enforces these rules too; checking first tells the caller which one failed. */
+    @Transactional
+    public Result<InvoicePayment, InvoiceCommandFailure> handle(RegisterInvoicePaymentCommand command) {
+        Invoice invoice = invoices.findById(command.invoiceId()).orElse(null);
+        if (invoice == null) {
+            return Result.failure(InvoiceCommandFailure.INVOICE_NOT_FOUND);
+        }
+        if (invoice.getStatus() == InvoiceStatus.VOIDED) {
+            return Result.failure(InvoiceCommandFailure.ALREADY_VOIDED);
+        }
+        if (command.amount().currency() != invoice.getTotal().currency()) {
+            return Result.failure(InvoiceCommandFailure.PAYMENT_CURRENCY_MISMATCH);
+        }
+        if (command.amount().amount().compareTo(invoice.outstandingBalance().amount()) > 0) {
+            return Result.failure(InvoiceCommandFailure.AMOUNT_EXCEEDS_BALANCE);
+        }
+        invoice.registerPayment(command);
+        List<InvoicePayment> saved = invoices.save(invoice).getPayments();
+        // Read the payment back from the saved aggregate: that instance is the persisted one, with its id.
+        return Result.success(saved.get(saved.size() - 1));
     }
 
     /** The aggregate also refuses, but checking first tells the caller which rule failed. */
