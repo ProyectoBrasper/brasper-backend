@@ -6,13 +6,13 @@ import java.time.temporal.ChronoUnit;
 import java.time.temporal.TemporalAdjusters;
 
 /**
- * "Semana 01..05" of a month. Weeks run Monday to Sunday, clipped to the month: week 1 ends on the
- * first Sunday. A month can touch a sixth calendar week; shortcut: that tail is folded into week 5
- * (so week 5 can be up to 8 days), because the cash-flow sheet only has Semana 01..05.
+ * "Semana 01..06" of a month. Weeks run Monday to Sunday, clipped to the month: week 1 ends on the
+ * first Sunday and the last week ends on the last day of the month. Most months have 5 weeks, some
+ * 4 (February starting on a Monday) and some 6 (e.g. November 2026, where week 6 is only the 30th).
  */
 public record CashFlowWeek(int year, int month, int number) {
 
-    static final int MAX_WEEKS = 5;
+    static final int MAX_WEEKS = 6;
 
     public CashFlowWeek {
         Period period = new Period(year, month);
@@ -26,7 +26,7 @@ public record CashFlowWeek(int year, int month, int number) {
         LocalDate secondWeekStart = firstSunday(period).plusDays(1);
         int number = date.isBefore(secondWeekStart)
                 ? 1
-                : Math.min(MAX_WEEKS, 2 + (int) ChronoUnit.WEEKS.between(secondWeekStart, date));
+                : 2 + (int) ChronoUnit.WEEKS.between(secondWeekStart, date);
         return new CashFlowWeek(period.year(), period.month(), number);
     }
 
@@ -40,9 +40,8 @@ public record CashFlowWeek(int year, int month, int number) {
 
     public LocalDate endDate() {
         Period period = period();
-        return number == 1
-                ? firstSunday(period)
-                : number == MAX_WEEKS ? period.endDate() : startOf(period, number).plusDays(6);
+        LocalDate end = number == 1 ? firstSunday(period) : startOf(period, number).plusDays(6);
+        return end.isAfter(period.endDate()) ? period.endDate() : end;
     }
 
     public boolean contains(LocalDate date) {

@@ -41,7 +41,7 @@ class PeriodTest {
             Period period = new Period(2026, month);
             var weeks = period.weeks();
 
-            assertThat(weeks).hasSizeBetween(4, 5);
+            assertThat(weeks).hasSizeBetween(4, 6);
             assertThat(weeks.getFirst().startDate()).isEqualTo(period.startDate());
             assertThat(weeks.getLast().endDate()).isEqualTo(period.endDate());
             for (int i = 1; i < weeks.size(); i++) {
