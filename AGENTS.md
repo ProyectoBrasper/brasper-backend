@@ -28,6 +28,15 @@ Diseño de dominio: `docs/uml/` (empezar por `00-context-map.puml`).
 - **Tests verdes antes de mergear.** La lógica nueva lleva tests en el mismo PR.
 - Un PR no mezcla refactor con funcionalidad nueva.
 
+## Flujo del agente (Claude Code)
+- Al escribir código, usar el skill `ponytail`: el cambio más chico que resuelve la tarea completa, sin abstracciones ni features no pedidas.
+- Al terminar una tarea, el agente abre el PR, lo **revisa** (diff, tests, tamaño, secretos) y lo **mergea por su cuenta** con squash cuando cumple todo:
+  1. CI verde y `mvn verify` local verde.
+  2. Máximo 400 líneas propias.
+  3. Sin secretos ni archivos que no corresponden.
+- Si algo falla o no cumple, no mergea: reporta qué falló.
+- Esta autorización cubre PRs a `develop`. Merges a `main` (release/hotfix) y acciones destructivas siguen requiriendo confirmación.
+
 ## Arquitectura (Clean Architecture + DDD)
 Paquete base: `com.brasper.platform`. Un paquete por bounded context:
 
