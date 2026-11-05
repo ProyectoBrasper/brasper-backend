@@ -1,0 +1,16 @@
+services:
+  - type: web
+    name: brasper-backend
+    runtime: docker
+    branch: main
+    healthCheckPath: /actuator/health
+    envVars:
+      - key: SPRING_PROFILES_ACTIVE
+        value: prod
+      # Secrets: set in the Render dashboard (never commit values).
+      - key: SPRING_DATASOURCE_URL
+        sync: false
+      - key: SPRING_DATASOURCE_USERNAME
+        sync: false
+      - key: SPRING_DATASOURCE_PASSWORD
+        sync: false
