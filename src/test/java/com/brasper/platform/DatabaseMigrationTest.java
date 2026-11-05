@@ -18,7 +18,7 @@ class DatabaseMigrationTest {
     @Test
     void flywayAppliesBaselineMigration() {
         Integer applied = jdbc.queryForObject(
-                "select count(*) from flyway_schema_history where success and version = '1'", Integer.class);
+                "select count(*) from brasper.flyway_schema_history where success and version = '1'", Integer.class);
 
         assertThat(applied).isEqualTo(1);
     }
