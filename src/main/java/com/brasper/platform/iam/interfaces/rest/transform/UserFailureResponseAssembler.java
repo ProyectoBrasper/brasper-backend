@@ -18,6 +18,8 @@ public final class UserFailureResponseAssembler {
             case USER_INACTIVE -> ProblemDetailAssembler.forbidden(messages, key);
             case DUPLICATE_USERNAME -> ProblemDetailAssembler.conflict(messages, key);
             case WEAK_PASSWORD -> ProblemDetailAssembler.unprocessable(messages, key);
+            case USER_NOT_FOUND -> ProblemDetailAssembler.notFound(messages, key);
+            case CANNOT_MODIFY_LAST_ADMIN -> ProblemDetailAssembler.conflict(messages, key);
         };
     }
 }

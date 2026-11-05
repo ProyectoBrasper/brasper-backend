@@ -3,8 +3,11 @@ package com.brasper.platform.iam.application.commandservices;
 import com.brasper.platform.iam.application.outboundservices.HashingService;
 import com.brasper.platform.iam.application.outboundservices.TokenService;
 import com.brasper.platform.iam.domain.model.aggregates.User;
+import com.brasper.platform.iam.domain.model.commands.ChangeUserRoleCommand;
+import com.brasper.platform.iam.domain.model.commands.DeactivateUserCommand;
 import com.brasper.platform.iam.domain.model.commands.SignInCommand;
 import com.brasper.platform.iam.domain.model.commands.SignUpCommand;
+import com.brasper.platform.iam.domain.model.valueobjects.Role;
 import com.brasper.platform.iam.domain.repositories.UserRepository;
 import com.brasper.platform.shared.application.result.Result;
 import java.nio.charset.StandardCharsets;
@@ -57,6 +60,38 @@ public class UserCommandService {
             return Result.failure(UserCommandFailure.USER_INACTIVE);
         }
         return Result.success(new AuthenticatedUser(user, tokens.generateToken(user)));
+    }
+
+    @Transactional
+    public Result<User, UserCommandFailure> handle(ChangeUserRoleCommand command) {
+        User user = users.findById(command.userId()).orElse(null);
+        if (user == null) {
+            return Result.failure(UserCommandFailure.USER_NOT_FOUND);
+        }
+        if (command.role() != Role.ROLE_ADMIN && isLastActiveAdmin(user)) {
+            return Result.failure(UserCommandFailure.CANNOT_MODIFY_LAST_ADMIN);
+        }
+        user.changeRole(command.role());
+        return Result.success(users.save(user));
+    }
+
+    @Transactional
+    public Result<User, UserCommandFailure> handle(DeactivateUserCommand command) {
+        User user = users.findById(command.userId()).orElse(null);
+        if (user == null) {
+            return Result.failure(UserCommandFailure.USER_NOT_FOUND);
+        }
+        if (isLastActiveAdmin(user)) {
+            return Result.failure(UserCommandFailure.CANNOT_MODIFY_LAST_ADMIN);
+        }
+        user.deactivate();
+        return Result.success(users.save(user));
+    }
+
+    /** The system must always keep one admin who can still manage users. */
+    private boolean isLastActiveAdmin(User user) {
+        return user.isActive() && user.getRole() == Role.ROLE_ADMIN
+                && users.countByRoleAndActive(Role.ROLE_ADMIN, true) <= 1;
     }
 
     private static boolean isStrong(String password) {
