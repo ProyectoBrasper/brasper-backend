@@ -12,6 +12,7 @@ import com.brasper.platform.projects.domain.model.aggregates.Project;
 import com.brasper.platform.projects.domain.model.commands.CancelProjectCommand;
 import com.brasper.platform.projects.domain.model.commands.CreateClientCommand;
 import com.brasper.platform.projects.domain.model.commands.CreateProjectCommand;
+import com.brasper.platform.projects.domain.model.commands.RegisterProjectProgressCommand;
 import com.brasper.platform.projects.domain.model.commands.StartProjectCommand;
 import com.brasper.platform.projects.domain.model.commands.UpdateProjectCommand;
 import com.brasper.platform.projects.domain.model.valueobjects.ProjectCode;
@@ -21,6 +22,7 @@ import com.brasper.platform.projects.domain.repositories.ProjectRepository;
 import com.brasper.platform.shared.domain.model.valueobjects.Currency;
 import com.brasper.platform.shared.domain.model.valueobjects.Money;
 import com.brasper.platform.shared.domain.model.valueobjects.Percentage;
+import com.brasper.platform.shared.domain.model.valueobjects.Period;
 import com.brasper.platform.shared.domain.model.valueobjects.Ruc;
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -96,6 +98,43 @@ class ProjectCommandServiceTest {
 
         project.cancel();
         assertThat(service.handle(update).failure()).contains(ProjectCommandFailure.INVALID_STATUS_TRANSITION);
+    }
+
+    private static RegisterProjectProgressCommand progress(int month, String percentage) {
+        return new RegisterProjectProgressCommand(5L, new Period(2026, month),
+                new Percentage(new BigDecimal(percentage)));
+    }
+
+    @Test
+    void registersProgressAndCompletesTheProjectAtOneHundredPercent() {
+        Project project = storedProject();
+        project.start();
+
+        var first = service.handle(progress(8, "0.6")).success().orElseThrow();
+        assertThat(first.getPercentage().value()).isEqualByComparingTo("0.6");
+        assertThat(project.getStatus()).isEqualTo(ProjectStatus.IN_PROGRESS);
+
+        service.handle(progress(9, "0.4"));
+        assertThat(project.getStatus()).isEqualTo(ProjectStatus.COMPLETED);
+    }
+
+    @Test
+    void progressFailuresSayWhichRuleBrokeAndStoreNothing() {
+        Project project = storedProject();
+        assertThat(service.handle(progress(8, "0.1")).failure())
+                .contains(ProjectCommandFailure.INVALID_STATUS_TRANSITION);
+
+        project.start();
+        service.handle(progress(8, "0.7"));
+        assertThat(service.handle(progress(8, "0.1")).failure())
+                .contains(ProjectCommandFailure.PERIOD_ALREADY_REGISTERED);
+        assertThat(service.handle(progress(9, "0.31")).failure())
+                .contains(ProjectCommandFailure.PROGRESS_EXCEEDS_LIMIT);
+        assertThat(project.getProgressRecords()).hasSize(1);
+
+        when(projects.findById(9L)).thenReturn(Optional.empty());
+        assertThat(service.handle(new RegisterProjectProgressCommand(9L, new Period(2026, 8),
+                new Percentage(BigDecimal.ONE))).failure()).contains(ProjectCommandFailure.PROJECT_NOT_FOUND);
     }
 
     @Test
