@@ -1,30 +1,37 @@
 package com.brasper.platform.billing.domain.model.aggregates;
 
 import com.brasper.platform.billing.domain.model.commands.IssueInvoiceCommand;
+import com.brasper.platform.billing.domain.model.commands.RegisterInvoicePaymentCommand;
+import com.brasper.platform.billing.domain.model.entities.InvoicePayment;
 import com.brasper.platform.billing.domain.model.valueobjects.InvoiceNumber;
 import com.brasper.platform.billing.domain.model.valueobjects.InvoiceStatus;
 import com.brasper.platform.shared.domain.model.valueobjects.Currency;
 import com.brasper.platform.shared.domain.model.valueobjects.Money;
 import com.brasper.platform.shared.domain.model.valueobjects.TaxBreakdown;
 import com.brasper.platform.shared.domain.model.valueobjects.TaxRates;
+import jakarta.persistence.CascadeType;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
+import jakarta.persistence.FetchType;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
+import jakarta.persistence.OneToMany;
 import jakarta.persistence.PrePersist;
 import jakarta.persistence.PreUpdate;
 import jakarta.persistence.Table;
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.time.LocalDate;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Objects;
 
 /**
- * An issued invoice. Tax amounts are fixed at issue time with the rates in force then. Payments, voiding and the
- * collected balance are added in the next steps.
+ * An issued invoice and root of its payments. Tax amounts are fixed at issue time with the rates in force then.
+ * Collected so far and the status follow from the payments.
  */
 @Entity
 @Table(name = "invoices")
@@ -91,6 +98,10 @@ public class Invoice {
     @Column(length = 1000)
     private String notes;
 
+    /** shortcut: loaded eagerly (a few payments per invoice), so resources can be built outside a transaction. */
+    @OneToMany(mappedBy = "invoice", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.EAGER)
+    private List<InvoicePayment> payments = new ArrayList<>();
+
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;
 
@@ -134,6 +145,55 @@ public class Invoice {
     /** What the client deposits to the company: total minus retention and detraction. */
     public Money netAmount() {
         return getTotal().subtract(getRetention()).subtract(getDetraction());
+    }
+
+    /** Sum of every payment, retention certificates included. */
+    public Money collectedAmount() {
+        return payments.stream().map(InvoicePayment::getAmount).reduce(Money.zero(currency), Money::add);
+    }
+
+    public Money outstandingBalance() {
+        return getTotal().subtract(collectedAmount());
+    }
+
+    /**
+     * Adds a payment. A voided invoice takes none, and the total collected cannot pass the invoice total. The status
+     * becomes COLLECTED once nothing is outstanding (the Excel mixed "=0" and "<=0").
+     */
+    public InvoicePayment registerPayment(RegisterInvoicePaymentCommand command) {
+        if (status == InvoiceStatus.VOIDED) {
+            throw new IllegalStateException("A voided invoice cannot receive payments");
+        }
+        Money amount = Objects.requireNonNull(command.amount(), "amount");
+        if (amount.currency() != currency) {
+            throw new IllegalArgumentException("Payment must be in %s but was %s".formatted(currency, amount.currency()));
+        }
+        if (!amount.isPositive()) {
+            throw new IllegalArgumentException("Payment must be greater than zero");
+        }
+        if (amount.amount().compareTo(outstandingBalance().amount()) > 0) {
+            throw new IllegalStateException("Payment %s exceeds the outstanding balance %s"
+                    .formatted(amount.amount(), outstandingBalance().amount()));
+        }
+        InvoicePayment payment = new InvoicePayment(this, command);
+        payments.add(payment);
+        status = outstandingBalance().isPositive() ? InvoiceStatus.PARTIALLY_COLLECTED : InvoiceStatus.COLLECTED;
+        return payment;
+    }
+
+    /** Only an invoice with no payments can be voided. */
+    public void voidInvoice() {
+        if (status == InvoiceStatus.VOIDED) {
+            throw new IllegalStateException("The invoice is already voided");
+        }
+        if (!payments.isEmpty()) {
+            throw new IllegalStateException("An invoice with payments cannot be voided");
+        }
+        status = InvoiceStatus.VOIDED;
+    }
+
+    public List<InvoicePayment> getPayments() {
+        return List.copyOf(payments);
     }
 
     private static String blankToNull(String text) {
