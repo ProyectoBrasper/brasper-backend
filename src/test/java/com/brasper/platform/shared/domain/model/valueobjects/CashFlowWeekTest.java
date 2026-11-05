@@ -33,14 +33,18 @@ class CashFlowWeekTest {
     }
 
     @Test
-    void monthStartingSundayHasOneDayFirstWeekAndFoldsTheSixthWeekIntoFive() {
+    void monthStartingSundayHasOneDayFirstWeekAndASixthWeek() {
         // November 2026 starts on a Sunday and has 30 days: Sun 1 | 2-8 | 9-15 | 16-22 | 23-29 | Mon 30.
         assertThat(new CashFlowWeek(2026, 11, 1).endDate()).isEqualTo(d(2026, 11, 1));
         CashFlowWeek week5 = new CashFlowWeek(2026, 11, 5);
+        CashFlowWeek week6 = new CashFlowWeek(2026, 11, 6);
 
         assertThat(week5.startDate()).isEqualTo(d(2026, 11, 23));
-        assertThat(week5.endDate()).isEqualTo(d(2026, 11, 30));
-        assertThat(CashFlowWeek.from(d(2026, 11, 30))).isEqualTo(week5);
+        assertThat(week5.endDate()).isEqualTo(d(2026, 11, 29));
+        assertThat(week6.startDate()).isEqualTo(d(2026, 11, 30));
+        assertThat(week6.endDate()).isEqualTo(d(2026, 11, 30));
+        assertThat(CashFlowWeek.from(d(2026, 11, 30))).isEqualTo(week6);
+        assertThat(new Period(2026, 11).weeks()).hasSize(6);
     }
 
     @Test
@@ -64,7 +68,7 @@ class CashFlowWeekTest {
         // February 2027 starts on a Monday and has exactly 4 weeks.
         assertThatThrownBy(() -> new CashFlowWeek(2027, 2, 5)).isInstanceOf(IllegalArgumentException.class);
         assertThatThrownBy(() -> new CashFlowWeek(2026, 3, 0)).isInstanceOf(IllegalArgumentException.class);
-        assertThatThrownBy(() -> new CashFlowWeek(2026, 3, 6)).isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> new CashFlowWeek(2026, 3, 7)).isInstanceOf(IllegalArgumentException.class);
         assertThatThrownBy(() -> new CashFlowWeek(2026, 13, 1)).isInstanceOf(IllegalArgumentException.class);
     }
 }
