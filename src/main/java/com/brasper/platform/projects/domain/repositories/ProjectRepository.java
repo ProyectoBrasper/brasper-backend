@@ -14,5 +14,7 @@ public interface ProjectRepository {
 
     boolean existsByCode(ProjectCode code);
 
+    Optional<Project> findByCode(ProjectCode code);
+
     List<Project> findAll();
 }

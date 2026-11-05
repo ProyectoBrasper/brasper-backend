@@ -3,10 +3,15 @@ package com.brasper.platform.projects.application.queryservices;
 import com.brasper.platform.projects.domain.model.aggregates.Project;
 import com.brasper.platform.projects.domain.model.entities.CostEstimate;
 import com.brasper.platform.projects.domain.model.entities.ProgressRecord;
+import com.brasper.platform.projects.domain.model.valueobjects.ProjectCode;
 import com.brasper.platform.projects.domain.model.valueobjects.ProjectStatus;
 import com.brasper.platform.projects.domain.repositories.ProjectRepository;
+import com.brasper.platform.shared.domain.model.valueobjects.Period;
+import java.math.BigDecimal;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -31,6 +36,20 @@ public class ProjectQueryService {
 
     public Optional<Project> findById(Long id) {
         return projects.findById(id);
+    }
+
+    public Optional<Project> findByCode(ProjectCode code) {
+        return projects.findByCode(code);
+    }
+
+    /** Progress earned in one month per project id; projects with no record that month are left out. */
+    public Map<Long, BigDecimal> findProgressByPeriod(Period period) {
+        Map<Long, BigDecimal> result = new HashMap<>();
+        for (Project project : projects.findAll()) {
+            project.getProgressRecords().stream().filter(record -> record.getPeriod().equals(period))
+                    .findFirst().ifPresent(record -> result.put(project.getId(), record.getPercentage().value()));
+        }
+        return result;
     }
 
     /** Empty when the project does not exist; ordered by category. */
