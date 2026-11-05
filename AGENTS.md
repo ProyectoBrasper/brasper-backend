@@ -21,6 +21,7 @@ Diseño de dominio: `docs/uml/` (empezar por `00-context-map.puml`).
 - Conventional Commits: `feat|fix|refactor|test|docs|chore|ci(<contexto>): <asunto>`.
 - Asunto en imperativo, máximo 72 caracteres, sin punto final.
 - Un commit = una idea. Cuerpo solo si el "por qué" no es obvio.
+- **Sin atribuciones**: ni `Co-Authored-By`, ni trailers de sesión, ni firmas de herramientas en commits ni en descripciones de PR. El autor es quien configura git.
 
 ## Pull Requests
 - Máximo **400 líneas** cambiadas (sin generados ni lockfiles). Si no cabe, se parte en PRs.
