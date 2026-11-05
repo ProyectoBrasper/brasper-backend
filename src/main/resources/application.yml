@@ -21,6 +21,13 @@ spring:
       # Schema is owned by Flyway; Hibernate only checks it matches.
       ddl-auto: validate
 
+brasper:
+  security:
+    jwt:
+      # Blank = random key (dev). The prod profile requires JWT_SECRET (min. 32 bytes).
+      secret: ${JWT_SECRET:}
+      expiration: 8h
+
 management:
   endpoints:
     web:

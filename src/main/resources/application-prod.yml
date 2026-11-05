@@ -3,6 +3,12 @@ server:
   port: ${PORT:8080}
   shutdown: graceful
 
+brasper:
+  security:
+    jwt:
+      # Missing or blank JWT_SECRET: the app refuses to start (allow-random-secret is only set in dev).
+      secret: ${JWT_SECRET}
+
 logging:
   level:
     com.brasper: INFO
