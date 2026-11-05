@@ -10,6 +10,7 @@ import jakarta.validation.constraints.NotBlank;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.context.support.ResourceBundleMessageSource;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
@@ -50,6 +51,13 @@ class GlobalExceptionHandlerTest {
     }
 
     @Test
+    void constraintViolationIsConflict() throws Exception {
+        mockMvc.perform(get("/duplicate"))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("error.data-conflict"));
+    }
+
+    @Test
     void invalidBodyListsTheFailingFields() throws Exception {
         mockMvc.perform(post("/validate").contentType(MediaType.APPLICATION_JSON).content("{\"name\":\"\"}"))
                 .andExpect(status().isBadRequest())
@@ -71,6 +79,11 @@ class GlobalExceptionHandlerTest {
         @GetMapping("/bad-state")
         void badState() {
             throw new IllegalStateException("already closed");
+        }
+
+        @GetMapping("/duplicate")
+        void duplicate() {
+            throw new DataIntegrityViolationException("uk_users_username");
         }
 
         @PostMapping("/validate")
