@@ -3,6 +3,11 @@ spring:
     name: brasper-backend
   profiles:
     default: dev
+  jpa:
+    open-in-view: false
+    hibernate:
+      # Schema is owned by Flyway; Hibernate only checks it matches.
+      ddl-auto: validate
 
 management:
   endpoints:
