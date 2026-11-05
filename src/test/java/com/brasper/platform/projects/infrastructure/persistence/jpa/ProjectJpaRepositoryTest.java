@@ -12,6 +12,7 @@ import com.brasper.platform.projects.domain.model.valueobjects.ProjectCode;
 import com.brasper.platform.projects.domain.model.valueobjects.ProjectStatus;
 import com.brasper.platform.projects.domain.repositories.ClientRepository;
 import com.brasper.platform.projects.domain.repositories.ProjectRepository;
+import com.brasper.platform.shared.domain.model.valueobjects.CostCategory;
 import com.brasper.platform.shared.domain.model.valueobjects.Currency;
 import com.brasper.platform.shared.domain.model.valueobjects.Money;
 import com.brasper.platform.shared.domain.model.valueobjects.Percentage;
@@ -87,6 +88,23 @@ class ProjectJpaRepositoryTest {
         assertThat(found.getProgressRecords()).hasSize(2);
         assertThat(found.accumulatedProgress().value()).isEqualByComparingTo("0.75");
         assertThat(found.hasProgressFor(new Period(2026, 9))).isTrue();
+    }
+
+    @Test
+    void costEstimatesArePersistedWithTheProjectAlongsideProgress() {
+        Project project = project("862BR-AGO-2026", clientId());
+        project.start();
+        project.registerProgress(new Period(2026, 8), new Percentage(new BigDecimal("0.4")));
+        project.setCostEstimate(CostCategory.MATERIALS, new Money(new BigDecimal("300"), Currency.PEN));
+        project.setCostEstimate(CostCategory.LABOR, new Money(new BigDecimal("200.25"), Currency.PEN));
+        Long id = saveAndFlush(project).getId();
+        em.clear();
+
+        Project found = projects.findById(id).orElseThrow();
+
+        assertThat(found.getCostEstimates()).hasSize(2);
+        assertThat(found.getProgressRecords()).hasSize(1);
+        assertThat(found.estimatedDirectCost()).isEqualTo(new Money(new BigDecimal("500.25"), Currency.PEN));
     }
 
     @Test

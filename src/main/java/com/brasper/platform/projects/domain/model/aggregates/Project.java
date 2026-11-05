@@ -2,9 +2,11 @@ package com.brasper.platform.projects.domain.model.aggregates;
 
 import com.brasper.platform.projects.domain.model.commands.CreateProjectCommand;
 import com.brasper.platform.projects.domain.model.commands.UpdateProjectCommand;
+import com.brasper.platform.projects.domain.model.entities.CostEstimate;
 import com.brasper.platform.projects.domain.model.entities.ProgressRecord;
 import com.brasper.platform.projects.domain.model.valueobjects.ProjectCode;
 import com.brasper.platform.projects.domain.model.valueobjects.ProjectStatus;
+import com.brasper.platform.shared.domain.model.valueobjects.CostCategory;
 import com.brasper.platform.shared.domain.model.valueobjects.Currency;
 import com.brasper.platform.shared.domain.model.valueobjects.Money;
 import com.brasper.platform.shared.domain.model.valueobjects.Percentage;
@@ -28,8 +30,9 @@ import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
+import org.hibernate.annotations.Fetch;
+import org.hibernate.annotations.FetchMode;
 
-/** Cost estimates are added to this aggregate in a later step. */
 @Entity
 @Table(name = "projects")
 public class Project {
@@ -78,6 +81,11 @@ public class Project {
     /** shortcut: loaded eagerly (at most a dozen rows per project), so resources can be built outside a transaction. */
     @OneToMany(mappedBy = "project", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.EAGER)
     private List<ProgressRecord> progressRecords = new ArrayList<>();
+
+    /** shortcut: eager like progress (at most one row per category, 4 rows), so resources build outside a transaction. */
+    @OneToMany(mappedBy = "project", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.EAGER)
+    @Fetch(FetchMode.SUBSELECT) // two eager bags in one join would throw MultipleBagFetchException
+    private List<CostEstimate> costEstimates = new ArrayList<>();
 
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;
@@ -140,6 +148,41 @@ public class Project {
             status = ProjectStatus.COMPLETED;
         }
         return record;
+    }
+
+    /**
+     * Sets the estimate of a category, replacing the previous one. Only an open project can be re-estimated; the
+     * amount must be zero or more and in the project's currency.
+     */
+    public CostEstimate setCostEstimate(CostCategory category, Money amount) {
+        requireOpen("re-estimated");
+        Objects.requireNonNull(category, "category");
+        if (Objects.requireNonNull(amount, "amount").currency() != currency) {
+            throw new IllegalArgumentException(
+                    "Estimate must be in %s but was %s".formatted(currency, amount.currency()));
+        }
+        if (amount.amount().signum() < 0) {
+            throw new IllegalArgumentException("Estimated amount cannot be negative");
+        }
+        CostEstimate estimate = costEstimates.stream().filter(e -> e.getCategory() == category).findFirst()
+                .orElse(null);
+        if (estimate == null) {
+            estimate = new CostEstimate(this, category, amount.amount());
+            costEstimates.add(estimate);
+        } else {
+            estimate.changeAmount(amount.amount());
+        }
+        return estimate;
+    }
+
+    /** Sum of the estimates of all categories, in the project's currency. */
+    public Money estimatedDirectCost() {
+        return costEstimates.stream().map(e -> new Money(e.getEstimatedAmount(), currency))
+                .reduce(Money.zero(currency), Money::add);
+    }
+
+    public List<CostEstimate> getCostEstimates() {
+        return List.copyOf(costEstimates);
     }
 
     public boolean hasProgressFor(Period period) {
