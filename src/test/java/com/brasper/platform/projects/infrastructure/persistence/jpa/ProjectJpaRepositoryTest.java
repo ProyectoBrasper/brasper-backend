@@ -15,6 +15,7 @@ import com.brasper.platform.projects.domain.repositories.ProjectRepository;
 import com.brasper.platform.shared.domain.model.valueobjects.Currency;
 import com.brasper.platform.shared.domain.model.valueobjects.Money;
 import com.brasper.platform.shared.domain.model.valueobjects.Percentage;
+import com.brasper.platform.shared.domain.model.valueobjects.Period;
 import com.brasper.platform.shared.domain.model.valueobjects.Ruc;
 import jakarta.persistence.EntityManager;
 import java.math.BigDecimal;
@@ -70,6 +71,22 @@ class ProjectJpaRepositoryTest {
         assertThat(found.getStatus()).isEqualTo(ProjectStatus.QUOTED);
         assertThat(found.getCreatedAt()).isNotNull();
         assertThat(projects.existsByCode(new ProjectCode("862br-ago-2026"))).isTrue();
+    }
+
+    @Test
+    void progressRecordsArePersistedWithTheProjectAndOnePerMonth() {
+        Project project = project("862BR-AGO-2026", clientId());
+        project.start();
+        project.registerProgress(new Period(2026, 8), new Percentage(new BigDecimal("0.4")));
+        project.registerProgress(new Period(2026, 9), new Percentage(new BigDecimal("0.35")));
+        Long id = saveAndFlush(project).getId();
+        em.clear();
+
+        Project found = projects.findById(id).orElseThrow();
+
+        assertThat(found.getProgressRecords()).hasSize(2);
+        assertThat(found.accumulatedProgress().value()).isEqualByComparingTo("0.75");
+        assertThat(found.hasProgressFor(new Period(2026, 9))).isTrue();
     }
 
     @Test
