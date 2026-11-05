@@ -4,6 +4,7 @@ import com.brasper.platform.shared.interfaces.rest.transform.ProblemDetailAssemb
 import java.util.LinkedHashMap;
 import java.util.Map;
 import org.springframework.context.MessageSource;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.ProblemDetail;
 import org.springframework.http.ResponseEntity;
 import org.springframework.validation.FieldError;
@@ -34,6 +35,12 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(IllegalArgumentException.class)
     public ResponseEntity<ProblemDetail> handle(IllegalArgumentException ex) {
         return ProblemDetailAssembler.badRequest(messages, "error.invalid-argument", ex.getMessage());
+    }
+
+    /** E.g. two requests created the same unique value at once; the database constraint is the last guard. */
+    @ExceptionHandler(DataIntegrityViolationException.class)
+    public ResponseEntity<ProblemDetail> handle(DataIntegrityViolationException ex) {
+        return ProblemDetailAssembler.conflict(messages, "error.data-conflict");
     }
 
     @ExceptionHandler(IllegalStateException.class)

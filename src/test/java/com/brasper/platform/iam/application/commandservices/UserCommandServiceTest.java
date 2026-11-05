@@ -1,0 +1,131 @@
+package com.brasper.platform.iam.application.commandservices;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
+
+import com.brasper.platform.iam.application.outboundservices.HashingService;
+import com.brasper.platform.iam.application.outboundservices.TokenService;
+import com.brasper.platform.iam.domain.model.aggregates.User;
+import com.brasper.platform.iam.domain.model.commands.SignInCommand;
+import com.brasper.platform.iam.domain.model.commands.SignUpCommand;
+import com.brasper.platform.iam.domain.model.valueobjects.Role;
+import com.brasper.platform.iam.domain.model.valueobjects.Username;
+import com.brasper.platform.iam.domain.repositories.UserRepository;
+import java.util.Optional;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
+
+class UserCommandServiceTest {
+
+    private static final Username ANA = new Username("ana");
+
+    private final UserRepository users = mock(UserRepository.class);
+    private final HashingService hashing = mock(HashingService.class);
+    private final TokenService tokens = mock(TokenService.class);
+    private UserCommandService service;
+
+    @BeforeEach
+    void setUp() {
+        when(hashing.encode(anyString())).thenAnswer(call -> "hash(" + call.getArgument(0) + ")");
+        when(hashing.matches(anyString(), anyString()))
+                .thenAnswer(call -> ("hash(" + call.getArgument(0) + ")").equals(call.getArgument(1)));
+        service = new UserCommandService(users, hashing, tokens);
+    }
+
+    private static SignUpCommand signUp(String password) {
+        return new SignUpCommand(ANA, password, "Ana Pérez", Role.ROLE_ENGINEER);
+    }
+
+    private User storedUser() {
+        return new User(signUp("clave1234"), "hash(clave1234)");
+    }
+
+    @Test
+    void signUpStoresTheHashNotThePassword() {
+        when(users.existsByUsername(ANA)).thenReturn(false);
+        when(users.save(any(User.class))).thenAnswer(call -> call.getArgument(0));
+
+        var result = service.handle(signUp("clave1234"));
+
+        assertThat(result.isSuccess()).isTrue();
+        User saved = result.success().orElseThrow();
+        assertThat(saved.getPasswordHash()).isEqualTo("hash(clave1234)");
+        verify(users).save(saved);
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"short1", "onlyletters", "1234567890", "        "})
+    void signUpRejectsWeakPasswords(String password) {
+        var result = service.handle(signUp(password));
+
+        assertThat(result.failure()).contains(UserCommandFailure.WEAK_PASSWORD);
+        verify(users, never()).save(any());
+    }
+
+    @Test
+    void signUpRejectsPasswordsOverBcryptLimit() {
+        var result = service.handle(signUp("a1".repeat(37)));
+
+        assertThat(result.failure()).contains(UserCommandFailure.WEAK_PASSWORD);
+    }
+
+    @Test
+    void signUpRejectsDuplicateUsername() {
+        when(users.existsByUsername(ANA)).thenReturn(true);
+
+        var result = service.handle(signUp("clave1234"));
+
+        assertThat(result.failure()).contains(UserCommandFailure.DUPLICATE_USERNAME);
+        verify(users, never()).save(any());
+    }
+
+    @Test
+    void signInReturnsUserAndToken() {
+        User user = storedUser();
+        when(users.findByUsername(ANA)).thenReturn(Optional.of(user));
+        when(tokens.generateToken(user)).thenReturn("jwt-token");
+
+        var result = service.handle(new SignInCommand(ANA, "clave1234"));
+
+        assertThat(result.success()).contains(new AuthenticatedUser(user, "jwt-token"));
+    }
+
+    @Test
+    void signInWithWrongPasswordIsInvalidCredentials() {
+        when(users.findByUsername(ANA)).thenReturn(Optional.of(storedUser()));
+
+        var result = service.handle(new SignInCommand(ANA, "otra-clave1"));
+
+        assertThat(result.failure()).contains(UserCommandFailure.INVALID_CREDENTIALS);
+        verify(tokens, never()).generateToken(any());
+    }
+
+    @Test
+    void signInWithUnknownUserIsTheSameFailureAndStillHashes() {
+        when(users.findByUsername(ANA)).thenReturn(Optional.empty());
+
+        var result = service.handle(new SignInCommand(ANA, "clave1234"));
+
+        assertThat(result.failure()).contains(UserCommandFailure.INVALID_CREDENTIALS);
+        verify(hashing).matches(anyString(), anyString());
+    }
+
+    @Test
+    void inactiveUserIsOnlyRevealedAfterTheCorrectPassword() {
+        User user = storedUser();
+        user.deactivate();
+        when(users.findByUsername(ANA)).thenReturn(Optional.of(user));
+
+        assertThat(service.handle(new SignInCommand(ANA, "clave1234")).failure())
+                .contains(UserCommandFailure.USER_INACTIVE);
+        assertThat(service.handle(new SignInCommand(ANA, "otra-clave1")).failure())
+                .contains(UserCommandFailure.INVALID_CREDENTIALS);
+    }
+}
