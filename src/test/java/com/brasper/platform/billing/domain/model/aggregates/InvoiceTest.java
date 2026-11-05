@@ -23,7 +23,7 @@ class InvoiceTest {
 
     private static Invoice invoice(String base, boolean retention, boolean detraction, boolean self) {
         return new Invoice(new IssueInvoiceCommand(new InvoiceNumber("F001", 7), LocalDate.of(2026, 8, 20), "  ",
-                3L, 4L, pen(base), retention, detraction, self, false, null), TaxRates.standard());
+                3L, pen(base), retention, detraction, self, false, null), 4L, TaxRates.standard());
     }
 
     @Test
