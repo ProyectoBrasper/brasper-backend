@@ -112,7 +112,7 @@ public class Invoice {
     }
 
     /** Retention is {@code total x rate}; detraction is {@code total x rate} rounded to whole units (SUNAT). */
-    public Invoice(IssueInvoiceCommand command, TaxRates rates) {
+    public Invoice(IssueInvoiceCommand command, Long clientId, TaxRates rates) {
         Objects.requireNonNull(rates, "rates");
         Money base = Objects.requireNonNull(command.taxableBase(), "taxableBase");
         if (!base.isPositive()) {
@@ -127,7 +127,7 @@ public class Invoice {
         this.issuedOn = Objects.requireNonNull(command.issuedOn(), "issuedOn");
         this.purchaseOrder = blankToNull(command.purchaseOrder());
         this.projectId = Objects.requireNonNull(command.projectId(), "projectId");
-        this.clientId = Objects.requireNonNull(command.clientId(), "clientId");
+        this.clientId = Objects.requireNonNull(clientId, "clientId");
         this.currency = base.currency();
         this.taxableBase = amounts.taxableBase().amount();
         this.igv = amounts.igv().amount();

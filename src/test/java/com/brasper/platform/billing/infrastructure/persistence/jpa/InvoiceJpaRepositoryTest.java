@@ -36,8 +36,8 @@ class InvoiceJpaRepositoryTest {
 
     private static Invoice invoice(String series, int correlative) {
         return new Invoice(new IssueInvoiceCommand(new InvoiceNumber(series, correlative), LocalDate.of(2026, 8, 20),
-                "OC-77", 3L, 4L, new Money(new BigDecimal("1000"), Currency.USD), true, true, true, true, "nota"),
-                TaxRates.standard());
+                "OC-77", 3L, new Money(new BigDecimal("1000"), Currency.USD), true, true, true, true, "nota"),
+                4L, TaxRates.standard());
     }
 
     private Invoice saveAndFlush(Invoice invoice) {

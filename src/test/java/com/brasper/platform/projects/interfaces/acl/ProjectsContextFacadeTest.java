@@ -75,6 +75,7 @@ class ProjectsContextFacadeTest {
         ProjectSnapshot snapshot = facade.fetchProjectSnapshot(id).orElseThrow();
 
         assertThat(snapshot.code()).isEqualTo("862BR-AGO-2026");
+        assertThat(snapshot.clientId()).isEqualTo(clientId);
         assertThat(snapshot.clientName()).isEqualTo("Linings");
         assertThat(snapshot.status()).isEqualTo("IN_PROGRESS");
         assertThat(snapshot.currency()).isEqualTo("USD");

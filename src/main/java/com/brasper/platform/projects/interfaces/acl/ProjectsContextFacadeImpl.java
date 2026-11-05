@@ -69,9 +69,9 @@ public class ProjectsContextFacadeImpl implements ProjectsContextFacade {
 
     private ProjectSnapshot snapshot(Project project) {
         String clientName = clients.findById(project.getClientId()).map(Client::getBusinessName).orElse(null);
-        return new ProjectSnapshot(project.getId(), project.getCode().value(), project.getName(), clientName,
-                project.getStatus().name(), project.getBudget().amount(), project.getBudget().currency().name(),
-                project.getParticipation().value(), project.getSalesCommissionRate().value(),
+        return new ProjectSnapshot(project.getId(), project.getCode().value(), project.getName(),
+                project.getClientId(), clientName, project.getStatus().name(), project.getBudget().amount(),
+                project.getBudget().currency().name(), project.getParticipation().value(), project.getSalesCommissionRate().value(),
                 project.accumulatedProgress().value(), project.estimatedDirectCost().amount());
     }
 }
