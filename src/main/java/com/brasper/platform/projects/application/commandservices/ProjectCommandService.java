@@ -4,8 +4,10 @@ import com.brasper.platform.projects.domain.model.aggregates.Project;
 import com.brasper.platform.projects.domain.model.commands.CancelProjectCommand;
 import com.brasper.platform.projects.domain.model.commands.CreateProjectCommand;
 import com.brasper.platform.projects.domain.model.commands.RegisterProjectProgressCommand;
+import com.brasper.platform.projects.domain.model.commands.SetProjectCostEstimateCommand;
 import com.brasper.platform.projects.domain.model.commands.StartProjectCommand;
 import com.brasper.platform.projects.domain.model.commands.UpdateProjectCommand;
+import com.brasper.platform.projects.domain.model.entities.CostEstimate;
 import com.brasper.platform.projects.domain.model.entities.ProgressRecord;
 import com.brasper.platform.projects.domain.model.valueobjects.ProjectStatus;
 import com.brasper.platform.projects.domain.repositories.ClientRepository;
@@ -75,6 +77,25 @@ public class ProjectCommandService {
         // Read the record back from the saved aggregate: that instance is the persisted one, with its id.
         return Result.success(saved.getProgressRecords().stream()
                 .filter(record -> record.getPeriod().equals(command.period())).findFirst().orElseThrow());
+    }
+
+    @Transactional
+    public Result<CostEstimate, ProjectCommandFailure> handle(SetProjectCostEstimateCommand command) {
+        Project project = projects.findById(command.projectId()).orElse(null);
+        if (project == null) {
+            return Result.failure(ProjectCommandFailure.PROJECT_NOT_FOUND);
+        }
+        if (project.getBudget().currency() != command.estimatedAmount().currency()) {
+            return Result.failure(ProjectCommandFailure.COST_CURRENCY_MISMATCH);
+        }
+        try {
+            project.setCostEstimate(command.category(), command.estimatedAmount());
+        } catch (IllegalStateException e) {
+            return Result.failure(ProjectCommandFailure.INVALID_STATUS_TRANSITION);
+        }
+        Project saved = projects.save(project);
+        return Result.success(saved.getCostEstimates().stream()
+                .filter(estimate -> estimate.getCategory() == command.category()).findFirst().orElseThrow());
     }
 
     /** The aggregate throws IllegalStateException when the status does not allow the change. */

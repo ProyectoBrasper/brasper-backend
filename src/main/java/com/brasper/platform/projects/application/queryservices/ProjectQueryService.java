@@ -1,6 +1,7 @@
 package com.brasper.platform.projects.application.queryservices;
 
 import com.brasper.platform.projects.domain.model.aggregates.Project;
+import com.brasper.platform.projects.domain.model.entities.CostEstimate;
 import com.brasper.platform.projects.domain.model.entities.ProgressRecord;
 import com.brasper.platform.projects.domain.model.valueobjects.ProjectStatus;
 import com.brasper.platform.projects.domain.repositories.ProjectRepository;
@@ -30,6 +31,12 @@ public class ProjectQueryService {
 
     public Optional<Project> findById(Long id) {
         return projects.findById(id);
+    }
+
+    /** Empty when the project does not exist; ordered by category. */
+    public Optional<List<CostEstimate>> findCostEstimates(Long projectId) {
+        return projects.findById(projectId).map(project -> project.getCostEstimates().stream()
+                .sorted(Comparator.comparing(CostEstimate::getCategory)).toList());
     }
 
     /** Empty when the project does not exist; the list is ordered by month. */
