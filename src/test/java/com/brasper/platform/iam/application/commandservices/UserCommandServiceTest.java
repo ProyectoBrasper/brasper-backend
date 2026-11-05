@@ -11,6 +11,8 @@ import static org.mockito.Mockito.when;
 import com.brasper.platform.iam.application.outboundservices.HashingService;
 import com.brasper.platform.iam.application.outboundservices.TokenService;
 import com.brasper.platform.iam.domain.model.aggregates.User;
+import com.brasper.platform.iam.domain.model.commands.ChangeUserRoleCommand;
+import com.brasper.platform.iam.domain.model.commands.DeactivateUserCommand;
 import com.brasper.platform.iam.domain.model.commands.SignInCommand;
 import com.brasper.platform.iam.domain.model.commands.SignUpCommand;
 import com.brasper.platform.iam.domain.model.valueobjects.Role;
@@ -127,5 +129,56 @@ class UserCommandServiceTest {
                 .contains(UserCommandFailure.USER_INACTIVE);
         assertThat(service.handle(new SignInCommand(ANA, "otra-clave1")).failure())
                 .contains(UserCommandFailure.INVALID_CREDENTIALS);
+    }
+
+    private User admin() {
+        return new User(new SignUpCommand(new Username("root"), "clave1234", "Root", Role.ROLE_ADMIN), "h");
+    }
+
+    @Test
+    void changeRoleUpdatesTheUser() {
+        User user = storedUser();
+        when(users.findById(1L)).thenReturn(Optional.of(user));
+        when(users.save(user)).thenReturn(user);
+
+        var result = service.handle(new ChangeUserRoleCommand(1L, Role.ROLE_ACCOUNTING));
+
+        assertThat(result.success().orElseThrow().getRole()).isEqualTo(Role.ROLE_ACCOUNTING);
+    }
+
+    @Test
+    void managingAnUnknownUserFails() {
+        when(users.findById(9L)).thenReturn(Optional.empty());
+
+        assertThat(service.handle(new ChangeUserRoleCommand(9L, Role.ROLE_ADMIN)).failure())
+                .contains(UserCommandFailure.USER_NOT_FOUND);
+        assertThat(service.handle(new DeactivateUserCommand(9L)).failure())
+                .contains(UserCommandFailure.USER_NOT_FOUND);
+    }
+
+    @Test
+    void theLastActiveAdminCannotBeDemotedOrDeactivated() {
+        User root = admin();
+        when(users.findById(1L)).thenReturn(Optional.of(root));
+        when(users.countByRoleAndActive(Role.ROLE_ADMIN, true)).thenReturn(1L);
+
+        assertThat(service.handle(new ChangeUserRoleCommand(1L, Role.ROLE_ENGINEER)).failure())
+                .contains(UserCommandFailure.CANNOT_MODIFY_LAST_ADMIN);
+        assertThat(service.handle(new DeactivateUserCommand(1L)).failure())
+                .contains(UserCommandFailure.CANNOT_MODIFY_LAST_ADMIN);
+        assertThat(root.isActive()).isTrue();
+        assertThat(root.getRole()).isEqualTo(Role.ROLE_ADMIN);
+        verify(users, never()).save(any());
+    }
+
+    @Test
+    void anAdminCanBeDeactivatedWhenAnotherRemains() {
+        User root = admin();
+        when(users.findById(1L)).thenReturn(Optional.of(root));
+        when(users.countByRoleAndActive(Role.ROLE_ADMIN, true)).thenReturn(2L);
+        when(users.save(root)).thenReturn(root);
+
+        assertThat(service.handle(new DeactivateUserCommand(1L)).isSuccess()).isTrue();
+        assertThat(root.isActive()).isFalse();
     }
 }
