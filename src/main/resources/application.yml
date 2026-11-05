@@ -3,6 +3,12 @@ spring:
     name: brasper-backend
   profiles:
     default: dev
+  messages:
+    # Without this, a Spanish server OS would pick messages_es even for English clients.
+    fallback-to-system-locale: false
+  web:
+    # Used when the request has no Accept-Language header.
+    locale: es
   datasource:
     hikari:
       # Own schema: Supabase exposes `public` through its REST API, `brasper` is not exposed.
