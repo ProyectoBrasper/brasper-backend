@@ -30,6 +30,10 @@ brasper:
       # Blank = random key (dev). The prod profile requires JWT_SECRET (min. 32 bytes).
       secret: ${JWT_SECRET:}
       expiration: 8h
+  bootstrap-admin:
+    # Both set + no active admin = the admin is created at startup. Blank = nothing happens.
+    username: ${BOOTSTRAP_ADMIN_USERNAME:}
+    password: ${BOOTSTRAP_ADMIN_PASSWORD:}
 
 management:
   endpoints:

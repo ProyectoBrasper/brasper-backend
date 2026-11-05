@@ -5,11 +5,16 @@ import com.brasper.platform.iam.application.commandservices.UserCommandService;
 import com.brasper.platform.iam.domain.model.commands.SignInCommand;
 import com.brasper.platform.iam.domain.model.valueobjects.Username;
 import com.brasper.platform.iam.interfaces.rest.resources.SignInResource;
+import com.brasper.platform.iam.interfaces.rest.resources.SignUpResource;
 import com.brasper.platform.iam.interfaces.rest.transform.AuthenticatedUserResourceFromEntityAssembler;
+import com.brasper.platform.iam.interfaces.rest.transform.SignUpCommandFromResourceAssembler;
 import com.brasper.platform.iam.interfaces.rest.transform.UserFailureResponseAssembler;
+import com.brasper.platform.iam.interfaces.rest.transform.UserResourceFromEntityAssembler;
 import jakarta.validation.Valid;
 import org.springframework.context.MessageSource;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -39,6 +44,15 @@ public class AuthenticationController {
         return userCommands.handle(new SignInCommand(username, resource.password())).fold(
                 authenticated -> ResponseEntity.ok(
                         AuthenticatedUserResourceFromEntityAssembler.toResourceFromEntity(authenticated)),
+                failure -> UserFailureResponseAssembler.toResponse(failure, messages));
+    }
+
+    @PostMapping("/sign-up")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<?> signUp(@Valid @RequestBody SignUpResource resource) {
+        return userCommands.handle(SignUpCommandFromResourceAssembler.toCommandFromResource(resource)).fold(
+                user -> ResponseEntity.status(HttpStatus.CREATED)
+                        .body(UserResourceFromEntityAssembler.toResourceFromEntity(user)),
                 failure -> UserFailureResponseAssembler.toResponse(failure, messages));
     }
 }

@@ -123,6 +123,53 @@ class AuthenticationControllerTest {
                 .andExpect(status().isUnauthorized());
     }
 
+    private org.springframework.test.web.servlet.ResultActions signUp(String bearer, String username, String password,
+            String role) throws Exception {
+        var request = post("/api/v1/auth/sign-up").contentType(MediaType.APPLICATION_JSON)
+                .content("{\"username\":\"%s\",\"password\":\"%s\",\"fullName\":\"Nuevo\",\"role\":\"%s\"}"
+                        .formatted(username, password, role));
+        if (bearer != null) {
+            request.header("Authorization", "Bearer " + bearer);
+        }
+        return mockMvc.perform(request);
+    }
+
+    private String tokenOf(String username, Role role) throws Exception {
+        createUser(username, role);
+        return JsonPath.read(signIn(username, PASSWORD), "$.token");
+    }
+
+    @Test
+    void adminCreatesAUserWhoCanThenSignIn() throws Exception {
+        String admin = tokenOf("root", Role.ROLE_ADMIN);
+
+        signUp(admin, "luis", "clave5678", "ROLE_ACCOUNTING")
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.username").value("luis"))
+                .andExpect(jsonPath("$.role").value("ROLE_ACCOUNTING"))
+                .andExpect(jsonPath("$.active").value(true))
+                .andExpect(jsonPath("$.passwordHash").doesNotExist());
+        org.assertj.core.api.Assertions.assertThat(signIn("luis", "clave5678")).contains("token");
+    }
+
+    @Test
+    void onlyAnAdminMayCreateUsers() throws Exception {
+        String engineer = tokenOf("ana", Role.ROLE_ENGINEER);
+
+        signUp(engineer, "luis", "clave5678", "ROLE_ENGINEER").andExpect(status().isForbidden());
+        signUp(null, "luis", "clave5678", "ROLE_ENGINEER").andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    void signUpRejectsDuplicatesWeakPasswordsAndUnknownRoles() throws Exception {
+        String admin = tokenOf("root", Role.ROLE_ADMIN);
+
+        signUp(admin, "root", "clave5678", "ROLE_ENGINEER").andExpect(status().isConflict());
+        signUp(admin, "luis", "corta", "ROLE_ENGINEER").andExpect(status().isUnprocessableEntity());
+        signUp(admin, "luis", "clave5678", "ROLE_BOSS").andExpect(status().isBadRequest());
+        signUp(admin, "a b", "clave5678", "ROLE_ENGINEER").andExpect(status().isBadRequest());
+    }
+
     @Test
     void healthStaysPublic() throws Exception {
         mockMvc.perform(get("/actuator/health")).andExpect(status().isOk());
