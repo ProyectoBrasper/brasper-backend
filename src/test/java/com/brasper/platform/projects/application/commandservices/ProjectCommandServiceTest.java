@@ -1,0 +1,110 @@
+package com.brasper.platform.projects.application.commandservices;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
+
+import com.brasper.platform.projects.domain.model.aggregates.Client;
+import com.brasper.platform.projects.domain.model.aggregates.Project;
+import com.brasper.platform.projects.domain.model.commands.CancelProjectCommand;
+import com.brasper.platform.projects.domain.model.commands.CreateClientCommand;
+import com.brasper.platform.projects.domain.model.commands.CreateProjectCommand;
+import com.brasper.platform.projects.domain.model.commands.StartProjectCommand;
+import com.brasper.platform.projects.domain.model.commands.UpdateProjectCommand;
+import com.brasper.platform.projects.domain.model.valueobjects.ProjectCode;
+import com.brasper.platform.projects.domain.model.valueobjects.ProjectStatus;
+import com.brasper.platform.projects.domain.repositories.ClientRepository;
+import com.brasper.platform.projects.domain.repositories.ProjectRepository;
+import com.brasper.platform.shared.domain.model.valueobjects.Currency;
+import com.brasper.platform.shared.domain.model.valueobjects.Money;
+import com.brasper.platform.shared.domain.model.valueobjects.Percentage;
+import com.brasper.platform.shared.domain.model.valueobjects.Ruc;
+import java.math.BigDecimal;
+import java.time.LocalDate;
+import java.util.Optional;
+import org.junit.jupiter.api.Test;
+
+class ProjectCommandServiceTest {
+
+    private static final ProjectCode CODE = new ProjectCode("862BR-AGO-2026");
+
+    private final ProjectRepository projects = mock(ProjectRepository.class);
+    private final ClientRepository clients = mock(ClientRepository.class);
+    private final ProjectCommandService service = new ProjectCommandService(projects, clients);
+
+    private static CreateProjectCommand create() {
+        return new CreateProjectCommand(CODE, "Planta", null, 1L, new Money(BigDecimal.TEN, Currency.PEN),
+                LocalDate.of(2026, 8, 3), new Percentage(BigDecimal.ONE), new Percentage(new BigDecimal("0.03")));
+    }
+
+    private Project storedProject() {
+        Project project = new Project(create());
+        when(projects.findById(5L)).thenReturn(Optional.of(project));
+        when(projects.save(project)).thenReturn(project);
+        return project;
+    }
+
+    @Test
+    void createStoresAQuotedProjectForAnExistingClient() {
+        when(clients.findById(1L)).thenReturn(Optional.of(new Client(
+                new CreateClientCommand("Linings", new Ruc("20123456789"), null, null, null))));
+        when(projects.existsByCode(CODE)).thenReturn(false);
+        when(projects.save(any(Project.class))).thenAnswer(call -> call.getArgument(0));
+
+        Project project = service.handle(create()).success().orElseThrow();
+
+        assertThat(project.getStatus()).isEqualTo(ProjectStatus.QUOTED);
+        assertThat(project.getClientId()).isEqualTo(1L);
+    }
+
+    @Test
+    void createFailsForAnUnknownClientOrADuplicateCode() {
+        when(clients.findById(1L)).thenReturn(Optional.empty());
+        assertThat(service.handle(create()).failure()).contains(ProjectCommandFailure.CLIENT_NOT_FOUND);
+
+        when(clients.findById(1L)).thenReturn(Optional.of(mock(Client.class)));
+        when(projects.existsByCode(CODE)).thenReturn(true);
+        assertThat(service.handle(create()).failure()).contains(ProjectCommandFailure.DUPLICATE_CODE);
+        verify(projects, never()).save(any());
+    }
+
+    @Test
+    void startAndCancelFollowTheStatusRules() {
+        Project project = storedProject();
+
+        assertThat(service.handle(new StartProjectCommand(5L)).isSuccess()).isTrue();
+        assertThat(project.getStatus()).isEqualTo(ProjectStatus.IN_PROGRESS);
+        assertThat(service.handle(new StartProjectCommand(5L)).failure())
+                .contains(ProjectCommandFailure.INVALID_STATUS_TRANSITION);
+
+        assertThat(service.handle(new CancelProjectCommand(5L)).isSuccess()).isTrue();
+        assertThat(service.handle(new CancelProjectCommand(5L)).failure())
+                .contains(ProjectCommandFailure.INVALID_STATUS_TRANSITION);
+    }
+
+    @Test
+    void updateChangesAnOpenProjectAndFailsOnACancelledOne() {
+        Project project = storedProject();
+        var update = new UpdateProjectCommand(5L, "Nuevo", null, new BigDecimal("99"),
+                new Percentage(new BigDecimal("0.5")), new Percentage(BigDecimal.ZERO));
+
+        assertThat(service.handle(update).isSuccess()).isTrue();
+        assertThat(project.getName()).isEqualTo("Nuevo");
+
+        project.cancel();
+        assertThat(service.handle(update).failure()).contains(ProjectCommandFailure.INVALID_STATUS_TRANSITION);
+    }
+
+    @Test
+    void changesToAnUnknownProjectFail() {
+        when(projects.findById(9L)).thenReturn(Optional.empty());
+
+        assertThat(service.handle(new StartProjectCommand(9L)).failure())
+                .contains(ProjectCommandFailure.PROJECT_NOT_FOUND);
+        assertThat(service.handle(new CancelProjectCommand(9L)).failure())
+                .contains(ProjectCommandFailure.PROJECT_NOT_FOUND);
+    }
+}
