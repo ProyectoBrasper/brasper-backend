@@ -1,0 +1,12 @@
+# Deploy on the client's local server. Copy .env.example to .env and fill it in.
+# The database is Supabase (SPRING_DATASOURCE_* in .env), so no db service here.
+services:
+  backend:
+    build: .
+    image: brasper-backend:latest
+    env_file: .env
+    environment:
+      SPRING_PROFILES_ACTIVE: prod
+    ports:
+      - "${PORT:-8080}:${PORT:-8080}"
+    restart: unless-stopped
