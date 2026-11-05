@@ -6,7 +6,9 @@ public enum ProjectCommandFailure implements CommandFailure {
     DUPLICATE_CODE("projects.error.duplicate-code"),
     CLIENT_NOT_FOUND("projects.error.client-not-found"),
     PROJECT_NOT_FOUND("projects.error.project-not-found"),
-    INVALID_STATUS_TRANSITION("projects.error.invalid-status-transition");
+    INVALID_STATUS_TRANSITION("projects.error.invalid-status-transition"),
+    PROGRESS_EXCEEDS_LIMIT("projects.error.progress-exceeds-limit"),
+    PERIOD_ALREADY_REGISTERED("projects.error.period-already-registered");
 
     private final String messageKey;
 

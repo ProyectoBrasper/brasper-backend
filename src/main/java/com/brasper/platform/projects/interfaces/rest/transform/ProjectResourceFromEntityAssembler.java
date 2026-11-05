@@ -12,6 +12,7 @@ public final class ProjectResourceFromEntityAssembler {
         return new ProjectResource(project.getId(), project.getCode().value(), project.getName(),
                 project.getDescription(), project.getClientId(), project.getBudget().amount(),
                 project.getBudget().currency().name(), project.getQuotedOn(), project.getStatus().name(),
-                project.getParticipation().value(), project.getSalesCommissionRate().value());
+                project.getParticipation().value(), project.getSalesCommissionRate().value(),
+                project.accumulatedProgress().value());
     }
 }

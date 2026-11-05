@@ -14,7 +14,9 @@ public final class ProjectFailureResponseAssembler {
     public static ResponseEntity<ProblemDetail> toResponse(ProjectCommandFailure failure, MessageSource messages) {
         String key = failure.messageKey();
         return switch (failure) {
-            case DUPLICATE_CODE, INVALID_STATUS_TRANSITION -> ProblemDetailAssembler.conflict(messages, key);
+            case DUPLICATE_CODE, INVALID_STATUS_TRANSITION, PERIOD_ALREADY_REGISTERED ->
+                    ProblemDetailAssembler.conflict(messages, key);
+            case PROGRESS_EXCEEDS_LIMIT -> ProblemDetailAssembler.unprocessable(messages, key);
             case CLIENT_NOT_FOUND, PROJECT_NOT_FOUND -> ProblemDetailAssembler.notFound(messages, key);
         };
     }
