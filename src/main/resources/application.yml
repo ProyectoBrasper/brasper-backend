@@ -1,6 +1,9 @@
 spring:
   application:
     name: brasper-backend
+  autoconfigure:
+    # Auth is our own JWT flow: no default in-memory user with a generated password.
+    exclude: org.springframework.boot.security.autoconfigure.UserDetailsServiceAutoConfiguration
   profiles:
     default: dev
   messages:

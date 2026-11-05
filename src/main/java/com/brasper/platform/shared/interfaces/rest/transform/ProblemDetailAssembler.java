@@ -16,6 +16,14 @@ public final class ProblemDetailAssembler {
         return of(HttpStatus.BAD_REQUEST, messages, key, args);
     }
 
+    public static ResponseEntity<ProblemDetail> unauthorized(MessageSource messages, String key, Object... args) {
+        return of(HttpStatus.UNAUTHORIZED, messages, key, args);
+    }
+
+    public static ResponseEntity<ProblemDetail> forbidden(MessageSource messages, String key, Object... args) {
+        return of(HttpStatus.FORBIDDEN, messages, key, args);
+    }
+
     public static ResponseEntity<ProblemDetail> notFound(MessageSource messages, String key, Object... args) {
         return of(HttpStatus.NOT_FOUND, messages, key, args);
     }
