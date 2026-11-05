@@ -3,6 +3,12 @@ spring:
     name: brasper-backend
   profiles:
     default: dev
+  datasource:
+    hikari:
+      # Own schema: Supabase exposes `public` through its REST API, `brasper` is not exposed.
+      schema: brasper
+  flyway:
+    default-schema: brasper
   jpa:
     open-in-view: false
     hibernate:
