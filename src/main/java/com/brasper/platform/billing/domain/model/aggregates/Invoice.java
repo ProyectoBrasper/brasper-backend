@@ -4,6 +4,7 @@ import com.brasper.platform.billing.domain.model.commands.IssueInvoiceCommand;
 import com.brasper.platform.billing.domain.model.commands.RegisterInvoicePaymentCommand;
 import com.brasper.platform.billing.domain.model.entities.InvoicePayment;
 import com.brasper.platform.billing.domain.model.valueobjects.InvoiceNumber;
+import com.brasper.platform.billing.domain.model.valueobjects.InvoicePaymentType;
 import com.brasper.platform.billing.domain.model.valueobjects.InvoiceStatus;
 import com.brasper.platform.shared.domain.model.valueobjects.Currency;
 import com.brasper.platform.shared.domain.model.valueobjects.Money;
@@ -170,6 +171,9 @@ public class Invoice {
         }
         if (!amount.isPositive()) {
             throw new IllegalArgumentException("Payment must be greater than zero");
+        }
+        if (command.type() != InvoicePaymentType.RETENTION_CERTIFICATE && command.bankAccountId() == null) {
+            throw new IllegalArgumentException("A deposit needs the bank account it went into");
         }
         if (amount.amount().compareTo(outstandingBalance().amount()) > 0) {
             throw new IllegalStateException("Payment %s exceeds the outstanding balance %s"
