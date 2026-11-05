@@ -5,5 +5,6 @@ import java.time.LocalDate;
 
 public record ProjectResource(Long id, String code, String name, String description, Long clientId,
         BigDecimal budget, String currency, LocalDate quotedOn, String status, BigDecimal participation,
-        BigDecimal salesCommissionRate, BigDecimal accumulatedProgress) {
+        BigDecimal salesCommissionRate, BigDecimal accumulatedProgress,
+        BigDecimal estimatedDirectCost) {
 }

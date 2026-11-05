@@ -13,6 +13,6 @@ public final class ProjectResourceFromEntityAssembler {
                 project.getDescription(), project.getClientId(), project.getBudget().amount(),
                 project.getBudget().currency().name(), project.getQuotedOn(), project.getStatus().name(),
                 project.getParticipation().value(), project.getSalesCommissionRate().value(),
-                project.accumulatedProgress().value());
+                project.accumulatedProgress().value(), project.estimatedDirectCost().amount());
     }
 }

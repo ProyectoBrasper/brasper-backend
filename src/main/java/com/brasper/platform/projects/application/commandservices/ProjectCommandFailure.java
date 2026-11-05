@@ -8,7 +8,8 @@ public enum ProjectCommandFailure implements CommandFailure {
     PROJECT_NOT_FOUND("projects.error.project-not-found"),
     INVALID_STATUS_TRANSITION("projects.error.invalid-status-transition"),
     PROGRESS_EXCEEDS_LIMIT("projects.error.progress-exceeds-limit"),
-    PERIOD_ALREADY_REGISTERED("projects.error.period-already-registered");
+    PERIOD_ALREADY_REGISTERED("projects.error.period-already-registered"),
+    COST_CURRENCY_MISMATCH("projects.error.cost-currency-mismatch");
 
     private final String messageKey;
 

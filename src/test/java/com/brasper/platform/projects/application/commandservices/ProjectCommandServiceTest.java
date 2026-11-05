@@ -13,12 +13,14 @@ import com.brasper.platform.projects.domain.model.commands.CancelProjectCommand;
 import com.brasper.platform.projects.domain.model.commands.CreateClientCommand;
 import com.brasper.platform.projects.domain.model.commands.CreateProjectCommand;
 import com.brasper.platform.projects.domain.model.commands.RegisterProjectProgressCommand;
+import com.brasper.platform.projects.domain.model.commands.SetProjectCostEstimateCommand;
 import com.brasper.platform.projects.domain.model.commands.StartProjectCommand;
 import com.brasper.platform.projects.domain.model.commands.UpdateProjectCommand;
 import com.brasper.platform.projects.domain.model.valueobjects.ProjectCode;
 import com.brasper.platform.projects.domain.model.valueobjects.ProjectStatus;
 import com.brasper.platform.projects.domain.repositories.ClientRepository;
 import com.brasper.platform.projects.domain.repositories.ProjectRepository;
+import com.brasper.platform.shared.domain.model.valueobjects.CostCategory;
 import com.brasper.platform.shared.domain.model.valueobjects.Currency;
 import com.brasper.platform.shared.domain.model.valueobjects.Money;
 import com.brasper.platform.shared.domain.model.valueobjects.Percentage;
@@ -135,6 +137,36 @@ class ProjectCommandServiceTest {
         when(projects.findById(9L)).thenReturn(Optional.empty());
         assertThat(service.handle(new RegisterProjectProgressCommand(9L, new Period(2026, 8),
                 new Percentage(BigDecimal.ONE))).failure()).contains(ProjectCommandFailure.PROJECT_NOT_FOUND);
+    }
+
+    private static SetProjectCostEstimateCommand estimate(Currency currency) {
+        return new SetProjectCostEstimateCommand(5L, CostCategory.MATERIALS, new Money(BigDecimal.TEN, currency));
+    }
+
+    @Test
+    void setsACostEstimateAndReturnsThePersistedOne() {
+        Project project = storedProject();
+
+        var estimate = service.handle(estimate(Currency.PEN)).success().orElseThrow();
+
+        assertThat(estimate.getCategory()).isEqualTo(CostCategory.MATERIALS);
+        assertThat(project.estimatedDirectCost().amount()).isEqualByComparingTo("10");
+    }
+
+    @Test
+    void costEstimateFailuresSayWhichRuleBrokeAndStoreNothing() {
+        Project project = storedProject();
+        assertThat(service.handle(estimate(Currency.USD)).failure())
+                .contains(ProjectCommandFailure.COST_CURRENCY_MISMATCH);
+
+        project.cancel();
+        assertThat(service.handle(estimate(Currency.PEN)).failure())
+                .contains(ProjectCommandFailure.INVALID_STATUS_TRANSITION);
+        assertThat(project.getCostEstimates()).isEmpty();
+
+        when(projects.findById(9L)).thenReturn(Optional.empty());
+        assertThat(service.handle(new SetProjectCostEstimateCommand(9L, CostCategory.OTHER,
+                new Money(BigDecimal.ONE, Currency.PEN))).failure()).contains(ProjectCommandFailure.PROJECT_NOT_FOUND);
     }
 
     @Test
