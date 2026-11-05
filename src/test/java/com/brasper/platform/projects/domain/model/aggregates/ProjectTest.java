@@ -7,6 +7,8 @@ import com.brasper.platform.projects.domain.model.commands.CreateProjectCommand;
 import com.brasper.platform.projects.domain.model.commands.UpdateProjectCommand;
 import com.brasper.platform.projects.domain.model.valueobjects.ProjectCode;
 import com.brasper.platform.projects.domain.model.valueobjects.ProjectStatus;
+import com.brasper.platform.projects.domain.model.entities.CostEstimate;
+import com.brasper.platform.shared.domain.model.valueobjects.CostCategory;
 import com.brasper.platform.shared.domain.model.valueobjects.Currency;
 import com.brasper.platform.shared.domain.model.valueobjects.Money;
 import com.brasper.platform.shared.domain.model.valueobjects.Percentage;
@@ -113,6 +115,37 @@ class ProjectTest {
         Project cancelled = startedProject();
         cancelled.cancel();
         assertThatThrownBy(() -> cancelled.registerProgress(new Period(2026, 8), pct("0.1")))
+                .isInstanceOf(IllegalStateException.class);
+    }
+
+    private static Money usd(String amount) {
+        return new Money(new BigDecimal(amount), Currency.USD);
+    }
+
+    @Test
+    void estimatesPerCategoryReplaceThePreviousOneAndSumUp() {
+        Project project = project();
+        assertThat(project.estimatedDirectCost()).isEqualTo(usd("0"));
+
+        project.setCostEstimate(CostCategory.MATERIALS, usd("300"));
+        project.setCostEstimate(CostCategory.LABOR, usd("150.50"));
+        CostEstimate replaced = project.setCostEstimate(CostCategory.MATERIALS, usd("400"));
+
+        assertThat(project.getCostEstimates()).hasSize(2);
+        assertThat(replaced.getEstimatedAmount()).isEqualByComparingTo("400");
+        assertThat(project.estimatedDirectCost()).isEqualTo(usd("550.50"));
+    }
+
+    @Test
+    void rejectsEstimatesInAnotherCurrencyNegativeOnesOrOnAClosedProject() {
+        Project project = project();
+        assertThatThrownBy(() -> project.setCostEstimate(CostCategory.OTHER,
+                new Money(BigDecimal.TEN, Currency.PEN))).isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> project.setCostEstimate(CostCategory.OTHER, usd("-1")))
+                .isInstanceOf(IllegalArgumentException.class);
+
+        project.cancel();
+        assertThatThrownBy(() -> project.setCostEstimate(CostCategory.OTHER, usd("1")))
                 .isInstanceOf(IllegalStateException.class);
     }
 
