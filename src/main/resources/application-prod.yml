@@ -1,0 +1,8 @@
+server:
+  # Render injects PORT; falls back to 8080 on a local server.
+  port: ${PORT:8080}
+  shutdown: graceful
+
+logging:
+  level:
+    com.brasper: INFO
