@@ -6,7 +6,9 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import com.brasper.platform.TestcontainersConfiguration;
 import com.brasper.platform.billing.domain.model.aggregates.Invoice;
 import com.brasper.platform.billing.domain.model.commands.IssueInvoiceCommand;
+import com.brasper.platform.billing.domain.model.commands.RegisterInvoicePaymentCommand;
 import com.brasper.platform.billing.domain.model.valueobjects.InvoiceNumber;
+import com.brasper.platform.billing.domain.model.valueobjects.InvoicePaymentType;
 import com.brasper.platform.billing.domain.model.valueobjects.InvoiceStatus;
 import com.brasper.platform.billing.domain.repositories.InvoiceRepository;
 import com.brasper.platform.shared.domain.model.valueobjects.Currency;
@@ -64,6 +66,27 @@ class InvoiceJpaRepositoryTest {
         assertThat(found.getCreatedAt()).isNotNull();
         assertThat(invoices.existsByNumber(new InvoiceNumber("f001", 7))).isTrue();
         assertThat(invoices.existsByNumber(new InvoiceNumber("F001", 8))).isFalse();
+    }
+
+    @Test
+    void paymentsArePersistedWithTheInvoiceAndKeepTheStatus() {
+        Invoice invoice = invoice("F001", 7);
+        invoice.registerPayment(new RegisterInvoicePaymentCommand(null, LocalDate.of(2026, 9, 1),
+                new Money(new BigDecimal("500"), Currency.USD), InvoicePaymentType.NET_DEPOSIT, 9L, "OP-1"));
+        invoice.registerPayment(new RegisterInvoicePaymentCommand(null, LocalDate.of(2026, 9, 2),
+                new Money(new BigDecimal("35.40"), Currency.USD), InvoicePaymentType.RETENTION_CERTIFICATE, null,
+                null));
+        Long id = saveAndFlush(invoice).getId();
+        em.clear();
+
+        Invoice found = invoices.findById(id).orElseThrow();
+
+        assertThat(found.getPayments()).hasSize(2);
+        assertThat(found.collectedAmount().amount()).isEqualByComparingTo("535.40");
+        assertThat(found.outstandingBalance().amount()).isEqualByComparingTo("644.60");
+        assertThat(found.getStatus()).isEqualTo(InvoiceStatus.PARTIALLY_COLLECTED);
+        assertThat(found.getPayments()).extracting(p -> p.getType())
+                .containsExactlyInAnyOrder(InvoicePaymentType.NET_DEPOSIT, InvoicePaymentType.RETENTION_CERTIFICATE);
     }
 
     @Test
