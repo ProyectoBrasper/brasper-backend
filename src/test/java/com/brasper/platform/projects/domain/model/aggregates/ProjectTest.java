@@ -10,6 +10,7 @@ import com.brasper.platform.projects.domain.model.valueobjects.ProjectStatus;
 import com.brasper.platform.shared.domain.model.valueobjects.Currency;
 import com.brasper.platform.shared.domain.model.valueobjects.Money;
 import com.brasper.platform.shared.domain.model.valueobjects.Percentage;
+import com.brasper.platform.shared.domain.model.valueobjects.Period;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import org.junit.jupiter.api.Test;
@@ -63,6 +64,56 @@ class ProjectTest {
         assertThat(project.getBudget()).isEqualTo(new Money(new BigDecimal("2500.51"), Currency.USD));
         assertThat(project.getParticipation().value()).isEqualByComparingTo("0.5");
         assertThat(project.getCode().value()).isEqualTo("862BR-AGO-2026");
+    }
+
+    private static Percentage pct(String value) {
+        return new Percentage(new BigDecimal(value));
+    }
+
+    private static Project startedProject() {
+        Project project = project();
+        project.start();
+        return project;
+    }
+
+    @Test
+    void progressAccumulatesAndCompletesTheProjectAtOneHundredPercent() {
+        Project project = startedProject();
+
+        project.registerProgress(new Period(2026, 8), pct("0.3"));
+        project.registerProgress(new Period(2026, 9), pct("0.45"));
+        assertThat(project.accumulatedProgress().value()).isEqualByComparingTo("0.75");
+        assertThat(project.getStatus()).isEqualTo(ProjectStatus.IN_PROGRESS);
+
+        project.registerProgress(new Period(2026, 10), pct("0.25"));
+        assertThat(project.getStatus()).isEqualTo(ProjectStatus.COMPLETED);
+        assertThat(project.getProgressRecords()).hasSize(3);
+    }
+
+    @Test
+    void progressCannotPassOneHundredPercentOrRepeatAMonth() {
+        Project project = startedProject();
+        project.registerProgress(new Period(2026, 8), pct("0.7"));
+
+        assertThatThrownBy(() -> project.registerProgress(new Period(2026, 9), pct("0.31")))
+                .isInstanceOf(IllegalStateException.class);
+        assertThatThrownBy(() -> project.registerProgress(new Period(2026, 8), pct("0.1")))
+                .isInstanceOf(IllegalStateException.class);
+        assertThatThrownBy(() -> project.registerProgress(new Period(2026, 9), pct("0")))
+                .isInstanceOf(IllegalArgumentException.class);
+        assertThat(project.accumulatedProgress().value()).isEqualByComparingTo("0.7");
+    }
+
+    @Test
+    void onlyAnInProgressProjectAcceptsProgress() {
+        Project quoted = project();
+        assertThatThrownBy(() -> quoted.registerProgress(new Period(2026, 8), pct("0.1")))
+                .isInstanceOf(IllegalStateException.class);
+
+        Project cancelled = startedProject();
+        cancelled.cancel();
+        assertThatThrownBy(() -> cancelled.registerProgress(new Period(2026, 8), pct("0.1")))
+                .isInstanceOf(IllegalStateException.class);
     }
 
     @Test

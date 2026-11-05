@@ -2,27 +2,34 @@ package com.brasper.platform.projects.domain.model.aggregates;
 
 import com.brasper.platform.projects.domain.model.commands.CreateProjectCommand;
 import com.brasper.platform.projects.domain.model.commands.UpdateProjectCommand;
+import com.brasper.platform.projects.domain.model.entities.ProgressRecord;
 import com.brasper.platform.projects.domain.model.valueobjects.ProjectCode;
 import com.brasper.platform.projects.domain.model.valueobjects.ProjectStatus;
 import com.brasper.platform.shared.domain.model.valueobjects.Currency;
 import com.brasper.platform.shared.domain.model.valueobjects.Money;
 import com.brasper.platform.shared.domain.model.valueobjects.Percentage;
+import com.brasper.platform.shared.domain.model.valueobjects.Period;
+import jakarta.persistence.CascadeType;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
+import jakarta.persistence.FetchType;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
+import jakarta.persistence.OneToMany;
 import jakarta.persistence.PrePersist;
 import jakarta.persistence.PreUpdate;
 import jakarta.persistence.Table;
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.time.LocalDate;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Objects;
 
-/** Progress records and cost estimates are added to this aggregate in later steps. */
+/** Cost estimates are added to this aggregate in a later step. */
 @Entity
 @Table(name = "projects")
 public class Project {
@@ -68,6 +75,10 @@ public class Project {
     @Column(name = "sales_commission_rate", nullable = false, precision = 5, scale = 4)
     private Percentage salesCommissionRate;
 
+    /** shortcut: loaded eagerly (at most a dozen rows per project), so resources can be built outside a transaction. */
+    @OneToMany(mappedBy = "project", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.EAGER)
+    private List<ProgressRecord> progressRecords = new ArrayList<>();
+
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;
 
@@ -103,6 +114,45 @@ public class Project {
     public void cancel() {
         requireOpen("cancelled");
         status = ProjectStatus.CANCELLED;
+    }
+
+    /**
+     * Adds the progress earned in a month. Only an in-progress project accepts it, once per month, and the total
+     * cannot pass 100%. Reaching 100% completes the project.
+     */
+    public ProgressRecord registerProgress(Period period, Percentage percentage) {
+        if (status != ProjectStatus.IN_PROGRESS) {
+            throw new IllegalStateException("Only an in-progress project accepts progress, but it is " + status);
+        }
+        if (percentage.value().signum() == 0) {
+            throw new IllegalArgumentException("Progress must be greater than zero");
+        }
+        if (hasProgressFor(period)) {
+            throw new IllegalStateException("Progress already registered for " + period);
+        }
+        BigDecimal total = accumulatedProgress().value().add(percentage.value());
+        if (total.compareTo(ONE.value()) > 0) {
+            throw new IllegalStateException("Progress cannot exceed 100%, would reach " + total);
+        }
+        ProgressRecord record = new ProgressRecord(this, period, percentage);
+        progressRecords.add(record);
+        if (total.compareTo(ONE.value()) == 0) {
+            status = ProjectStatus.COMPLETED;
+        }
+        return record;
+    }
+
+    public boolean hasProgressFor(Period period) {
+        return progressRecords.stream().anyMatch(record -> record.getPeriod().equals(period));
+    }
+
+    public Percentage accumulatedProgress() {
+        return new Percentage(progressRecords.stream().map(record -> record.getPercentage().value())
+                .reduce(BigDecimal.ZERO, BigDecimal::add));
+    }
+
+    public List<ProgressRecord> getProgressRecords() {
+        return List.copyOf(progressRecords);
     }
 
     private void requireOpen(String action) {
