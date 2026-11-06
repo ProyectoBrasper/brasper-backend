@@ -9,6 +9,7 @@ import static org.mockito.Mockito.when;
 
 import com.brasper.platform.expenses.application.outboundservices.ExpenseProjectLookup;
 import com.brasper.platform.expenses.application.outboundservices.ExpenseTaxRatesProvider;
+import com.brasper.platform.expenses.application.outboundservices.ExpenseTreasuryLookup;
 import com.brasper.platform.expenses.domain.model.aggregates.Expense;
 import com.brasper.platform.expenses.domain.model.aggregates.Supplier;
 import com.brasper.platform.expenses.domain.model.commands.AnnulExpenseCommand;
@@ -38,7 +39,9 @@ class ExpenseCommandServiceTest {
     private final SupplierRepository suppliers = mock(SupplierRepository.class);
     private final ExpenseProjectLookup projects = mock(ExpenseProjectLookup.class);
     private final ExpenseTaxRatesProvider taxRates = mock(ExpenseTaxRatesProvider.class);
-    private final ExpenseCommandService service = new ExpenseCommandService(expenses, suppliers, projects, taxRates);
+    private final ExpenseTreasuryLookup treasury = mock(ExpenseTreasuryLookup.class);
+    private final ExpenseCommandService service = new ExpenseCommandService(expenses, suppliers, projects, taxRates,
+            treasury);
 
     private static RegisterExpenseCommand register(Long projectId, Long supplierId, PaymentMethod method,
             Long account, Long partner) {
@@ -53,6 +56,7 @@ class ExpenseCommandServiceTest {
 
     private void everythingExists() {
         when(projects.findStatus(3L)).thenReturn(Optional.of("IN_PROGRESS"));
+        when(treasury.bankAccountExists(9L)).thenReturn(true);
         when(suppliers.findById(5L)).thenReturn(Optional.of(
                 new Supplier(new CreateSupplierCommand("Ferreteria", null, SupplierType.NATURAL_PERSON, null))));
         when(taxRates.ratesAt(DAY)).thenReturn(TaxRates.standard());
@@ -77,6 +81,7 @@ class ExpenseCommandServiceTest {
 
     @Test
     void aGeneralExpenseWithoutSupplierNeedsNoLookups() {
+        when(treasury.bankAccountExists(2L)).thenReturn(true);
         when(taxRates.ratesAt(DAY)).thenReturn(TaxRates.standard());
         when(expenses.save(any(Expense.class))).thenAnswer(call -> call.getArgument(0));
 
@@ -118,6 +123,10 @@ class ExpenseCommandServiceTest {
                 .contains(ExpenseCommandFailure.BANK_ACCOUNT_REQUIRED);
         assertThat(service.handle(register(3L, 5L, PaymentMethod.PARTNER_CONTRIBUTION, null, null)).failure())
                 .contains(ExpenseCommandFailure.PARTNER_REQUIRED);
+        assertThat(service.handle(register(3L, 5L, PaymentMethod.BANK_ACCOUNT, 8L, null)).failure())
+                .contains(ExpenseCommandFailure.BANK_ACCOUNT_NOT_FOUND);
+        assertThat(service.handle(register(3L, 5L, PaymentMethod.PARTNER_CONTRIBUTION, null, 8L)).failure())
+                .contains(ExpenseCommandFailure.PARTNER_NOT_FOUND);
     }
 
     @Test

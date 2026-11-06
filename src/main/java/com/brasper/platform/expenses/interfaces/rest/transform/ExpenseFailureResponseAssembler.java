@@ -14,8 +14,8 @@ public final class ExpenseFailureResponseAssembler {
     public static ResponseEntity<ProblemDetail> toResponse(ExpenseCommandFailure failure, MessageSource messages) {
         String key = failure.messageKey();
         return switch (failure) {
-            case PROJECT_NOT_FOUND, SUPPLIER_NOT_FOUND, EXPENSE_NOT_FOUND ->
-                    ProblemDetailAssembler.notFound(messages, key);
+            case PROJECT_NOT_FOUND, SUPPLIER_NOT_FOUND, EXPENSE_NOT_FOUND, BANK_ACCOUNT_NOT_FOUND,
+                    PARTNER_NOT_FOUND -> ProblemDetailAssembler.notFound(messages, key);
             case PROJECT_CLOSED, ALREADY_ANNULLED -> ProblemDetailAssembler.conflict(messages, key);
             case BANK_ACCOUNT_REQUIRED, PARTNER_REQUIRED -> ProblemDetailAssembler.badRequest(messages, key);
         };

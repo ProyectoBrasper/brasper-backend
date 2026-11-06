@@ -26,16 +26,15 @@ Hecho (dominio, servicios, API y fachada salvo que se indique):
 - **Expenses:** proveedores, gastos (registrar, corregir, anular), `ExpensesContextFacade`.
 - **Treasury, dominio y persistencia:** `BankAccount` con movimientos de caja y saldo (V20, V23), `Partner` con aportes (V21), `Payable` con pagos (V22), `Loan` con cuotas (V24).
 - **Treasury, servicios:** `BankAccountCommandService` (abrir cuenta, registrar movimiento, transferir), `PartnerCommandService` (alta de socio, aporte), `LoanCommandService` (registrar préstamo, programar y pagar cuotas; mueve caja: RECEIVED entra al desembolsar y sale al pagar cuota, GRANTED al revés) y `PayableCommandService` (crear, pagar con salida de caja, reprogramar semana). En una transferencia el `sourceId` de cada movimiento es el id de la cuenta contraparte. Un aporte de socio solo se registra: no mueve caja (eso llegará con los eventos).
-- **Treasury, fachada** `TreasuryContextFacade` (cuenta existe, tipo de cuenta, socio existe). Del UML faltan los saldos de caja y las sumas semanales: se agregan cuando Reporting las pida. Expenses todavía no la usa.
+- **Treasury, fachada** `TreasuryContextFacade` (cuenta existe, tipo de cuenta, socio existe). Del UML faltan los saldos de caja y las sumas semanales: se agregan cuando Reporting las pida. Expenses la usa para validar que la cuenta o el socio del gasto existan (`ExpenseTreasuryLookup`).
 - **Treasury, API de socios** (`/api/v1/partners`): alta, listar, ver (con aportes y total) y registrar aporte (`/{id}/contributions`, con moneda). Escritura solo ADMIN y ACCOUNTING. `totalContributed` suma montos sin convertir moneda. Falta el listado de aportes por periodo del UML.
 - **Treasury, API de préstamos** (`/api/v1/loans`): registrar, listar (`?type=`), ver, programar cuota (`/{id}/installments`) y pagar cuota (`/{id}/installments/{installmentId}/payments`). Escritura solo ADMIN y ACCOUNTING.
 - **Treasury, API de pagos pendientes** (`/api/v1/payables`): crear, listar (`?status=`), ver, pagar (`/{id}/payments`, escribe en caja) y reprogramar (`PUT /{id}/schedule`). Escritura solo ADMIN y ACCOUNTING.
 - **Treasury, API de cuentas bancarias** (`/api/v1/bank-accounts`): listar, ver, movimientos por mes (`?year=&month=`), abrir cuenta, ajustes (`/{id}/adjustments`) y transferencias (`/transfers`). El monto va en la moneda de la cuenta (la de origen en transferencias). El saldo sale de `BankAccountQueryService` (los movimientos son lazy y `open-in-view` está apagado).
 
 Pendiente, en este orden sugerido:
-1. **Treasury:** validar cuentas y socios para Expenses con la fachada (Expenses hoy solo comprueba que vengan los ids).
-2. **Staff** (`06-staff.puml`), **Accounting** (`08`), **Reporting** (`09`).
-3. Eventos de dominio (`InvoiceIssuedEvent`, `ExpenseRegisteredEvent`, `PayablePaidEvent`, ...) y sus manejadores. Hoy ningún flujo los usa.
+1. **Staff** (`06-staff.puml`), **Accounting** (`08`), **Reporting** (`09`).
+2. Eventos de dominio (`InvoiceIssuedEvent`, `ExpenseRegisteredEvent`, `PayablePaidEvent`, ...) y sus manejadores. Hoy ningún flujo los usa.
 
 ## Atajos y desvíos del UML (todos documentados en el código)
 - Las fachadas y sus implementaciones viven en `interfaces/acl` (el UML las pone en `application/acl`) porque ArchUnit prohíbe que `application` dependa de `interfaces`.
@@ -45,7 +44,7 @@ Pendiente, en este orden sugerido:
 - Filtros y paginación en memoria; pagos, avances y movimientos con carga EAGER o historial completo. Pasar a SQL si los volúmenes crecen.
 - Billing: `markAsRealized` de los cobros programados nunca se llama hasta que existan los eventos.
 - Billing no valida que la moneda de la factura coincida con la del proyecto ni el tipo de cuenta bancaria del depósito.
-- Expenses: cuentas bancarias y socios solo se validan como presentes. Un proyecto solo `CANCELLED` rechaza gastos nuevos (uno `COMPLETED` los acepta).
+- Expenses: un gasto no mueve caja; solo comprueba que la cuenta o el socio existan. Un proyecto solo `CANCELLED` rechaza gastos nuevos (uno `COMPLETED` los acepta).
 - Cada fachada y servicio nuevo sigue el patrón: puerto de dominio + interfaz Spring Data que lo extiende, y los tests usan el puerto, no la interfaz JPA.
 
 ## Decisiones confirmadas por el usuario
