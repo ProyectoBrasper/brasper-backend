@@ -40,6 +40,21 @@ class PayableTest {
         assertThatThrownBy(() -> payable.getPayments().clear()).isInstanceOf(UnsupportedOperationException.class);
     }
     @Test
+    void reschedulesUnpaidPayablesAndRejectsNullWeeksOrPaidPayables() {
+        Payable payable = payable("materials", "100");
+        CashFlowWeek week = new CashFlowWeek(2027, 1, 2);
+        payable.reschedule(week);
+        assertThat(payable.getScheduledWeek()).isEqualTo(week);
+        assertThat(payable.getUpdatedAt()).isNotNull();
+        payable.registerPayment(payment(money("40")));
+        payable.reschedule(new CashFlowWeek(2027, 2, 1));
+        assertThat(payable.getStatus()).isEqualTo(PaymentStatus.PARTIALLY_PAID);
+        assertThatThrownBy(() -> payable.reschedule(null)).isInstanceOf(NullPointerException.class);
+        payable.registerPayment(payment(money("60")));
+        assertThatThrownBy(() -> payable.reschedule(week)).isInstanceOf(IllegalStateException.class);
+        assertThat(payable.getScheduledWeek()).isEqualTo(new CashFlowWeek(2027, 2, 1));
+    }
+    @Test
     void rejectsInvalidDetailsAndPaymentsWithoutChangingThePayable() {
         Payable payable = payable("materials", "100");
         assertThatThrownBy(() -> payable("materials", "999999999999.999")).isInstanceOf(IllegalArgumentException.class);

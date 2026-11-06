@@ -1,0 +1,81 @@
+package com.brasper.platform.treasury.application.commandservices;
+
+import com.brasper.platform.shared.application.result.Result;
+import com.brasper.platform.shared.domain.model.valueobjects.PaymentStatus;
+import com.brasper.platform.treasury.domain.model.aggregates.BankAccount;
+import com.brasper.platform.treasury.domain.model.aggregates.Payable;
+import com.brasper.platform.treasury.domain.model.commands.CreatePayableCommand;
+import com.brasper.platform.treasury.domain.model.commands.RegisterCashMovementCommand;
+import com.brasper.platform.treasury.domain.model.commands.RegisterPayablePaymentCommand;
+import com.brasper.platform.treasury.domain.model.commands.ReschedulePayableCommand;
+import com.brasper.platform.treasury.domain.model.entities.PayablePayment;
+import com.brasper.platform.treasury.domain.model.valueobjects.MovementDirection;
+import com.brasper.platform.treasury.domain.model.valueobjects.MovementSource;
+import com.brasper.platform.treasury.domain.repositories.BankAccountRepository;
+import com.brasper.platform.treasury.domain.repositories.PayableRepository;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+@Service
+public class PayableCommandService {
+
+    private final PayableRepository payables;
+    private final BankAccountRepository accounts;
+
+    public PayableCommandService(PayableRepository payables, BankAccountRepository accounts) {
+        this.payables = payables;
+        this.accounts = accounts;
+    }
+
+    @Transactional
+    public Result<Payable, PayableCommandFailure> handle(CreatePayableCommand command) {
+        return Result.success(payables.save(new Payable(command)));
+    }
+
+    @Transactional
+    public Result<Payable, PayableCommandFailure> handle(RegisterPayablePaymentCommand command) {
+        Payable payable = payables.findById(command.payableId()).orElse(null);
+        if (payable == null) {
+            return Result.failure(PayableCommandFailure.PAYABLE_NOT_FOUND);
+        }
+        if (payable.getStatus() == PaymentStatus.PAID) {
+            return Result.failure(PayableCommandFailure.PAYABLE_ALREADY_PAID);
+        }
+        if (command.amount() == null || !command.amount().isPositive()) {
+            return Result.failure(PayableCommandFailure.INVALID_PAYMENT_AMOUNT);
+        }
+        BankAccount account = accounts.findById(command.bankAccountId()).orElse(null);
+        if (account == null) {
+            return Result.failure(PayableCommandFailure.PAYMENT_ACCOUNT_NOT_FOUND);
+        }
+        if (command.amount().currency() != payable.getTotalAmount().currency()
+                || command.amount().currency() != account.getCurrency()) {
+            return Result.failure(PayableCommandFailure.PAYMENT_CURRENCY_MISMATCH);
+        }
+        if (command.amount().amount().compareTo(payable.balance().amount()) > 0) {
+            return Result.failure(PayableCommandFailure.PAYMENT_EXCEEDS_BALANCE);
+        }
+        payable.registerPayment(command);
+        Payable saved = payables.save(payable);
+        // Merge copies child entities; the generated payment id belongs to the saved aggregate.
+        PayablePayment payment = saved.getPayments().getLast();
+        account.registerMovement(new RegisterCashMovementCommand(account.getId(), command.paidOn(),
+                MovementDirection.OUTFLOW, command.amount(), "Payable payment: " + saved.getConcept(),
+                MovementSource.PAYABLE_PAYMENT, payment.getId()));
+        accounts.save(account);
+        return Result.success(saved);
+    }
+
+    @Transactional
+    public Result<Payable, PayableCommandFailure> handle(ReschedulePayableCommand command) {
+        Payable payable = payables.findById(command.payableId()).orElse(null);
+        if (payable == null) {
+            return Result.failure(PayableCommandFailure.PAYABLE_NOT_FOUND);
+        }
+        if (payable.getStatus() == PaymentStatus.PAID) {
+            return Result.failure(PayableCommandFailure.PAYABLE_ALREADY_PAID);
+        }
+        payable.reschedule(command.scheduledWeek());
+        return Result.success(payables.save(payable));
+    }
+}
