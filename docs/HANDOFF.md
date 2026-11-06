@@ -42,6 +42,9 @@ Pendiente, en este orden sugerido:
 - Expenses: cuentas bancarias y socios solo se validan como presentes. Un proyecto solo `CANCELLED` rechaza gastos nuevos (uno `COMPLETED` los acepta).
 - Cada fachada y servicio nuevo sigue el patrón: puerto de dominio + interfaz Spring Data que lo extiende, y los tests usan el puerto, no la interfaz JPA.
 
+## Decisiones confirmadas por el usuario
+- Flujo de caja semanal: un mes puede tener hasta 6 semanas (lunes a domingo, recortadas al mes). Se permite "Semana 06" porque algunos meses la necesitan (ej. noviembre de 2026, donde la semana 6 es solo el día 30). El Excel original solo llegaba a 5. Ver `CashFlowWeek`.
+
 ## Decisiones propias del agente, sin confirmar por el usuario
 - Matriz de permisos: lecturas para cualquier usuario autenticado; escribir en Projects, clientes, proveedores y gastos con ADMIN, ACCOUNTING y ENGINEER; escribir en Billing con ADMIN y ACCOUNTING; MANAGEMENT solo lee.
 - Los certificados de retención no cuentan como cobrado en `BillingContextFacade`, y los aportes de socio no cuentan como pagado en `ExpensesContextFacade`.
