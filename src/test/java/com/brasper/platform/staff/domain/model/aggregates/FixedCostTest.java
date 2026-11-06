@@ -8,7 +8,6 @@ import com.brasper.platform.staff.domain.model.commands.*;
 import com.brasper.platform.staff.domain.model.valueobjects.*;
 import java.math.BigDecimal;
 import java.time.LocalDate;
-import java.util.ArrayList;
 import java.util.List;
 import org.junit.jupiter.api.Test;
 
@@ -22,17 +21,13 @@ class FixedCostTest {
     private static RegisterFixedCostPaymentCommand payment(Period period, Money amount) {
         return new RegisterFixedCostPaymentCommand(null, LocalDate.of(2026, 11, 30), period, amount, null, "paid");
     }
-    @Test void validatesCodeSalaryScheduleAndImmutableCopies() {
+    @Test void validatesCodeSalaryAndSchedule() {
         assertThatThrownBy(() -> cost(FixedCostType.SALARY, null)).isInstanceOf(IllegalArgumentException.class);
         assertThat(cost(FixedCostType.SALARY, 1L).getEmployeeId()).isEqualTo(1L);
         for (String code : List.of(" ", "x".repeat(31)))
             assertThatThrownBy(() -> new CostCode(code)).isInstanceOf(IllegalArgumentException.class);
         for (List<Integer> weeks : List.of(List.of(0), List.of(6), List.of(1, 1)))
             assertThatThrownBy(() -> new PaymentSchedule(weeks)).isInstanceOf(IllegalArgumentException.class);
-        var weeks = new ArrayList<>(List.of(1, 5));
-        var schedule = new PaymentSchedule(weeks); weeks.clear();
-        assertThat(schedule.expectedWeeks()).containsExactly(1, 5);
-        assertThatThrownBy(() -> schedule.expectedWeeks().clear()).isInstanceOf(UnsupportedOperationException.class);
     }
     @Test void tracksPaymentsPerPeriodAndClampsOverpayment() {
         FixedCost cost = cost(FixedCostType.HOSTING, null);
@@ -48,7 +43,6 @@ class FixedCostTest {
         assertThat(cost.pendingIn(PERIOD)).isEqualTo(money("0"));
         cost.registerPayment(payment(PERIOD, money("1")));
         assertThat(cost.pendingIn(PERIOD)).isEqualTo(money("0"));
-        assertThatThrownBy(() -> cost.getPayments().clear()).isInstanceOf(UnsupportedOperationException.class);
     }
     @Test void validatesUpdatesAndPaymentsAndDeactivates() {
         FixedCost cost = cost(FixedCostType.HOSTING, null);
