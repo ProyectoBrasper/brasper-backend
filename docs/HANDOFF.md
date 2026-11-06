@@ -24,7 +24,8 @@ Hecho (dominio, servicios, API y fachada salvo que se indique):
 - **Projects:** clientes, proyectos con estados, avance mensual, estimaciones de costo, `ProjectsContextFacade`.
 - **Billing:** facturas (IGV, retención, detracción), pagos, anular, cobros programados, `BillingContextFacade`.
 - **Expenses:** proveedores, gastos (registrar, corregir, anular), `ExpensesContextFacade`.
-- **Treasury, solo dominio y persistencia (sin servicios, API ni fachada):** `BankAccount` con movimientos de caja y saldo (V20, V23), `Partner` con aportes (V21), `Payable` con pagos (V22).
+- **Treasury, dominio y persistencia:** `BankAccount` con movimientos de caja y saldo (V20, V23), `Partner` con aportes (V21), `Payable` con pagos (V22).
+- **Treasury, servicios:** `BankAccountCommandService` (abrir cuenta, registrar movimiento, transferir). En una transferencia el `sourceId` de cada movimiento es el id de la cuenta contraparte. Sin API, fachada ni servicios de Payable/Partner/Loan todavía.
 
 Pendiente, en este orden sugerido:
 1. **Treasury:** préstamos (`Loan`), transferencias entre cuentas, servicios, API, `TreasuryContextFacade`, validar cuentas y socios para Expenses.
