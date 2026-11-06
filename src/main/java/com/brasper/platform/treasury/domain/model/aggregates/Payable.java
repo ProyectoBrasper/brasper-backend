@@ -109,6 +109,17 @@ public class Payable {
         return payment;
     }
 
+    public void reschedule(CashFlowWeek week) {
+        if (status == PaymentStatus.PAID) {
+            throw new IllegalStateException("The payable is already paid");
+        }
+        Objects.requireNonNull(week, "week");
+        scheduledYear = week.year();
+        scheduledMonth = week.month();
+        scheduledWeek = week.number();
+        updatedAt = Instant.now();
+    }
+
     public Money paidAmount() {
         return payments.stream().map(PayablePayment::getAmount).reduce(Money.zero(currency), Money::add);
     }
