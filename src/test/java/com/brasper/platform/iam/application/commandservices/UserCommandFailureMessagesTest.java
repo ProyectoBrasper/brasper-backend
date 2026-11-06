@@ -13,6 +13,7 @@ import com.brasper.platform.treasury.application.commandservices.PartnerCommandF
 import com.brasper.platform.projects.application.commandservices.ClientCommandFailure;
 import com.brasper.platform.projects.application.commandservices.ProjectCommandFailure;
 import com.brasper.platform.shared.application.result.CommandFailure;
+import com.brasper.platform.staff.application.commandservices.EmployeeCommandFailure;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
@@ -36,6 +37,7 @@ class UserCommandFailureMessagesTest {
             failures.addAll(List.of(PartnerCommandFailure.values()));
             failures.addAll(List.of(LoanCommandFailure.values()));
             failures.addAll(List.of(PayableCommandFailure.values()));
+            failures.addAll(List.of(EmployeeCommandFailure.values()));
             for (CommandFailure failure : failures) {
                 assertThat(bundle.containsKey(failure.messageKey()))
                         .as("%s in %s", failure.messageKey(), locale)
