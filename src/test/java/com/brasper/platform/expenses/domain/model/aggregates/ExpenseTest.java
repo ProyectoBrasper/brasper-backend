@@ -3,6 +3,7 @@ package com.brasper.platform.expenses.domain.model.aggregates;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import com.brasper.platform.expenses.domain.model.commands.CorrectExpenseCommand;
 import com.brasper.platform.expenses.domain.model.commands.RegisterExpenseCommand;
 import com.brasper.platform.expenses.domain.model.valueobjects.PaymentMethod;
 import com.brasper.platform.expenses.domain.model.valueobjects.Voucher;
@@ -111,5 +112,42 @@ class ExpenseTest {
         assertThatThrownBy(() -> new Expense(new RegisterExpenseCommand(LocalDate.of(2026, 8, 20), 3L, 5L, null, null,
                 INVOICE, new Money(BigDecimal.TEN, Currency.PEN), false, PaymentMethod.BANK_ACCOUNT, 9L, null, true),
                 TaxRates.standard())).isInstanceOf(NullPointerException.class);
+    }
+
+    @Test
+    void correctReclassifiesButKeepsAmountsAndPayment() {
+        Expense expense = bankExpense(INVOICE, "1000", false);
+
+        expense.correct(new CorrectExpenseCommand(1L, null, CostCategory.TRAVEL_EXPENSES, " taxi "));
+
+        assertThat(expense.getProjectId()).isNull();
+        assertThat(expense.isDirectCost()).isFalse();
+        assertThat(expense.getCategory()).isEqualTo(CostCategory.TRAVEL_EXPENSES);
+        assertThat(expense.getDescription()).isEqualTo("taxi");
+        assertThat(expense.getAmounts().total().amount()).isEqualByComparingTo("1180");
+        assertThatThrownBy(() -> expense.correct(new CorrectExpenseCommand(1L, 3L, null, null)))
+                .isInstanceOf(NullPointerException.class);
+    }
+
+    @Test
+    void markAsPaidSettlesAPendingExpense() {
+        Expense expense = expense(RECEIPT, "50", false, PaymentMethod.PETTY_CASH, 2L, null, false, 3L);
+
+        expense.markAsPaid();
+
+        assertThat(expense.getPaymentStatus()).isEqualTo(PaymentStatus.PAID);
+    }
+
+    @Test
+    void anAnnulledExpenseCannotBeAnnulledCorrectedOrPaidAgain() {
+        Expense expense = bankExpense(INVOICE, "1000", false);
+
+        expense.annul();
+
+        assertThat(expense.isAnnulled()).isTrue();
+        assertThatThrownBy(expense::annul).isInstanceOf(IllegalStateException.class);
+        assertThatThrownBy(expense::markAsPaid).isInstanceOf(IllegalStateException.class);
+        assertThatThrownBy(() -> expense.correct(new CorrectExpenseCommand(1L, 3L, CostCategory.OTHER, null)))
+                .isInstanceOf(IllegalStateException.class);
     }
 }
