@@ -38,6 +38,22 @@ Diseño de dominio: `docs/uml/` (empezar por `00-context-map.puml`).
 - Si algo falla o no cumple, no mergea: reporta qué falló.
 - Esta autorización cubre PRs a `develop`. Merges a `main` (release/hotfix) y acciones destructivas siguen requiriendo confirmación.
 
+### Continuidad entre sesiones
+- `docs/HANDOFF.md` es la fuente del estado: qué contextos están hechos, atajos tomados, decisiones sin confirmar y pendientes. **Leerlo al empezar una sesión** y **actualizarlo al terminar cada contexto o cambio relevante**, en el mismo PR.
+- Informes al usuario en español: primero lo que ya funciona, luego las decisiones tomadas, y una sola acción siguiente.
+
+### Trabajo en paralelo con Codex (`codex:codex-rescue`)
+1. Crear un worktree dentro del repo: `git fetch origin && git worktree add .codex-wt/<x> -b feature/<y> origin/develop` (`.codex-wt/` está en `.git/info/exclude`).
+2. Lanzar Codex en segundo plano con un prompt autocontenido que diga "no ejecutes escrituras de git". Su sandbox no puede escribir en `.git` ni descargar dependencias Maven: **solo escribe archivos**.
+3. El agente de Claude Code ejecuta en el worktree `git merge develop` y `./mvnw verify`, luego commit, push y PR, y sigue el flujo normal de merge.
+4. Al terminar: `git worktree remove --force .codex-wt/<x>` y borrar la rama.
+
+### Trampas conocidas
+- Una entidad y su migración Flyway van en el **mismo PR** (`ddl-auto=validate` falla si falta una).
+- Si un PR pasa de 400 líneas: entidad + migración juntas; servicios y API aparte; lectura y escritura de la API aparte.
+- Comandos de shell largos que mezclan heredocs, comillas y python fallan con "unexpected EOF": escribir cada archivo con la herramienta de edición o usar un script aparte.
+- `messages.properties` y `messages_es.properties` usan CRLF: conservarlo al editarlos. `UserCommandFailureMessagesTest` exige que cada enum de fallo tenga su clave en ambos.
+
 ## Arquitectura (Clean Architecture + DDD)
 Paquete base: `com.brasper.platform`. Un paquete por bounded context:
 
@@ -56,6 +72,13 @@ Reglas:
 4. Referencias entre agregados de distintos contextos solo por `Id`, nunca por relación JPA.
 5. Eventos de dominio se publican después de persistir y se consumen con `@TransactionalEventListener`.
 6. ArchUnit hace cumplir estas reglas en CI.
+
+Convenciones que salieron de aplicar esas reglas (desvían un poco de los UML):
+- Los puertos de salida (hacia otro contexto) viven en `application/outboundservices`; sus adaptadores en `infrastructure/acl`.
+- La implementación de cada fachada `*ContextFacade` vive en `interfaces/acl`, junto a su interfaz.
+- Los nombres de adaptador son únicos entre contextos (ej. `ExpenseProjectsFacadeLookup`) para no chocar como beans.
+- Repositorio = puerto plano en `domain/repositories` + interfaz Spring Data en `infrastructure/persistence/jpa` que extiende `JpaRepository` y el puerto.
+- Los fallos de comando son enums mapeados a `ProblemDetail` (RFC 9457) por un assembler; los mensajes van en los dos bundles.
 
 ## SOLID
 - Inyección por constructor. Dependencias como interfaces (puertos).
