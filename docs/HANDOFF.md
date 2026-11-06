@@ -39,7 +39,7 @@ Hecho (dominio, servicios, API y fachada salvo que se indique):
 - **Treasury, API de cuentas bancarias** (`/api/v1/bank-accounts`): listar, ver, movimientos por mes (`?year=&month=`), abrir cuenta, ajustes (`/{id}/adjustments`) y transferencias (`/transfers`). El monto va en la moneda de la cuenta (la de origen en transferencias). El saldo sale de `BankAccountQueryService` (los movimientos son lazy y `open-in-view` está apagado).
 
 Pendiente, en este orden sugerido:
-1. **Staff** (`06-staff.puml`), **Accounting** (`08`), **Reporting** (`09`).
+1. **Accounting** (`08-accounting.puml`) y **Reporting** (`09`). Staff está hecho salvo `StaffContextFacade` (sumas devengadas y pagadas/programadas por semana): se agrega cuando Reporting la pida.
 2. Eventos de dominio (`InvoiceIssuedEvent`, `ExpenseRegisteredEvent`, `PayablePaidEvent`, ...) y sus manejadores. Hoy ningún flujo los usa.
 
 ## Atajos y desvíos del UML (todos documentados en el código)
