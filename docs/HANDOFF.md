@@ -24,11 +24,11 @@ Hecho (dominio, servicios, API y fachada salvo que se indique):
 - **Projects:** clientes, proyectos con estados, avance mensual, estimaciones de costo, `ProjectsContextFacade`.
 - **Billing:** facturas (IGV, retención, detracción), pagos, anular, cobros programados, `BillingContextFacade`.
 - **Expenses:** proveedores, gastos (registrar, corregir, anular), `ExpensesContextFacade`.
-- **Treasury, dominio y persistencia:** `BankAccount` con movimientos de caja y saldo (V20, V23), `Partner` con aportes (V21), `Payable` con pagos (V22).
+- **Treasury, dominio y persistencia:** `BankAccount` con movimientos de caja y saldo (V20, V23), `Partner` con aportes (V21), `Payable` con pagos (V22), `Loan` con cuotas (V24).
 - **Treasury, servicios:** `BankAccountCommandService` (abrir cuenta, registrar movimiento, transferir) y `PartnerCommandService` (alta de socio, aporte). En una transferencia el `sourceId` de cada movimiento es el id de la cuenta contraparte. Un aporte de socio solo se registra: no mueve caja (eso llegará con los eventos). Sin API, fachada ni servicios de Payable/Loan todavía.
 
 Pendiente, en este orden sugerido:
-1. **Treasury:** préstamos (`Loan`), transferencias entre cuentas, servicios, API, `TreasuryContextFacade`, validar cuentas y socios para Expenses.
+1. **Treasury:** servicios de `Payable` y `Loan`, API, `TreasuryContextFacade`, validar cuentas y socios para Expenses.
 2. **Staff** (`06-staff.puml`), **Accounting** (`08`), **Reporting** (`09`).
 3. Eventos de dominio (`InvoiceIssuedEvent`, `ExpenseRegisteredEvent`, `PayablePaidEvent`, ...) y sus manejadores. Hoy ningún flujo los usa.
 
@@ -62,4 +62,4 @@ Pendiente, en este orden sugerido:
 - Advertencia de Mockito sobre el agente en JDK 25 (inofensiva).
 
 ## Migraciones (esquema `brasper`)
-V1 baseline, V2 users, V3 clients, V4 projects, V5 project_progress, V6 project_cost_estimates, V7 invoices, V8 invoice_payments, V9 scheduled_collections, V10 suppliers, V11 expenses, V20 bank_accounts, V21 partners, V22 payables, V23 cash_movements. Los saltos de numeración (V12 a V19) son a propósito: eran números reservados para trabajo en paralelo. Flyway no exige que sean consecutivos.
+V1 baseline, V2 users, V3 clients, V4 projects, V5 project_progress, V6 project_cost_estimates, V7 invoices, V8 invoice_payments, V9 scheduled_collections, V10 suppliers, V11 expenses, V20 bank_accounts, V21 partners, V22 payables, V23 cash_movements, V24 loans y loan_installments. Los saltos de numeración (V12 a V19) son a propósito: eran números reservados para trabajo en paralelo. Flyway no exige que sean consecutivos.
