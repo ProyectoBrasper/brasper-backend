@@ -2,6 +2,8 @@ package com.brasper.platform.iam.application.commandservices;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import com.brasper.platform.accounting.application.commandservices.FixedAssetCommandFailure;
+import com.brasper.platform.accounting.application.commandservices.TaxCommandFailure;
 import com.brasper.platform.billing.application.commandservices.InvoiceCommandFailure;
 import com.brasper.platform.billing.application.commandservices.ScheduledCollectionCommandFailure;
 import com.brasper.platform.expenses.application.commandservices.ExpenseCommandFailure;
@@ -39,6 +41,8 @@ class UserCommandFailureMessagesTest {
             failures.addAll(List.of(LoanCommandFailure.values()));
             failures.addAll(List.of(PayableCommandFailure.values()));
             failures.addAll(List.of(EmployeeCommandFailure.values()));
+            failures.addAll(List.of(TaxCommandFailure.values()));
+            failures.addAll(List.of(FixedAssetCommandFailure.values()));
             failures.addAll(List.of(FixedCostCommandFailure.values()));
             for (CommandFailure failure : failures) {
                 assertThat(bundle.containsKey(failure.messageKey()))
