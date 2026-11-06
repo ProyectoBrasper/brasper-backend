@@ -14,6 +14,7 @@ import com.brasper.platform.projects.application.commandservices.ClientCommandFa
 import com.brasper.platform.projects.application.commandservices.ProjectCommandFailure;
 import com.brasper.platform.shared.application.result.CommandFailure;
 import com.brasper.platform.staff.application.commandservices.EmployeeCommandFailure;
+import com.brasper.platform.staff.application.commandservices.FixedCostCommandFailure;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
@@ -38,6 +39,7 @@ class UserCommandFailureMessagesTest {
             failures.addAll(List.of(LoanCommandFailure.values()));
             failures.addAll(List.of(PayableCommandFailure.values()));
             failures.addAll(List.of(EmployeeCommandFailure.values()));
+            failures.addAll(List.of(FixedCostCommandFailure.values()));
             for (CommandFailure failure : failures) {
                 assertThat(bundle.containsKey(failure.messageKey()))
                         .as("%s in %s", failure.messageKey(), locale)
