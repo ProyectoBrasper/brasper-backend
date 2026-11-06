@@ -1,5 +1,6 @@
 package com.brasper.platform.expenses.interfaces.rest;
 
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -122,12 +123,19 @@ class ExpensesControllerTest {
                                 .formatted(otherProjectId)))
                 .andExpect(status().isOk()).andExpect(jsonPath("$.category").value("LABOR"))
                 .andExpect(jsonPath("$.projectId").value(otherProjectId));
+        mockMvc.perform(get("/api/v1/expenses?projectId=" + otherProjectId + "&year=2026&month=8&category=LABOR")
+                        .header("Authorization", token))
+                .andExpect(jsonPath("$.length()").value(1));
+        mockMvc.perform(get("/api/v1/expenses?projectId=" + projectId).header("Authorization", token))
+                .andExpect(jsonPath("$.length()").value(0));
 
         mockMvc.perform(post("/api/v1/expenses/" + id + "/annul").header("Authorization", token))
                 .andExpect(status().isOk()).andExpect(jsonPath("$.annulled").value(true));
         mockMvc.perform(post("/api/v1/expenses/" + id + "/annul").header("Authorization", token))
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.code").value("expenses.error.already-annulled"));
+        mockMvc.perform(get("/api/v1/expenses/" + id).header("Authorization", token))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.annulled").value(true));
     }
 
     @Test
@@ -163,6 +171,9 @@ class ExpensesControllerTest {
                 .andExpect(jsonPath("$.code").value("expenses.error.partner-required"));
         mockMvc.perform(post("/api/v1/expenses/999999/annul").header("Authorization", token))
                 .andExpect(status().isNotFound());
+        mockMvc.perform(get("/api/v1/expenses/999999").header("Authorization", token))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.code").value("expenses.error.expense-not-found"));
     }
 
     @Test
@@ -173,14 +184,18 @@ class ExpensesControllerTest {
         register(token, "null", "null", INVOICE, "-5", BANK).andExpect(status().isBadRequest());
         register(token, "null", "null", INVOICE, "100", "\"paymentMethod\":\"BANK_ACCOUNT\",\"bankAccountId\":9")
                 .andExpect(status().isBadRequest());
+        mockMvc.perform(get("/api/v1/expenses?year=2026").header("Authorization", token))
+                .andExpect(status().isBadRequest());
     }
 
     @Test
-    void managementCannotWrite() throws Exception {
+    void managementReadsButCannotWrite() throws Exception {
         String token = bearer(Role.ROLE_MANAGEMENT);
 
         register(token, "null", "null", INVOICE, "100", BANK).andExpect(status().isForbidden());
         mockMvc.perform(post("/api/v1/expenses/1/annul").header("Authorization", token))
                 .andExpect(status().isForbidden());
+        mockMvc.perform(get("/api/v1/expenses").header("Authorization", token)).andExpect(status().isOk());
+        mockMvc.perform(get("/api/v1/expenses")).andExpect(status().isUnauthorized());
     }
 }
