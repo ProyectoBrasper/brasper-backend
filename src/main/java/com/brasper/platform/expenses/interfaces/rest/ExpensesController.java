@@ -1,6 +1,8 @@
 package com.brasper.platform.expenses.interfaces.rest;
 
+import com.brasper.platform.expenses.application.commandservices.ExpenseCommandFailure;
 import com.brasper.platform.expenses.application.commandservices.ExpenseCommandService;
+import com.brasper.platform.expenses.application.queryservices.ExpenseQueryService;
 import com.brasper.platform.expenses.domain.model.commands.AnnulExpenseCommand;
 import com.brasper.platform.expenses.domain.model.commands.CorrectExpenseCommand;
 import com.brasper.platform.expenses.domain.model.commands.RegisterExpenseCommand;
@@ -9,20 +11,24 @@ import com.brasper.platform.expenses.interfaces.rest.resources.CorrectExpenseRes
 import com.brasper.platform.expenses.interfaces.rest.resources.RegisterExpenseResource;
 import com.brasper.platform.expenses.interfaces.rest.transform.ExpenseFailureResponseAssembler;
 import com.brasper.platform.expenses.interfaces.rest.transform.ExpenseResourceFromEntityAssembler;
+import com.brasper.platform.shared.domain.model.valueobjects.CostCategory;
 import com.brasper.platform.shared.domain.model.valueobjects.Money;
+import com.brasper.platform.shared.domain.model.valueobjects.Period;
 import jakarta.validation.Valid;
 import org.springframework.context.MessageSource;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
-/** Management is read-only, so writes need admin, accounting or engineer. */
+/** Any signed-in user reads; management is read-only, so writes need admin, accounting or engineer. */
 @RestController
 @RequestMapping("/api/v1/expenses")
 public class ExpensesController {
@@ -30,10 +36,13 @@ public class ExpensesController {
     private static final String CAN_WRITE = "hasAnyRole('ADMIN','ACCOUNTING','ENGINEER')";
 
     private final ExpenseCommandService expenseCommands;
+    private final ExpenseQueryService expenseQueries;
     private final MessageSource messages;
 
-    public ExpensesController(ExpenseCommandService expenseCommands, MessageSource messages) {
+    public ExpensesController(ExpenseCommandService expenseCommands, ExpenseQueryService expenseQueries,
+            MessageSource messages) {
         this.expenseCommands = expenseCommands;
+        this.expenseQueries = expenseQueries;
         this.messages = messages;
     }
 
@@ -68,5 +77,27 @@ public class ExpensesController {
         return expenseCommands.handle(new AnnulExpenseCommand(id)).fold(
                 expense -> ResponseEntity.ok(ExpenseResourceFromEntityAssembler.toResourceFromEntity(expense)),
                 failure -> ExpenseFailureResponseAssembler.toResponse(failure, messages));
+    }
+
+    /** {@code year} and {@code month} filter by spending month and must come together. Annulled ones are listed. */
+    @GetMapping
+    public ResponseEntity<?> list(@RequestParam(required = false) Long projectId,
+            @RequestParam(required = false) Integer year, @RequestParam(required = false) Integer month,
+            @RequestParam(required = false) CostCategory category) {
+        if ((year == null) != (month == null)) {
+            throw new IllegalArgumentException("year and month must be given together");
+        }
+        Period spentIn = year == null ? null : new Period(year, month);
+        return ResponseEntity.ok(expenseQueries.findAll(projectId, spentIn, category).stream()
+                .map(ExpenseResourceFromEntityAssembler::toResourceFromEntity).toList());
+    }
+
+    @GetMapping("/{id}")
+    public ResponseEntity<?> get(@PathVariable Long id) {
+        return expenseQueries.findById(id)
+                .<ResponseEntity<?>>map(expense -> ResponseEntity.ok(
+                        ExpenseResourceFromEntityAssembler.toResourceFromEntity(expense)))
+                .orElseGet(() -> ExpenseFailureResponseAssembler.toResponse(
+                        ExpenseCommandFailure.EXPENSE_NOT_FOUND, messages));
     }
 }
