@@ -3,9 +3,13 @@ package com.brasper.platform.treasury.domain.model.aggregates;
 import com.brasper.platform.shared.domain.model.valueobjects.Currency;
 import com.brasper.platform.shared.domain.model.valueobjects.Money;
 import com.brasper.platform.treasury.domain.model.commands.OpenBankAccountCommand;
+import com.brasper.platform.treasury.domain.model.commands.RegisterCashMovementCommand;
+import com.brasper.platform.treasury.domain.model.entities.CashMovement;
 import com.brasper.platform.treasury.domain.model.valueobjects.AccountNumber;
 import com.brasper.platform.treasury.domain.model.valueobjects.AccountType;
 import com.brasper.platform.treasury.domain.model.valueobjects.Bank;
+import com.brasper.platform.treasury.domain.model.valueobjects.MovementDirection;
+import jakarta.persistence.CascadeType;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
@@ -13,6 +17,7 @@ import jakarta.persistence.Enumerated;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
+import jakarta.persistence.OneToMany;
 import jakarta.persistence.PrePersist;
 import jakarta.persistence.PreUpdate;
 import jakarta.persistence.Table;
@@ -20,6 +25,8 @@ import jakarta.persistence.UniqueConstraint;
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.time.LocalDate;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Objects;
 
 @Entity
@@ -54,6 +61,9 @@ public class BankAccount {
     @Column(name = "opened_on", nullable = false, updatable = false)
     private LocalDate openedOn;
 
+    @OneToMany(mappedBy = "bankAccount", cascade = CascadeType.ALL)
+    private List<CashMovement> movements = new ArrayList<>();
+
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;
 
@@ -77,6 +87,30 @@ public class BankAccount {
         }
         this.openingBalance = balance.amount();
         this.openedOn = Objects.requireNonNull(command.openedOn(), "openedOn");
+    }
+
+    public CashMovement registerMovement(RegisterCashMovementCommand command) {
+        if (!Objects.equals(id, command.bankAccountId())) {
+            throw new IllegalArgumentException("Movement must belong to this account");
+        }
+        CashMovement movement = new CashMovement(this, command);
+        movements.add(movement);
+        updatedAt = Instant.now();
+        return movement;
+    }
+
+    // shortcut: balance loads the lazy history in a transaction, use SQL sums when histories grow.
+    public Money currentBalance() {
+        Money balance = getOpeningBalance();
+        for (CashMovement movement : movements) {
+            balance = movement.getDirection() == MovementDirection.INFLOW
+                    ? balance.add(movement.getAmount()) : balance.subtract(movement.getAmount());
+        }
+        return balance;
+    }
+
+    public List<CashMovement> getMovements() {
+        return List.copyOf(movements);
     }
 
     @PrePersist

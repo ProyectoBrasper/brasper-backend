@@ -6,12 +6,18 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import com.brasper.platform.TestcontainersConfiguration;
 import com.brasper.platform.shared.domain.model.valueobjects.Currency;
 import com.brasper.platform.shared.domain.model.valueobjects.Money;
+import com.brasper.platform.shared.domain.model.valueobjects.Period;
 import com.brasper.platform.treasury.domain.model.aggregates.BankAccount;
 import com.brasper.platform.treasury.domain.model.commands.OpenBankAccountCommand;
+import com.brasper.platform.treasury.domain.model.commands.RegisterCashMovementCommand;
+import com.brasper.platform.treasury.domain.model.queries.GetCashMovementsByAccountAndPeriodQuery;
 import com.brasper.platform.treasury.domain.model.valueobjects.AccountNumber;
 import com.brasper.platform.treasury.domain.model.valueobjects.AccountType;
 import com.brasper.platform.treasury.domain.model.valueobjects.Bank;
+import com.brasper.platform.treasury.domain.model.valueobjects.MovementDirection;
+import com.brasper.platform.treasury.domain.model.valueobjects.MovementSource;
 import com.brasper.platform.treasury.domain.repositories.BankAccountRepository;
+import com.brasper.platform.treasury.domain.repositories.CashMovementRepository;
 import jakarta.persistence.EntityManager;
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -31,6 +37,43 @@ class BankAccountJpaRepositoryTest {
     private BankAccountRepository accounts;
     @Autowired
     private EntityManager em;
+    @Autowired
+    private CashMovementRepository movements;
+
+    @Test
+    void roundTripsMergedMovementsAndFiltersByAccountAndInclusivePeriod() {
+        Long id = accounts.save(account(Bank.BCP, AccountType.CHECKING, "movements")).getId();
+        Long otherId = accounts.save(account(Bank.BBVA, AccountType.CHECKING, "other")).getId();
+        em.flush();
+        em.clear();
+        BankAccount found = accounts.findById(id).orElseThrow();
+        Period period = new Period(2026, 1);
+        Money amount = new Money(new BigDecimal("10.25"), Currency.USD);
+        found.registerMovement(new RegisterCashMovementCommand(id, period.startDate(), MovementDirection.INFLOW,
+                amount, " collection ", MovementSource.INVOICE_PAYMENT, 9999L));
+        found.registerMovement(new RegisterCashMovementCommand(id, period.endDate(), MovementDirection.OUTFLOW,
+                amount, null, MovementSource.ADJUSTMENT, null));
+        found.registerMovement(new RegisterCashMovementCommand(id, period.next().startDate(), MovementDirection.INFLOW,
+                amount, null, MovementSource.ADJUSTMENT, null));
+        BankAccount saved = accounts.save(found);
+        em.flush();
+        Long movementId = saved.getMovements().getFirst().getId();
+        assertThat(movementId).isNotNull();
+        em.clear();
+        BankAccount reloaded = accounts.findById(id).orElseThrow();
+        assertThat(reloaded.getMovements()).hasSize(3);
+        assertThat(reloaded.currentBalance()).isEqualTo(reloaded.getOpeningBalance().add(amount));
+        var query = new GetCashMovementsByAccountAndPeriodQuery(id, period);
+        var results = movements.findAllByBankAccountIdAndOccurredOnBetween(
+                query.bankAccountId(), query.period().startDate(), query.period().endDate());
+        assertThat(results).hasSize(2);
+        var movement = results.stream().filter(item -> item.getId().equals(movementId)).findFirst().orElseThrow();
+        assertThat(movement).extracting("occurredOn", "direction", "amount", "concept", "source", "sourceId")
+                .containsExactly(period.startDate(), MovementDirection.INFLOW, amount, "collection",
+                        MovementSource.INVOICE_PAYMENT, 9999L);
+        assertThat(movements.findAllByBankAccountIdAndOccurredOnBetween(otherId, period.startDate(), period.endDate()))
+                .isEmpty();
+    }
 
     private static BankAccount account(Bank bank, AccountType type, String number) {
         return new BankAccount(new OpenBankAccountCommand(bank, new AccountNumber(number), type,
