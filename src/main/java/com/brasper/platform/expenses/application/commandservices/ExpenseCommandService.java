@@ -2,6 +2,7 @@ package com.brasper.platform.expenses.application.commandservices;
 
 import com.brasper.platform.expenses.application.outboundservices.ExpenseProjectLookup;
 import com.brasper.platform.expenses.application.outboundservices.ExpenseTaxRatesProvider;
+import com.brasper.platform.expenses.application.outboundservices.ExpenseTreasuryLookup;
 import com.brasper.platform.expenses.domain.model.aggregates.Expense;
 import com.brasper.platform.expenses.domain.model.commands.AnnulExpenseCommand;
 import com.brasper.platform.expenses.domain.model.commands.CorrectExpenseCommand;
@@ -17,7 +18,6 @@ import org.springframework.transaction.annotation.Transactional;
 
 /**
  * Pre-checks pick the failure to report; the aggregate enforces the same rules again.
- * shortcut: bank accounts and partners are only checked for presence until Treasury can confirm they exist.
  */
 @Service
 public class ExpenseCommandService {
@@ -28,13 +28,16 @@ public class ExpenseCommandService {
     private final SupplierRepository suppliers;
     private final ExpenseProjectLookup projects;
     private final ExpenseTaxRatesProvider taxRates;
+    private final ExpenseTreasuryLookup treasury;
 
     public ExpenseCommandService(ExpenseRepository expenses, SupplierRepository suppliers,
-            ExpenseProjectLookup projects, ExpenseTaxRatesProvider taxRates) {
+            ExpenseProjectLookup projects, ExpenseTaxRatesProvider taxRates,
+            ExpenseTreasuryLookup treasury) {
         this.expenses = expenses;
         this.suppliers = suppliers;
         this.projects = projects;
         this.taxRates = taxRates;
+        this.treasury = treasury;
     }
 
     @Transactional
@@ -80,12 +83,22 @@ public class ExpenseCommandService {
         return Result.success(expenses.save(expense));
     }
 
-    private static Optional<ExpenseCommandFailure> paymentTargetFailure(RegisterExpenseCommand command) {
+    private Optional<ExpenseCommandFailure> paymentTargetFailure(RegisterExpenseCommand command) {
         if (command.paymentMethod() == PaymentMethod.PARTNER_CONTRIBUTION) {
-            return command.partnerId() == null ? Optional.of(ExpenseCommandFailure.PARTNER_REQUIRED) : Optional.empty();
+            if (command.partnerId() == null) {
+                return Optional.of(ExpenseCommandFailure.PARTNER_REQUIRED);
+            }
+            return treasury.partnerExists(command.partnerId())
+                    ? Optional.empty() : Optional.of(ExpenseCommandFailure.PARTNER_NOT_FOUND);
         }
-        return command.paymentMethod() != null && command.bankAccountId() == null
-                ? Optional.of(ExpenseCommandFailure.BANK_ACCOUNT_REQUIRED) : Optional.empty();
+        if (command.paymentMethod() == null) {
+            return Optional.empty();
+        }
+        if (command.bankAccountId() == null) {
+            return Optional.of(ExpenseCommandFailure.BANK_ACCOUNT_REQUIRED);
+        }
+        return treasury.bankAccountExists(command.bankAccountId())
+                ? Optional.empty() : Optional.of(ExpenseCommandFailure.BANK_ACCOUNT_NOT_FOUND);
     }
 
     /** A general expense (no project) needs no check; a cancelled project takes no new costs. */

@@ -26,6 +26,13 @@ import com.brasper.platform.projects.domain.repositories.ClientRepository;
 import com.brasper.platform.projects.domain.repositories.ProjectRepository;
 import com.brasper.platform.shared.domain.model.valueobjects.Currency;
 import com.brasper.platform.shared.domain.model.valueobjects.Money;
+import com.brasper.platform.treasury.application.commandservices.BankAccountCommandService;
+import com.brasper.platform.treasury.application.commandservices.PartnerCommandService;
+import com.brasper.platform.treasury.domain.model.commands.OpenBankAccountCommand;
+import com.brasper.platform.treasury.domain.model.commands.RegisterPartnerCommand;
+import com.brasper.platform.treasury.domain.model.valueobjects.AccountNumber;
+import com.brasper.platform.treasury.domain.model.valueobjects.AccountType;
+import com.brasper.platform.treasury.domain.model.valueobjects.Bank;
 import com.brasper.platform.shared.domain.model.valueobjects.Percentage;
 import com.brasper.platform.shared.domain.model.valueobjects.Ruc;
 import com.jayway.jsonpath.JsonPath;
@@ -48,7 +55,6 @@ import org.springframework.transaction.annotation.Transactional;
 class ExpensesControllerTest {
 
     private static final String PASSWORD = "clave1234";
-    private static final String BANK = "\"paymentMethod\":\"BANK_ACCOUNT\",\"bankAccountId\":9,\"paid\":true";
 
     @Autowired
     private MockMvc mockMvc;
@@ -62,6 +68,27 @@ class ExpensesControllerTest {
     private SupplierRepository suppliers;
     @Autowired
     private HashingService hashing;
+    @Autowired
+    private BankAccountCommandService accounts;
+    @Autowired
+    private PartnerCommandService partners;
+
+    private String bank;
+
+    private String bank() {
+        if (bank != null) {
+            return bank;
+        }
+        Long id = accounts.handle(new OpenBankAccountCommand(Bank.BCP, new AccountNumber("001-9"),
+                AccountType.CHECKING, Currency.PEN, Money.zero(Currency.PEN), LocalDate.of(2026, 8, 1)))
+                .success().orElseThrow().getId();
+        bank = "\"paymentMethod\":\"BANK_ACCOUNT\",\"bankAccountId\":" + id + ",\"paid\":true";
+        return bank;
+    }
+
+    private Long partner() {
+        return partners.handle(new RegisterPartnerCommand("Ana Perez", null)).success().orElseThrow().getId();
+    }
 
     private String bearer(Role role) throws Exception {
         String username = role.name().toLowerCase().replace("role_", "");
@@ -107,7 +134,7 @@ class ExpensesControllerTest {
         Long projectId = project("862BR-AGO-2026", false);
         Long otherProjectId = project("863BR-AGO-2026", false);
 
-        String body = register(token, projectId, supplier(), INVOICE, "1000", BANK)
+        String body = register(token, projectId, supplier(), INVOICE, "1000", bank())
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.taxableBase").value(1000))
                 .andExpect(jsonPath("$.igv").value(180))
@@ -143,7 +170,8 @@ class ExpensesControllerTest {
         String token = bearer(Role.ROLE_ACCOUNTING);
 
         register(token, "null", "null", "\"voucherType\":\"SALES_RECEIPT\",\"voucherNumber\":\"B001-9\"", "500",
-                "\"paymentMethod\":\"PARTNER_CONTRIBUTION\",\"partnerId\":7,\"paid\":false,\"amountIncludesIgv\":true")
+                "\"paymentMethod\":\"PARTNER_CONTRIBUTION\",\"partnerId\":" + partner()
+                        + ",\"paid\":false,\"amountIncludesIgv\":true")
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.igv").value(0))
                 .andExpect(jsonPath("$.total").value(500))
@@ -157,12 +185,20 @@ class ExpensesControllerTest {
         Long projectId = project("862BR-AGO-2026", false);
         Long cancelledId = project("863BR-AGO-2026", true);
 
-        register(token, 999999, "null", INVOICE, "100", BANK).andExpect(status().isNotFound())
+        register(token, 999999, "null", INVOICE, "100", bank()).andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.code").value("expenses.error.project-not-found"));
-        register(token, cancelledId, "null", INVOICE, "100", BANK).andExpect(status().isConflict())
+        register(token, cancelledId, "null", INVOICE, "100", bank()).andExpect(status().isConflict())
                 .andExpect(jsonPath("$.code").value("expenses.error.project-closed"));
-        register(token, projectId, 999999, INVOICE, "100", BANK).andExpect(status().isNotFound())
+        register(token, projectId, 999999, INVOICE, "100", bank()).andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.code").value("expenses.error.supplier-not-found"));
+        register(token, projectId, "null", INVOICE, "100",
+                "\"paymentMethod\":\"BANK_ACCOUNT\",\"bankAccountId\":999999,\"paid\":true")
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.code").value("expenses.error.bank-account-not-found"));
+        register(token, projectId, "null", INVOICE, "100",
+                "\"paymentMethod\":\"PARTNER_CONTRIBUTION\",\"partnerId\":999999,\"paid\":true")
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.code").value("expenses.error.partner-not-found"));
         register(token, projectId, "null", INVOICE, "100", "\"paymentMethod\":\"BANK_ACCOUNT\",\"paid\":true")
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.code").value("expenses.error.bank-account-required"));
@@ -180,8 +216,8 @@ class ExpensesControllerTest {
     void rejectsBadInput() throws Exception {
         String token = bearer(Role.ROLE_ACCOUNTING);
 
-        register(token, "null", "null", "\"voucherType\":\"INVOICE\"", "100", BANK).andExpect(status().isBadRequest());
-        register(token, "null", "null", INVOICE, "-5", BANK).andExpect(status().isBadRequest());
+        register(token, "null", "null", "\"voucherType\":\"INVOICE\"", "100", bank()).andExpect(status().isBadRequest());
+        register(token, "null", "null", INVOICE, "-5", bank()).andExpect(status().isBadRequest());
         register(token, "null", "null", INVOICE, "100", "\"paymentMethod\":\"BANK_ACCOUNT\",\"bankAccountId\":9")
                 .andExpect(status().isBadRequest());
         mockMvc.perform(get("/api/v1/expenses?year=2026").header("Authorization", token))
@@ -192,7 +228,7 @@ class ExpensesControllerTest {
     void managementReadsButCannotWrite() throws Exception {
         String token = bearer(Role.ROLE_MANAGEMENT);
 
-        register(token, "null", "null", INVOICE, "100", BANK).andExpect(status().isForbidden());
+        register(token, "null", "null", INVOICE, "100", bank()).andExpect(status().isForbidden());
         mockMvc.perform(post("/api/v1/expenses/1/annul").header("Authorization", token))
                 .andExpect(status().isForbidden());
         mockMvc.perform(get("/api/v1/expenses").header("Authorization", token)).andExpect(status().isOk());
