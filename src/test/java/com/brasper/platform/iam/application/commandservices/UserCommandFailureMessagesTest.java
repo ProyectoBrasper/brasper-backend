@@ -7,6 +7,7 @@ import com.brasper.platform.billing.application.commandservices.ScheduledCollect
 import com.brasper.platform.expenses.application.commandservices.ExpenseCommandFailure;
 import com.brasper.platform.expenses.application.commandservices.SupplierCommandFailure;
 import com.brasper.platform.treasury.application.commandservices.BankAccountCommandFailure;
+import com.brasper.platform.treasury.application.commandservices.LoanCommandFailure;
 import com.brasper.platform.treasury.application.commandservices.PartnerCommandFailure;
 import com.brasper.platform.projects.application.commandservices.ClientCommandFailure;
 import com.brasper.platform.projects.application.commandservices.ProjectCommandFailure;
@@ -32,6 +33,7 @@ class UserCommandFailureMessagesTest {
             failures.addAll(List.of(ExpenseCommandFailure.values()));
             failures.addAll(List.of(BankAccountCommandFailure.values()));
             failures.addAll(List.of(PartnerCommandFailure.values()));
+            failures.addAll(List.of(LoanCommandFailure.values()));
             for (CommandFailure failure : failures) {
                 assertThat(bundle.containsKey(failure.messageKey()))
                         .as("%s in %s", failure.messageKey(), locale)
