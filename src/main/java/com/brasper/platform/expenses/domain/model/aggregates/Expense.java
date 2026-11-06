@@ -1,5 +1,6 @@
 package com.brasper.platform.expenses.domain.model.aggregates;
 
+import com.brasper.platform.expenses.domain.model.commands.CorrectExpenseCommand;
 import com.brasper.platform.expenses.domain.model.commands.RegisterExpenseCommand;
 import com.brasper.platform.expenses.domain.model.valueobjects.PaymentMethod;
 import com.brasper.platform.expenses.domain.model.valueobjects.Voucher;
@@ -117,8 +118,7 @@ public class Expense {
         this.projectId = command.projectId();
         this.supplierId = command.supplierId();
         this.category = Objects.requireNonNull(command.category(), "category");
-        this.description = command.description() == null || command.description().isBlank() ? null
-                : command.description().strip();
+        this.description = blankToNull(command.description());
         this.voucherType = voucher.type();
         this.voucherNumber = voucher.number();
         this.currency = amount.currency();
@@ -139,6 +139,35 @@ public class Expense {
         if (!partner && (command.bankAccountId() == null || command.partnerId() != null)) {
             throw new IllegalArgumentException("%s needs a bank account and no partner".formatted(paymentMethod));
         }
+    }
+
+    /** Reclassifies the expense; amounts, voucher and payment cannot change, annul and register again instead. */
+    public void correct(CorrectExpenseCommand command) {
+        requireActive();
+        this.category = Objects.requireNonNull(command.category(), "category");
+        this.projectId = command.projectId();
+        this.description = blankToNull(command.description());
+    }
+
+    public void annul() {
+        requireActive();
+        this.annulled = true;
+    }
+
+    /** Treasury settled the payable. */
+    public void markAsPaid() {
+        requireActive();
+        this.paymentStatus = PaymentStatus.PAID;
+    }
+
+    private void requireActive() {
+        if (annulled) {
+            throw new IllegalStateException("The expense is annulled");
+        }
+    }
+
+    private static String blankToNull(String value) {
+        return value == null || value.isBlank() ? null : value.strip();
     }
 
     /** A project's expense counts toward its direct cost; no project means a general expense. */
