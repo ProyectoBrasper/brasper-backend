@@ -25,10 +25,11 @@ Hecho (dominio, servicios, API y fachada salvo que se indique):
 - **Billing:** facturas (IGV, retención, detracción), pagos, anular, cobros programados, `BillingContextFacade`.
 - **Expenses:** proveedores, gastos (registrar, corregir, anular), `ExpensesContextFacade`.
 - **Treasury, dominio y persistencia:** `BankAccount` con movimientos de caja y saldo (V20, V23), `Partner` con aportes (V21), `Payable` con pagos (V22), `Loan` con cuotas (V24).
-- **Treasury, servicios:** `BankAccountCommandService` (abrir cuenta, registrar movimiento, transferir) y `PartnerCommandService` (alta de socio, aporte). En una transferencia el `sourceId` de cada movimiento es el id de la cuenta contraparte. Un aporte de socio solo se registra: no mueve caja (eso llegará con los eventos). Sin API, fachada ni servicios de Payable/Loan todavía.
+- **Treasury, servicios:** `BankAccountCommandService` (abrir cuenta, registrar movimiento, transferir) y `PartnerCommandService` (alta de socio, aporte). En una transferencia el `sourceId` de cada movimiento es el id de la cuenta contraparte. Un aporte de socio solo se registra: no mueve caja (eso llegará con los eventos). Sin fachada ni servicios de Payable/Loan todavía.
+- **Treasury, API de cuentas bancarias** (`/api/v1/bank-accounts`): abrir, listar, ver, movimientos por mes, ajustes y transferencias. El saldo sale de `BankAccountQueryService` (los movimientos son lazy y `open-in-view` está apagado).
 
 Pendiente, en este orden sugerido:
-1. **Treasury:** servicios de `Payable` y `Loan`, API, `TreasuryContextFacade`, validar cuentas y socios para Expenses.
+1. **Treasury:** servicios de `Payable` y `Loan`, API de Payable, Loan y Partner, `TreasuryContextFacade`, validar cuentas y socios para Expenses.
 2. **Staff** (`06-staff.puml`), **Accounting** (`08`), **Reporting** (`09`).
 3. Eventos de dominio (`InvoiceIssuedEvent`, `ExpenseRegisteredEvent`, `PayablePaidEvent`, ...) y sus manejadores. Hoy ningún flujo los usa.
 
@@ -47,7 +48,7 @@ Pendiente, en este orden sugerido:
 - Flujo de caja semanal: un mes puede tener hasta 6 semanas (lunes a domingo, recortadas al mes). Se permite "Semana 06" porque algunos meses la necesitan (ej. noviembre de 2026, donde la semana 6 es solo el día 30). El Excel original solo llegaba a 5. Ver `CashFlowWeek`.
 
 ## Decisiones propias del agente, sin confirmar por el usuario
-- Matriz de permisos: lecturas para cualquier usuario autenticado; escribir en Projects, clientes, proveedores y gastos con ADMIN, ACCOUNTING y ENGINEER; escribir en Billing con ADMIN y ACCOUNTING; MANAGEMENT solo lee.
+- Matriz de permisos: lecturas para cualquier usuario autenticado; escribir en Projects, clientes, proveedores y gastos con ADMIN, ACCOUNTING y ENGINEER; escribir en Billing con ADMIN y ACCOUNTING; MANAGEMENT solo lee. Treasury (cuentas, ajustes, transferencias) solo se escribe con ADMIN y ACCOUNTING.
 - Los certificados de retención no cuentan como cobrado en `BillingContextFacade`, y los aportes de socio no cuentan como pagado en `ExpensesContextFacade`.
 - Swagger UI y la especificación son públicos (no exponen datos); cada llamada sigue pidiendo token.
 
