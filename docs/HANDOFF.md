@@ -27,10 +27,11 @@ Hecho (dominio, servicios, API y fachada salvo que se indique):
 - **Treasury, dominio y persistencia:** `BankAccount` con movimientos de caja y saldo (V20, V23), `Partner` con aportes (V21), `Payable` con pagos (V22), `Loan` con cuotas (V24).
 - **Treasury, servicios:** `BankAccountCommandService` (abrir cuenta, registrar movimiento, transferir), `PartnerCommandService` (alta de socio, aporte), `LoanCommandService` (registrar préstamo, programar y pagar cuotas; mueve caja: RECEIVED entra al desembolsar y sale al pagar cuota, GRANTED al revés) y `PayableCommandService` (crear, pagar con salida de caja, reprogramar semana). En una transferencia el `sourceId` de cada movimiento es el id de la cuenta contraparte. Un aporte de socio solo se registra: no mueve caja (eso llegará con los eventos).
 - **Treasury, fachada** `TreasuryContextFacade` (cuenta existe, tipo de cuenta, socio existe). Del UML faltan los saldos de caja y las sumas semanales: se agregan cuando Reporting las pida. Expenses todavía no la usa.
+- **Treasury, API de pagos pendientes** (`/api/v1/payables`): crear, listar (`?status=`), ver, pagar (`/{id}/payments`, escribe en caja) y reprogramar (`PUT /{id}/schedule`). Escritura solo ADMIN y ACCOUNTING.
 - **Treasury, API de cuentas bancarias** (`/api/v1/bank-accounts`): listar, ver, movimientos por mes (`?year=&month=`), abrir cuenta, ajustes (`/{id}/adjustments`) y transferencias (`/transfers`). El monto va en la moneda de la cuenta (la de origen en transferencias). El saldo sale de `BankAccountQueryService` (los movimientos son lazy y `open-in-view` está apagado).
 
 Pendiente, en este orden sugerido:
-1. **Treasury:** servicios de `Payable` y `Loan`, API de Payable, Loan y Partner, `TreasuryContextFacade`, validar cuentas y socios para Expenses.
+1. **Treasury:** API de Loan y Partner, validar cuentas y socios para Expenses.
 2. **Staff** (`06-staff.puml`), **Accounting** (`08`), **Reporting** (`09`).
 3. Eventos de dominio (`InvoiceIssuedEvent`, `ExpenseRegisteredEvent`, `PayablePaidEvent`, ...) y sus manejadores. Hoy ningún flujo los usa.
 
