@@ -29,6 +29,8 @@ public class WebSecurityConfiguration {
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers("/actuator/health/**").permitAll()
                         .requestMatchers("/api/v1/auth/sign-in").permitAll()
+                        // API docs describe the endpoints, they expose no data; each call still needs a token.
+                        .requestMatchers("/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html").permitAll()
                         .anyRequest().authenticated())
                 // Anonymous requests get 401 (Spring's default would be 403).
                 .exceptionHandling(errors -> errors.authenticationEntryPoint(
