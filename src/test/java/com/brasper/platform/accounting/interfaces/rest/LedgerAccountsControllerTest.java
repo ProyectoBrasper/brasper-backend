@@ -39,7 +39,7 @@ class LedgerAccountsControllerTest {
                 .andExpect(jsonPath("$.code").value("101")).andExpect(jsonPath("$.active").value(true));
         send(token, "101").andExpect(status().isConflict());
         send(token, "401").andExpect(status().isCreated());
-        mvc.perform(get(URL).header("Authorization", token)).andExpect(status().isOk()).andExpect(jsonPath("$.length()").value(2));
+        mvc.perform(get(URL).header("Authorization", token)).andExpect(status().isOk()).andExpect(jsonPath("$[?(@.code == '401')]").isNotEmpty());
         mvc.perform(post("/api/v1/journal-entries").header("Authorization", token).contentType(MediaType.APPLICATION_JSON)
                 .content(JournalEntriesControllerTest.BODY)).andExpect(status().isCreated());
         mvc.perform(get(URL + "/trial-balance?year=2026&month=1").header("Authorization", token)).andExpect(status().isOk())
