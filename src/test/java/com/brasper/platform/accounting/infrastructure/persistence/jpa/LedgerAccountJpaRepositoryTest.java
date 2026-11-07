@@ -30,13 +30,13 @@ class LedgerAccountJpaRepositoryTest {
     }
     @Test
     void roundTripsAndQueriesAccounts() {
-        LedgerAccount account = create("10");
-        LedgerAccount other = create("101");
+        LedgerAccount account = create("11");
+        LedgerAccount other = create("111");
         em.flush(); em.clear();
-        LedgerAccount found = accounts.findByCode(new AccountCode("10")).orElseThrow();
+        LedgerAccount found = accounts.findByCode(new AccountCode("11")).orElseThrow();
         assertThat(found).extracting(LedgerAccount::getId, LedgerAccount::getCode, LedgerAccount::getName,
                 LedgerAccount::getType, LedgerAccount::isActive)
-                .containsExactly(account.getId(), new AccountCode("10"), "Cash", LedgerAccountType.ASSET, true);
+                .containsExactly(account.getId(), new AccountCode("11"), "Cash", LedgerAccountType.ASSET, true);
         assertThat(found.getCreatedAt()).isNotNull().isEqualTo(found.getUpdatedAt());
         var createdAt = found.getCreatedAt();
         found.deactivate();
@@ -45,21 +45,21 @@ class LedgerAccountJpaRepositoryTest {
         assertThat(updated.isActive()).isFalse();
         assertThat(updated.getCreatedAt()).isEqualTo(createdAt);
         assertThat(updated.getUpdatedAt()).isAfterOrEqualTo(createdAt);
-        assertThat(accounts.existsByCode(new AccountCode("10"))).isTrue();
+        assertThat(accounts.existsByCode(new AccountCode("11"))).isTrue();
         assertThat(accounts.existsByCode(new AccountCode("99"))).isFalse();
         assertThat(accounts.findByCode(new AccountCode("99"))).isEmpty();
-        assertThat(accounts.findAll()).hasSize(2);
-        assertThat(accounts.findAllByCodeIn(List.of(new AccountCode("10"), new AccountCode("99"))))
+        assertThat(accounts.findAll()).extracting(LedgerAccount::getCode).contains(new AccountCode("11"), new AccountCode("111"));
+        assertThat(accounts.findAllByCodeIn(List.of(new AccountCode("11"), new AccountCode("99"))))
                 .extracting(LedgerAccount::getId).containsExactly(account.getId());
-        assertThat(accounts.findAllByCodeIn(List.of(new AccountCode("10"), new AccountCode("101"))))
+        assertThat(accounts.findAllByCodeIn(List.of(new AccountCode("11"), new AccountCode("111"))))
                 .extracting(LedgerAccount::getId).containsExactlyInAnyOrder(account.getId(), other.getId());
         assertThat(accounts.findAllByCodeIn(List.of())).isEmpty();
     }
     @Test
     void rejectsDuplicateCode() {
-        create("10");
+        create("11");
         em.flush(); em.clear();
-        assertThatThrownBy(() -> { create("10"); em.flush(); })
+        assertThatThrownBy(() -> { create("11"); em.flush(); })
                 .isInstanceOf(DataIntegrityViolationException.class);
     }
 }
