@@ -9,6 +9,7 @@ import com.brasper.platform.billing.domain.events.InvoicePaymentReceivedEvent;
 import com.brasper.platform.billing.domain.model.valueobjects.InvoicePaymentType;
 import com.brasper.platform.expenses.domain.events.ExpenseRegisteredEvent;
 import com.brasper.platform.expenses.domain.model.valueobjects.PaymentMethod;
+import com.brasper.platform.projects.domain.events.ProjectCompletedEvent;
 import com.brasper.platform.shared.domain.model.valueobjects.Money;
 import com.brasper.platform.staff.domain.events.FixedCostPaidEvent;
 import com.brasper.platform.staff.domain.model.valueobjects.FixedCostType;
@@ -17,6 +18,7 @@ import com.brasper.platform.treasury.domain.events.LoanInstallmentPaidEvent;
 import com.brasper.platform.treasury.domain.events.PartnerContributionRegisteredEvent;
 import com.brasper.platform.treasury.domain.events.PayablePaidEvent;
 import com.brasper.platform.treasury.domain.model.valueobjects.LoanType;
+import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
@@ -27,7 +29,7 @@ public final class PostingRules {
     static final AccountCode CASH = new AccountCode("10");
     static final AccountCode RECEIVABLES = new AccountCode("12");
     static final AccountCode IGV = new AccountCode("40111");
-    static final AccountCode CUSTOMER_ADVANCES = new AccountCode("122");
+    public static final AccountCode CUSTOMER_ADVANCES = new AccountCode("122");
     static final AccountCode SALES = new AccountCode("70");
     static final AccountCode PAYABLES = new AccountCode("42");
     static final AccountCode CAPITAL = new AccountCode("50");
@@ -145,6 +147,20 @@ public final class PostingRules {
         };
         return new RegisterJournalEntryCommand(event.paidOn(), "Fixed cost payment", EntrySource.FIXED_COST_PAYMENT,
                 event.paymentId(), List.of(debit(expense, event.amount(), null), credit(CASH, event.amount(), null)));
+    }
+
+    /**
+     * D 122 / H 70 for the advances the project's invoices took. Nothing when there are none.
+     * shortcut: the amount is read as PEN; advances in another currency are not recognized yet.
+     */
+    public static Optional<RegisterJournalEntryCommand> forProjectCompleted(ProjectCompletedEvent event, BigDecimal advances) {
+        if (advances.signum() <= 0) {
+            return Optional.empty();
+        }
+        Money amount = new Money(advances, com.brasper.platform.shared.domain.model.valueobjects.Currency.PEN);
+        return Optional.of(new RegisterJournalEntryCommand(event.completedOn(), "Project completed",
+                EntrySource.PROJECT_COMPLETED, event.projectId(),
+                List.of(debit(CUSTOMER_ADVANCES, amount, event.projectId()), credit(SALES, amount, event.projectId()))));
     }
 
     private static JournalLineData debit(AccountCode account, Money amount, Long projectId) {

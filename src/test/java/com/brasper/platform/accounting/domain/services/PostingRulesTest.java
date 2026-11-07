@@ -10,6 +10,7 @@ import com.brasper.platform.expenses.domain.events.ExpenseRegisteredEvent;
 import com.brasper.platform.expenses.domain.model.valueobjects.PaymentMethod;
 import com.brasper.platform.billing.domain.events.InvoicePaymentReceivedEvent;
 import com.brasper.platform.billing.domain.model.valueobjects.InvoicePaymentType;
+import com.brasper.platform.projects.domain.events.ProjectCompletedEvent;
 import com.brasper.platform.shared.domain.model.valueobjects.Currency;
 import com.brasper.platform.staff.domain.events.FixedCostPaidEvent;
 import com.brasper.platform.staff.domain.model.valueobjects.FixedCostType;
@@ -160,5 +161,19 @@ class PostingRulesTest {
         assertThat(line(salary, "10").credit().amount()).isEqualByComparingTo("900");
         assertThat(line(fees, "67").debit().amount()).isEqualByComparingTo("5");
         assertThat(line(rent, "63").debit().amount()).isEqualByComparingTo("700");
+    }
+
+    @Test
+    void completingAProjectTurnsItsAdvancesIntoSales() {
+        var event = new ProjectCompletedEvent(3L, DAY);
+
+        RegisterJournalEntryCommand command = PostingRules.forProjectCompleted(event, new BigDecimal("1000")).orElseThrow();
+
+        assertThat(command.source()).isEqualTo(EntrySource.PROJECT_COMPLETED);
+        assertThat(command.sourceId()).isEqualTo(3L);
+        assertThat(line(command, "122").debit().amount()).isEqualByComparingTo("1000");
+        assertThat(line(command, "70").credit().amount()).isEqualByComparingTo("1000");
+        assertThat(line(command, "70").projectId()).isEqualTo(3L);
+        assertThat(PostingRules.forProjectCompleted(event, BigDecimal.ZERO)).isEmpty();
     }
 }
