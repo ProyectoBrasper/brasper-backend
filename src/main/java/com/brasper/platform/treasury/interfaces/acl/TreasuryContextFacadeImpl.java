@@ -54,6 +54,11 @@ public class TreasuryContextFacadeImpl implements TreasuryContextFacade {
     }
 
     @Override
+    public BigDecimal sumOutstandingPayables() {
+        return cash.outstandingPayables();
+    }
+
+    @Override
     public BigDecimal sumScheduledPayablesByWeek(int year, int month, int week) {
         return cash.scheduledPayables(new CashFlowWeek(year, month, week));
     }

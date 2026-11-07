@@ -78,6 +78,12 @@ public class CashFigures {
                 .map(Payable::balance).map(money -> money.amount()).reduce(BigDecimal.ZERO, BigDecimal::add);
     }
 
+    /** What is still owed on every payable that is not fully paid, whatever its scheduled week. */
+    public BigDecimal outstandingPayables() {
+        return payables.findAll().stream().filter(payable -> payable.getStatus() != PaymentStatus.PAID)
+                .map(Payable::balance).map(money -> money.amount()).reduce(BigDecimal.ZERO, BigDecimal::add);
+    }
+
     /** Unpaid installments due in the week, keyed by loan type ({@code RECEIVED}: to pay, {@code GRANTED}: to collect). */
     public Map<String, BigDecimal> scheduledInstallments(CashFlowWeek week) {
         Map<String, BigDecimal> totals = new TreeMap<>();
