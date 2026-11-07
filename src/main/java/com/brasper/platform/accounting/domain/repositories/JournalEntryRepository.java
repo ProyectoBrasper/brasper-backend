@@ -10,6 +10,7 @@ import java.util.Optional;
 public interface JournalEntryRepository {
     JournalEntry save(JournalEntry entity);
     Optional<JournalEntry> findById(Long id);
+    Optional<JournalEntry> findBySourceAndSourceId(EntrySource source, Long sourceId);
     boolean existsBySourceAndSourceId(EntrySource source, Long sourceId);
     List<JournalEntry> findAllByPeriod(Period period);
     List<JournalEntry> findAllUpTo(LocalDate date);
