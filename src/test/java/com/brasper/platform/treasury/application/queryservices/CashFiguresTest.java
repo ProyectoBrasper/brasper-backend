@@ -84,6 +84,7 @@ class CashFiguresTest {
         loans.handle(new ScheduleLoanInstallmentCommand(loan.getId(), LocalDate.of(1999, 3, 10), pen("400"), pen("50")));
 
         assertThat(cash.scheduledPayables(week)).isEqualByComparingTo("300");
+        assertThat(cash.outstandingPayables()).isGreaterThanOrEqualTo(new BigDecimal("300"));
         assertThat(cash.scheduledPayables(CashFlowWeek.from(LocalDate.of(1999, 3, 20)))).isEqualByComparingTo("0");
         assertThat(cash.scheduledInstallments(week)).containsOnlyKeys("RECEIVED")
                 .containsEntry("RECEIVED", new BigDecimal("450.00"));

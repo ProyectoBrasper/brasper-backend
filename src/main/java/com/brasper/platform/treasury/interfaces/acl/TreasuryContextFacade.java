@@ -24,6 +24,9 @@ public interface TreasuryContextFacade {
      */
     Map<String, BigDecimal> fetchMovementsBetween(LocalDate from, LocalDate to);
 
+    /** What is still owed on every payable that is not fully paid, whatever its scheduled week. */
+    BigDecimal sumOutstandingPayables();
+
     /** What is still owed on the payables scheduled for the cash-flow week. */
     BigDecimal sumScheduledPayablesByWeek(int year, int month, int week);
 
