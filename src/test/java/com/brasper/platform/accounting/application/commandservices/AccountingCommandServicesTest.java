@@ -26,7 +26,11 @@ class AccountingCommandServicesTest {
 
     private final TaxParametersRepository parameters = mock(TaxParametersRepository.class);
     private final FixedAssetRepository assets = mock(FixedAssetRepository.class);
-    private final TaxCommandService tax = new TaxCommandService(parameters);
+    private final TaxCommandService tax = new TaxCommandService(parameters,
+            mock(com.brasper.platform.accounting.domain.repositories.TaxReturnRepository.class),
+            mock(com.brasper.platform.accounting.domain.repositories.JournalEntryRepository.class),
+            mock(LedgerCommandService.class),
+            mock(com.brasper.platform.accounting.application.outboundservices.AccountingTreasuryLookup.class));
     private final FixedAssetCommandService fixedAssets = new FixedAssetCommandService(assets, parameters, mock(LedgerCommandService.class));
 
     private static RegisterFixedAssetCommand register(int months) {

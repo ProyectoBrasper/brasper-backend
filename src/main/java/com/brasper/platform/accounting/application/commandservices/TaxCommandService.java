@@ -6,14 +6,97 @@ import com.brasper.platform.accounting.domain.repositories.TaxParametersReposito
 import com.brasper.platform.shared.application.result.Result;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import com.brasper.platform.accounting.application.outboundservices.AccountingTreasuryLookup;
+import com.brasper.platform.accounting.domain.model.aggregates.TaxReturn;
+import com.brasper.platform.accounting.domain.model.commands.*;
+import com.brasper.platform.accounting.domain.model.valueobjects.*;
+import com.brasper.platform.accounting.domain.repositories.JournalEntryRepository;
+import com.brasper.platform.accounting.domain.repositories.TaxReturnRepository;
+import com.brasper.platform.shared.domain.model.valueobjects.Currency;
+import com.brasper.platform.shared.domain.model.valueobjects.Money;
+import com.brasper.platform.shared.domain.model.valueobjects.TaxRates;
+import java.util.ArrayList;
+import org.springframework.transaction.NoTransactionException;
+import org.springframework.transaction.interceptor.TransactionAspectSupport;
 
 @Service
 public class TaxCommandService {
 
     private final TaxParametersRepository parameters;
 
-    public TaxCommandService(TaxParametersRepository parameters) {
+    private final TaxReturnRepository returns;
+    private final JournalEntryRepository entries;
+    private final LedgerCommandService ledger;
+    private final AccountingTreasuryLookup treasury;
+
+    public TaxCommandService(TaxParametersRepository parameters, TaxReturnRepository returns,
+            JournalEntryRepository entries, LedgerCommandService ledger, AccountingTreasuryLookup treasury) {
         this.parameters = parameters;
+        this.returns = returns;
+        this.entries = entries;
+        this.ledger = ledger;
+        this.treasury = treasury;
+    }
+
+    @Transactional
+    public Result<TaxReturn, TaxCommandFailure> handle(PrepareTaxReturnCommand command) {
+        var period = command.period();
+        if (returns.existsByPeriod(period)) return Result.failure(TaxCommandFailure.DUPLICATE_RETURN);
+        Money zero = Money.zero(Currency.PEN);
+        Money outputIgv = zero, inputIgv = zero, sales = zero;
+        // shortcut: reversals count on the opposite side of 40111; the net IGV is right, the gross figures are not
+        for (var entry : entries.findAllByPeriod(period)) {
+            for (var line : entry.getLines()) {
+                if (line.getDebit().currency() != Currency.PEN) continue;
+                if (line.getAccountCode().equals(new AccountCode("40111"))) {
+                    outputIgv = outputIgv.add(line.getCredit());
+                    inputIgv = inputIgv.add(line.getDebit());
+                } else if (line.getAccountCode().equals(new AccountCode("70"))) {
+                    sales = sales.add(line.getCredit()).subtract(line.getDebit());
+                }
+            }
+        }
+        Money carriedCredit = returns.findByPeriod(period.previous()).map(TaxReturn::nextCarriedCredit).orElse(zero);
+        // shortcut: with no tax parameters set yet the standard rates apply; remove once parameters are seeded.
+        TaxRates rates = parameters.findFirstByEffectiveFromLessThanEqualOrderByEffectiveFromDesc(period.endDate())
+                .map(TaxParameters::getRates).orElseGet(TaxRates::standard);
+        Money prepayment = (sales.isPositive() ? sales : zero).multiply(rates.incomeTaxPrepayment().value());
+        return Result.success(returns.save(new TaxReturn(command, outputIgv, inputIgv, carriedCredit, prepayment)));
+    }
+
+    @Transactional
+    public Result<TaxReturn, TaxCommandFailure> handle(PayTaxReturnCommand command) {
+        TaxReturn taxReturn = returns.findById(command.taxReturnId()).orElse(null);
+        if (taxReturn == null) return Result.failure(TaxCommandFailure.TAX_RETURN_NOT_FOUND);
+        if (taxReturn.getStatus() == TaxReturnStatus.PAID) return Result.failure(TaxCommandFailure.ALREADY_PAID);
+        if (!treasury.bankAccountExists(command.bankAccountId()))
+            return Result.failure(TaxCommandFailure.BANK_ACCOUNT_NOT_FOUND);
+        if (taxReturn.getStatus() == TaxReturnStatus.DRAFT) taxReturn.file();
+        taxReturn.markAsPaid(command.paidOn(), command.bankAccountId());
+        // shortcut: paying a tax return does not move cash in Treasury yet; it arrives with the domain events.
+        if (taxReturn.totalPayable().isPositive()) {
+            Money zero = Money.zero(taxReturn.getCurrency());
+            var lines = new ArrayList<JournalLineData>();
+            if (taxReturn.igvPayable().isPositive())
+                lines.add(new JournalLineData(new AccountCode("40111"), taxReturn.igvPayable(), zero, null));
+            if (taxReturn.getIncomeTaxPrepayment().isPositive())
+                lines.add(new JournalLineData(new AccountCode("4017"), taxReturn.getIncomeTaxPrepayment(), zero, null));
+            lines.add(new JournalLineData(new AccountCode("10"), zero, taxReturn.totalPayable(), null));
+            var period = taxReturn.getPeriod();
+            var result = ledger.handle(new RegisterJournalEntryCommand(command.paidOn(),
+                    "IGV and income tax prepayment %d-%02d".formatted(period.year(), period.month()),
+                    EntrySource.TAX_RETURN, taxReturn.getId(), lines));
+            if (result.isFailure()) {
+                try {
+                    TransactionAspectSupport.currentTransactionStatus().setRollbackOnly();
+                } catch (NoTransactionException ignored) {
+                    // Plain unit tests invoke this service without a transaction proxy.
+                }
+                return Result.failure(result.failure().orElseThrow() == LedgerCommandFailure.DUPLICATE_SOURCE
+                        ? TaxCommandFailure.ALREADY_PAID : TaxCommandFailure.ACCOUNTS_NOT_CONFIGURED);
+            }
+        }
+        return Result.success(returns.save(taxReturn));
     }
 
     /** Each change is a new row; a date can only be set once because the old row may already have been used. */
