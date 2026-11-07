@@ -7,6 +7,8 @@ import com.brasper.platform.accounting.domain.model.valueobjects.EntrySource;
 import com.brasper.platform.billing.domain.events.InvoiceIssuedEvent;
 import com.brasper.platform.billing.domain.events.InvoicePaymentReceivedEvent;
 import com.brasper.platform.billing.domain.model.valueobjects.InvoicePaymentType;
+import com.brasper.platform.expenses.domain.events.ExpenseRegisteredEvent;
+import com.brasper.platform.expenses.domain.model.valueobjects.PaymentMethod;
 import com.brasper.platform.shared.domain.model.valueobjects.Money;
 import java.util.ArrayList;
 import java.util.List;
@@ -20,6 +22,10 @@ public final class PostingRules {
     static final AccountCode IGV = new AccountCode("40111");
     static final AccountCode CUSTOMER_ADVANCES = new AccountCode("122");
     static final AccountCode SALES = new AccountCode("70");
+    static final AccountCode PAYABLES = new AccountCode("42");
+    static final AccountCode CAPITAL = new AccountCode("50");
+    static final AccountCode DIRECT_COSTS = new AccountCode("60");
+    static final AccountCode SERVICES = new AccountCode("63");
 
     private PostingRules() { }
 
@@ -46,6 +52,22 @@ public final class PostingRules {
         return Optional.of(new RegisterJournalEntryCommand(event.receivedOn(), "Invoice payment received",
                 EntrySource.INVOICE_PAYMENT, event.paymentId(),
                 List.of(debit(CASH, event.amount(), null), credit(RECEIVABLES, event.amount(), null))));
+    }
+
+    /**
+     * D 60 (63 for a general expense) taxable base + D 40111 IGV / H 10 when paid, H 42 while pending, H 50 for a
+     * partner contribution. shortcut: a contribution goes to capital (50) instead of a partner loan account (455).
+     */
+    public static RegisterJournalEntryCommand forExpense(ExpenseRegisteredEvent event) {
+        AccountCode settlement = event.paymentMethod() == PaymentMethod.PARTNER_CONTRIBUTION ? CAPITAL
+                : event.paid() ? CASH : PAYABLES;
+        List<JournalLineData> lines = new ArrayList<>();
+        lines.add(debit(event.projectId() != null ? DIRECT_COSTS : SERVICES, event.taxableBase(), event.projectId()));
+        if (event.igv().isPositive()) {
+            lines.add(debit(IGV, event.igv(), null));
+        }
+        lines.add(credit(settlement, event.total(), null));
+        return new RegisterJournalEntryCommand(event.spentOn(), "Expense", EntrySource.EXPENSE, event.expenseId(), lines);
     }
 
     private static JournalLineData debit(AccountCode account, Money amount, Long projectId) {

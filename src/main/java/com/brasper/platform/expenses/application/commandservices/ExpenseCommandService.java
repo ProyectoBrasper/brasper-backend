@@ -3,6 +3,8 @@ package com.brasper.platform.expenses.application.commandservices;
 import com.brasper.platform.expenses.application.outboundservices.ExpenseProjectLookup;
 import com.brasper.platform.expenses.application.outboundservices.ExpenseTaxRatesProvider;
 import com.brasper.platform.expenses.application.outboundservices.ExpenseTreasuryLookup;
+import com.brasper.platform.expenses.domain.events.ExpenseAnnulledEvent;
+import com.brasper.platform.expenses.domain.events.ExpenseRegisteredEvent;
 import com.brasper.platform.expenses.domain.model.aggregates.Expense;
 import com.brasper.platform.expenses.domain.model.commands.AnnulExpenseCommand;
 import com.brasper.platform.expenses.domain.model.commands.CorrectExpenseCommand;
@@ -11,8 +13,11 @@ import com.brasper.platform.expenses.domain.model.valueobjects.PaymentMethod;
 import com.brasper.platform.expenses.domain.repositories.ExpenseRepository;
 import com.brasper.platform.expenses.domain.repositories.SupplierRepository;
 import com.brasper.platform.shared.application.result.Result;
+import com.brasper.platform.shared.domain.model.valueobjects.PaymentStatus;
+import java.time.LocalDate;
 import java.util.Objects;
 import java.util.Optional;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -29,15 +34,17 @@ public class ExpenseCommandService {
     private final ExpenseProjectLookup projects;
     private final ExpenseTaxRatesProvider taxRates;
     private final ExpenseTreasuryLookup treasury;
+    private final ApplicationEventPublisher events;
 
     public ExpenseCommandService(ExpenseRepository expenses, SupplierRepository suppliers,
             ExpenseProjectLookup projects, ExpenseTaxRatesProvider taxRates,
-            ExpenseTreasuryLookup treasury) {
+            ExpenseTreasuryLookup treasury, ApplicationEventPublisher events) {
         this.expenses = expenses;
         this.suppliers = suppliers;
         this.projects = projects;
         this.taxRates = taxRates;
         this.treasury = treasury;
+        this.events = events;
     }
 
     @Transactional
@@ -48,7 +55,12 @@ public class ExpenseCommandService {
         if (failure.isPresent()) {
             return Result.failure(failure.get());
         }
-        return Result.success(expenses.save(new Expense(command, taxRates.ratesAt(command.spentOn()))));
+        Expense expense = expenses.save(new Expense(command, taxRates.ratesAt(command.spentOn())));
+        var amounts = expense.getAmounts();
+        events.publishEvent(new ExpenseRegisteredEvent(expense.getId(), expense.getSpentOn(), expense.getProjectId(),
+                amounts.taxableBase(), amounts.igv(), amounts.total(), expense.getPaymentStatus() == PaymentStatus.PAID,
+                expense.getPaymentMethod(), expense.getBankAccountId(), expense.getPartnerId()));
+        return Result.success(expense);
     }
 
     @Transactional
@@ -80,7 +92,9 @@ public class ExpenseCommandService {
             return Result.failure(ExpenseCommandFailure.ALREADY_ANNULLED);
         }
         expense.annul();
-        return Result.success(expenses.save(expense));
+        Expense saved = expenses.save(expense);
+        events.publishEvent(new ExpenseAnnulledEvent(saved.getId(), LocalDate.now()));
+        return Result.success(saved);
     }
 
     private Optional<ExpenseCommandFailure> paymentTargetFailure(RegisterExpenseCommand command) {
