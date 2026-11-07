@@ -2,6 +2,9 @@ package com.brasper.platform.billing.application.commandservices;
 
 import com.brasper.platform.billing.application.outboundservices.ProjectLookup;
 import com.brasper.platform.billing.application.outboundservices.TaxRatesProvider;
+import com.brasper.platform.billing.domain.events.InvoiceIssuedEvent;
+import com.brasper.platform.billing.domain.events.InvoicePaymentReceivedEvent;
+import com.brasper.platform.billing.domain.events.InvoiceVoidedEvent;
 import com.brasper.platform.billing.domain.model.aggregates.Invoice;
 import com.brasper.platform.billing.domain.model.commands.IssueInvoiceCommand;
 import com.brasper.platform.billing.domain.model.commands.RegisterInvoicePaymentCommand;
@@ -10,7 +13,9 @@ import com.brasper.platform.billing.domain.model.entities.InvoicePayment;
 import com.brasper.platform.billing.domain.model.valueobjects.InvoiceStatus;
 import com.brasper.platform.billing.domain.repositories.InvoiceRepository;
 import com.brasper.platform.shared.application.result.Result;
+import java.time.LocalDate;
 import java.util.List;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -20,11 +25,14 @@ public class InvoiceCommandService {
     private final InvoiceRepository invoices;
     private final ProjectLookup projects;
     private final TaxRatesProvider taxRates;
+    private final ApplicationEventPublisher events;
 
-    public InvoiceCommandService(InvoiceRepository invoices, ProjectLookup projects, TaxRatesProvider taxRates) {
+    public InvoiceCommandService(InvoiceRepository invoices, ProjectLookup projects, TaxRatesProvider taxRates,
+            ApplicationEventPublisher events) {
         this.invoices = invoices;
         this.projects = projects;
         this.taxRates = taxRates;
+        this.events = events;
     }
 
     /** The invoice is for the project's client and uses the tax rates in force on the issue date. */
@@ -41,8 +49,10 @@ public class InvoiceCommandService {
             return Result.failure(InvoiceCommandFailure.DUPLICATE_NUMBER);
         }
         // shortcut: two simultaneous requests with one number hit the unique constraint, which the global handler maps to 409.
-        return Result.success(invoices.save(
-                new Invoice(command, project.clientId(), taxRates.ratesAt(command.issuedOn()))));
+        Invoice invoice = invoices.save(new Invoice(command, project.clientId(), taxRates.ratesAt(command.issuedOn())));
+        events.publishEvent(new InvoiceIssuedEvent(invoice.getId(), invoice.getProjectId(), invoice.getIssuedOn(),
+                invoice.getAmounts().taxableBase(), invoice.getAmounts().igv(), invoice.getTotal(), invoice.isAdvance()));
+        return Result.success(invoice);
     }
 
     /** The aggregate enforces these rules too; checking first tells the caller which one failed. */
@@ -64,7 +74,10 @@ public class InvoiceCommandService {
         invoice.registerPayment(command);
         List<InvoicePayment> saved = invoices.save(invoice).getPayments();
         // Read the payment back from the saved aggregate: that instance is the persisted one, with its id.
-        return Result.success(saved.get(saved.size() - 1));
+        InvoicePayment payment = saved.get(saved.size() - 1);
+        events.publishEvent(new InvoicePaymentReceivedEvent(payment.getId(), invoice.getId(), payment.getReceivedOn(),
+                payment.getAmount(), payment.getType(), payment.getBankAccountId()));
+        return Result.success(payment);
     }
 
     /** The aggregate also refuses, but checking first tells the caller which rule failed. */
@@ -81,6 +94,8 @@ public class InvoiceCommandService {
             return Result.failure(InvoiceCommandFailure.HAS_PAYMENTS);
         }
         invoice.voidInvoice();
-        return Result.success(invoices.save(invoice));
+        Invoice saved = invoices.save(invoice);
+        events.publishEvent(new InvoiceVoidedEvent(saved.getId(), LocalDate.now()));
+        return Result.success(saved);
     }
 }

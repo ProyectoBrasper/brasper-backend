@@ -10,6 +10,9 @@ import static org.mockito.Mockito.when;
 import com.brasper.platform.billing.application.outboundservices.ProjectLookup;
 import com.brasper.platform.billing.application.outboundservices.ProjectLookup.BillableProject;
 import com.brasper.platform.billing.application.outboundservices.TaxRatesProvider;
+import com.brasper.platform.billing.domain.events.InvoiceIssuedEvent;
+import com.brasper.platform.billing.domain.events.InvoicePaymentReceivedEvent;
+import com.brasper.platform.billing.domain.events.InvoiceVoidedEvent;
 import com.brasper.platform.billing.domain.model.aggregates.Invoice;
 import com.brasper.platform.billing.domain.model.commands.IssueInvoiceCommand;
 import com.brasper.platform.billing.domain.model.commands.RegisterInvoicePaymentCommand;
@@ -25,6 +28,7 @@ import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.Optional;
 import org.junit.jupiter.api.Test;
+import org.springframework.context.ApplicationEventPublisher;
 
 class InvoiceCommandServiceTest {
 
@@ -33,7 +37,8 @@ class InvoiceCommandServiceTest {
     private final InvoiceRepository invoices = mock(InvoiceRepository.class);
     private final ProjectLookup projects = mock(ProjectLookup.class);
     private final TaxRatesProvider taxRates = mock(TaxRatesProvider.class);
-    private final InvoiceCommandService service = new InvoiceCommandService(invoices, projects, taxRates);
+    private final ApplicationEventPublisher events = mock(ApplicationEventPublisher.class);
+    private final InvoiceCommandService service = new InvoiceCommandService(invoices, projects, taxRates, events);
 
     private static IssueInvoiceCommand issue() {
         return new IssueInvoiceCommand(NUMBER, LocalDate.of(2026, 8, 20), null, 3L,
@@ -145,5 +150,22 @@ class InvoiceCommandServiceTest {
         when(invoices.findById(9L)).thenReturn(Optional.empty());
 
         assertThat(service.handle(new VoidInvoiceCommand(9L)).failure()).contains(InvoiceCommandFailure.INVOICE_NOT_FOUND);
+    }
+
+    @Test
+    void publishesAnEventForEachIssuedPaidAndVoidedInvoice() {
+        projectWithStatus("IN_PROGRESS");
+        service.handle(issue());
+        verify(events).publishEvent(any(InvoiceIssuedEvent.class));
+
+        storedInvoice();
+        service.handle(payment("100", Currency.PEN));
+        verify(events).publishEvent(any(InvoicePaymentReceivedEvent.class));
+
+        Invoice unpaid = new Invoice(issue(), 4L, TaxRates.standard());
+        when(invoices.findById(7L)).thenReturn(Optional.of(unpaid));
+        when(invoices.save(unpaid)).thenReturn(unpaid);
+        service.handle(new VoidInvoiceCommand(7L));
+        verify(events).publishEvent(any(InvoiceVoidedEvent.class));
     }
 }
