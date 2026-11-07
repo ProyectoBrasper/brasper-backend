@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.brasper.platform.TestcontainersConfiguration;
+import com.brasper.platform.accounting.domain.events.TaxReturnPaidEvent;
 import com.brasper.platform.billing.domain.events.InvoicePaymentReceivedEvent;
 import com.brasper.platform.billing.domain.model.valueobjects.InvoicePaymentType;
 import com.brasper.platform.expenses.domain.events.ExpenseAnnulledEvent;
@@ -11,6 +12,8 @@ import com.brasper.platform.expenses.domain.events.ExpenseRegisteredEvent;
 import com.brasper.platform.expenses.domain.model.valueobjects.PaymentMethod;
 import com.brasper.platform.shared.domain.model.valueobjects.Currency;
 import com.brasper.platform.shared.domain.model.valueobjects.Money;
+import com.brasper.platform.staff.domain.events.FixedCostPaidEvent;
+import com.brasper.platform.staff.domain.model.valueobjects.FixedCostType;
 import com.brasper.platform.treasury.application.commandservices.BankAccountCommandService;
 import com.brasper.platform.treasury.application.queryservices.BankAccountQueryService;
 import com.brasper.platform.treasury.domain.model.commands.OpenBankAccountCommand;
@@ -87,5 +90,19 @@ class CashPostingEventHandlerTest {
 
         assertThatThrownBy(() -> publish(usd)).isInstanceOf(IllegalStateException.class);
         assertThat(balance(bank)).isEqualByComparingTo("1000");
+    }
+
+    @Test
+    void takesFixedCostPaymentsAndTaxPaymentsOutOfTheAccount() {
+        Long bank = bankAccount("993-3");
+
+        publish(new FixedCostPaidEvent(7020L, 1L, FixedCostType.SALARY, DAY, pen("300"), bank));
+        assertThat(balance(bank)).isEqualByComparingTo("700");
+
+        publish(new FixedCostPaidEvent(7021L, 1L, FixedCostType.SALARY, DAY, pen("300"), null));
+        assertThat(balance(bank)).isEqualByComparingTo("700");
+
+        publish(new TaxReturnPaidEvent(7022L, DAY, pen("19.50"), bank));
+        assertThat(balance(bank)).isEqualByComparingTo("680.50");
     }
 }

@@ -27,6 +27,7 @@ import java.time.LocalDate;
 import java.util.List;
 import java.util.Optional;
 import org.junit.jupiter.api.Test;
+import org.springframework.context.ApplicationEventPublisher;
 
 class FixedCostCommandServiceTest {
 
@@ -35,7 +36,8 @@ class FixedCostCommandServiceTest {
     private final FixedCostRepository costs = mock(FixedCostRepository.class);
     private final EmployeeRepository employees = mock(EmployeeRepository.class);
     private final StaffTreasuryLookup treasury = mock(StaffTreasuryLookup.class);
-    private final FixedCostCommandService service = new FixedCostCommandService(costs, employees, treasury);
+    private final FixedCostCommandService service = new FixedCostCommandService(costs, employees, treasury,
+            mock(ApplicationEventPublisher.class));
 
     private static CreateFixedCostCommand create(FixedCostType type, Long employeeId) {
         return new CreateFixedCostCommand(new CostCode("FC-1"), "Monthly cost", type, AMOUNT, employeeId, SCHEDULE);
@@ -111,6 +113,8 @@ class FixedCostCommandServiceTest {
         FixedCost cost = stored();
         FixedCost saved = mock(FixedCost.class);
         when(costs.save(cost)).thenReturn(saved);
+        when(saved.getPayments()).thenAnswer(call -> cost.getPayments());
+        when(saved.getType()).thenReturn(cost.getType());
         when(treasury.bankAccountExists(5L)).thenReturn(true);
 
         assertThat(service.handle(payment(null)).success()).contains(saved);

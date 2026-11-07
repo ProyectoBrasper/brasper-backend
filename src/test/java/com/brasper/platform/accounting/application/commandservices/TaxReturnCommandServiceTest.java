@@ -16,6 +16,7 @@ import java.time.LocalDate;
 import java.util.List;
 import java.util.Optional;
 import org.junit.jupiter.api.Test;
+import org.springframework.context.ApplicationEventPublisher;
 import org.mockito.ArgumentCaptor;
 import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.transaction.interceptor.TransactionAspectSupport;
@@ -29,7 +30,8 @@ class TaxReturnCommandServiceTest {
     private final JournalEntryRepository entries = mock(JournalEntryRepository.class);
     private final LedgerCommandService ledger = mock(LedgerCommandService.class);
     private final AccountingTreasuryLookup treasury = mock(AccountingTreasuryLookup.class);
-    private final TaxCommandService service = new TaxCommandService(parameters, returns, entries, ledger, treasury);
+    private final TaxCommandService service = new TaxCommandService(parameters, returns, entries, ledger, treasury,
+            mock(ApplicationEventPublisher.class));
     private static Money pen(String amount) { return new Money(new BigDecimal(amount), Currency.PEN); }
     private static JournalLineData line(String account, String debit, String credit) {
         return new JournalLineData(new AccountCode(account), pen(debit), pen(credit), null);

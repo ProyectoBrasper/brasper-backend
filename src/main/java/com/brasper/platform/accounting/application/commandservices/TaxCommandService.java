@@ -7,6 +7,7 @@ import com.brasper.platform.shared.application.result.Result;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import com.brasper.platform.accounting.application.outboundservices.AccountingTreasuryLookup;
+import com.brasper.platform.accounting.domain.events.TaxReturnPaidEvent;
 import com.brasper.platform.accounting.domain.model.aggregates.TaxReturn;
 import com.brasper.platform.accounting.domain.model.commands.*;
 import com.brasper.platform.accounting.domain.model.valueobjects.*;
@@ -16,6 +17,7 @@ import com.brasper.platform.shared.domain.model.valueobjects.Currency;
 import com.brasper.platform.shared.domain.model.valueobjects.Money;
 import com.brasper.platform.shared.domain.model.valueobjects.TaxRates;
 import java.util.ArrayList;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.transaction.NoTransactionException;
 import org.springframework.transaction.interceptor.TransactionAspectSupport;
 
@@ -28,14 +30,17 @@ public class TaxCommandService {
     private final JournalEntryRepository entries;
     private final LedgerCommandService ledger;
     private final AccountingTreasuryLookup treasury;
+    private final ApplicationEventPublisher events;
 
     public TaxCommandService(TaxParametersRepository parameters, TaxReturnRepository returns,
-            JournalEntryRepository entries, LedgerCommandService ledger, AccountingTreasuryLookup treasury) {
+            JournalEntryRepository entries, LedgerCommandService ledger, AccountingTreasuryLookup treasury,
+            ApplicationEventPublisher events) {
         this.parameters = parameters;
         this.returns = returns;
         this.entries = entries;
         this.ledger = ledger;
         this.treasury = treasury;
+        this.events = events;
     }
 
     @Transactional
@@ -73,7 +78,7 @@ public class TaxCommandService {
             return Result.failure(TaxCommandFailure.BANK_ACCOUNT_NOT_FOUND);
         if (taxReturn.getStatus() == TaxReturnStatus.DRAFT) taxReturn.file();
         taxReturn.markAsPaid(command.paidOn(), command.bankAccountId());
-        // shortcut: paying a tax return does not move cash in Treasury yet; it arrives with the domain events.
+        // Treasury takes the cash out when it receives the TaxReturnPaidEvent published below.
         if (taxReturn.totalPayable().isPositive()) {
             Money zero = Money.zero(taxReturn.getCurrency());
             var lines = new ArrayList<JournalLineData>();
@@ -96,7 +101,12 @@ public class TaxCommandService {
                         ? TaxCommandFailure.ALREADY_PAID : TaxCommandFailure.ACCOUNTS_NOT_CONFIGURED);
             }
         }
-        return Result.success(returns.save(taxReturn));
+        TaxReturn saved = returns.save(taxReturn);
+        if (saved.totalPayable().isPositive()) {
+            events.publishEvent(new TaxReturnPaidEvent(saved.getId(), command.paidOn(), saved.totalPayable(),
+                    command.bankAccountId()));
+        }
+        return Result.success(saved);
     }
 
     /** Each change is a new row; a date can only be set once because the old row may already have been used. */

@@ -10,6 +10,8 @@ import com.brasper.platform.billing.domain.model.valueobjects.InvoicePaymentType
 import com.brasper.platform.expenses.domain.events.ExpenseRegisteredEvent;
 import com.brasper.platform.expenses.domain.model.valueobjects.PaymentMethod;
 import com.brasper.platform.shared.domain.model.valueobjects.Money;
+import com.brasper.platform.staff.domain.events.FixedCostPaidEvent;
+import com.brasper.platform.staff.domain.model.valueobjects.FixedCostType;
 import com.brasper.platform.treasury.domain.events.LoanDisbursedEvent;
 import com.brasper.platform.treasury.domain.events.LoanInstallmentPaidEvent;
 import com.brasper.platform.treasury.domain.events.PartnerContributionRegisteredEvent;
@@ -31,6 +33,7 @@ public final class PostingRules {
     static final AccountCode CAPITAL = new AccountCode("50");
     static final AccountCode DIRECT_COSTS = new AccountCode("60");
     static final AccountCode SERVICES = new AccountCode("63");
+    static final AccountCode PERSONNEL = new AccountCode("62");
     static final AccountCode LOANS_GRANTED = new AccountCode("16");
     static final AccountCode LOANS_RECEIVED = new AccountCode("45");
     static final AccountCode FINANCIAL_EXPENSES = new AccountCode("67");
@@ -128,6 +131,20 @@ public final class PostingRules {
         return Optional.of(new RegisterJournalEntryCommand(event.contributedOn(), "Partner contribution",
                 EntrySource.PARTNER_CONTRIBUTION, event.contributionId(),
                 List.of(debit(CASH, event.amount(), null), credit(CAPITAL, event.amount(), null))));
+    }
+
+    /**
+     * D 62 (salaries and overtime), 67 (bank fees and ITF) or 63 (everything else) / H 10.
+     * shortcut: a payment with no bank account is still credited to 10, as the UML says.
+     */
+    public static RegisterJournalEntryCommand forFixedCostPayment(FixedCostPaidEvent event) {
+        AccountCode expense = switch (event.type()) {
+            case SALARY, OVERTIME -> PERSONNEL;
+            case BANK_FEES, ITF -> FINANCIAL_EXPENSES;
+            default -> SERVICES;
+        };
+        return new RegisterJournalEntryCommand(event.paidOn(), "Fixed cost payment", EntrySource.FIXED_COST_PAYMENT,
+                event.paymentId(), List.of(debit(expense, event.amount(), null), credit(CASH, event.amount(), null)));
     }
 
     private static JournalLineData debit(AccountCode account, Money amount, Long projectId) {
