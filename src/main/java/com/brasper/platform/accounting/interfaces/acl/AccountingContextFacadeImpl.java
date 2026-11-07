@@ -34,6 +34,11 @@ public class AccountingContextFacadeImpl implements AccountingContextFacade {
     }
 
     @Override
+    public Map<String, BigDecimal> fetchAccountMovementsBetween(LocalDate from, LocalDate to) {
+        return ledger.accountMovementsBetween(from, to);
+    }
+
+    @Override
     public Map<String, BigDecimal> fetchBalancesByAccountTypeAt(LocalDate date) {
         return ledger.balancesByTypeAt(date);
     }

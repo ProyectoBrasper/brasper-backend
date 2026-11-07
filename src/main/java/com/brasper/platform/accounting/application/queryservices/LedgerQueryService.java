@@ -53,6 +53,11 @@ public class LedgerQueryService {
         return balances(entries.findAllUpTo(date));
     }
 
+    /** Movement per account code over the date range, signed like the balances. */
+    public Map<String, BigDecimal> accountMovementsBetween(LocalDate from, LocalDate to) {
+        return balances(entries.findAllBetween(from, to));
+    }
+
     public Map<String, BigDecimal> balancesByTypeAt(LocalDate date) {
         return byType(accountBalancesAt(date));
     }

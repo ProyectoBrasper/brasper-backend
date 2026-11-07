@@ -14,6 +14,9 @@ public interface AccountingContextFacade {
     /** Balance per account code up to and including the date. */
     Map<String, BigDecimal> fetchAccountBalancesAt(LocalDate date);
 
+    /** Movement per account code between the two dates, both included, signed like the balances. */
+    Map<String, BigDecimal> fetchAccountMovementsBetween(LocalDate from, LocalDate to);
+
     /** Balance per {@code LedgerAccountType} name (ASSET, LIABILITY, EQUITY, REVENUE, EXPENSE) up to the date. */
     Map<String, BigDecimal> fetchBalancesByAccountTypeAt(LocalDate date);
 

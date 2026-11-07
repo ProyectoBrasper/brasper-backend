@@ -10,6 +10,8 @@ import org.springframework.data.jpa.repository.JpaRepository;
 public interface JournalEntryJpaRepository extends JpaRepository<JournalEntry, Long>, JournalEntryRepository {
     List<JournalEntry> findAllByPeriodYearAndPeriodMonthOrderByEntryDateAscIdAsc(int year, int month);
     List<JournalEntry> findAllByEntryDateLessThanEqual(LocalDate date);
+    List<JournalEntry> findAllByEntryDateBetween(LocalDate from, LocalDate to);
+    @Override default List<JournalEntry> findAllBetween(LocalDate from, LocalDate to) { return findAllByEntryDateBetween(from, to); }
     @Override default List<JournalEntry> findAllUpTo(LocalDate date) { return findAllByEntryDateLessThanEqual(date); }
     @Override default List<JournalEntry> findAllByPeriod(Period period) {
         return findAllByPeriodYearAndPeriodMonthOrderByEntryDateAscIdAsc(period.year(), period.month());
