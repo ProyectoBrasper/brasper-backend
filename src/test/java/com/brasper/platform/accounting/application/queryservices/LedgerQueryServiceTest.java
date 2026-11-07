@@ -87,4 +87,15 @@ class LedgerQueryServiceTest {
         assertThat(service.resultByPeriod(NOVEMBER).get("RESULT")).isEqualByComparingTo("100");
         assertThat(service.resultByPeriod(NOVEMBER).get("EXPENSE")).isEqualByComparingTo("0");
     }
+
+    @Test
+    void movementsCoverTheDateRange() {
+        when(accounts.findAll()).thenReturn(List.of(account(CASH, "Cash", LedgerAccountType.ASSET),
+                account(SALES, "Sales", LedgerAccountType.REVENUE)));
+        LocalDate from = LocalDate.of(2026, 11, 1);
+        LocalDate to = LocalDate.of(2026, 11, 30);
+        when(entries.findAllBetween(from, to)).thenReturn(List.of(sale("40")));
+
+        assertThat(service.accountMovementsBetween(from, to).get("70")).isEqualByComparingTo("40");
+    }
 }

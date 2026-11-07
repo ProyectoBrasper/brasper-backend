@@ -13,4 +13,5 @@ public interface JournalEntryRepository {
     boolean existsBySourceAndSourceId(EntrySource source, Long sourceId);
     List<JournalEntry> findAllByPeriod(Period period);
     List<JournalEntry> findAllUpTo(LocalDate date);
+    List<JournalEntry> findAllBetween(LocalDate from, LocalDate to);
 }
