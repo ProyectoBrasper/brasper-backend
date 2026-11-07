@@ -27,7 +27,7 @@ class AccountingCommandServicesTest {
     private final TaxParametersRepository parameters = mock(TaxParametersRepository.class);
     private final FixedAssetRepository assets = mock(FixedAssetRepository.class);
     private final TaxCommandService tax = new TaxCommandService(parameters);
-    private final FixedAssetCommandService fixedAssets = new FixedAssetCommandService(assets, parameters);
+    private final FixedAssetCommandService fixedAssets = new FixedAssetCommandService(assets, parameters, mock(LedgerCommandService.class));
 
     private static RegisterFixedAssetCommand register(int months) {
         return new RegisterFixedAssetCommand("Laptop", DAY, new Money(new BigDecimal("1200"), Currency.PEN), months,
