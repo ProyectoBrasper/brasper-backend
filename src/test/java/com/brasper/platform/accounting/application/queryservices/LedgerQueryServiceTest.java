@@ -72,4 +72,19 @@ class LedgerQueryServiceTest {
 
         assertThat(service.trialBalance(NOVEMBER).lines()).isEmpty();
     }
+
+    @Test
+    void balancesAreSignedByAccountTypeAndTheResultIsRevenueMinusExpense() {
+        when(accounts.findAll()).thenReturn(List.of(account(CASH, "Cash", LedgerAccountType.ASSET),
+                account(SALES, "Sales", LedgerAccountType.REVENUE)));
+        LocalDate day = LocalDate.of(2026, 11, 30);
+        when(entries.findAllUpTo(day)).thenReturn(List.of(sale("100"), sale("50.50")));
+        when(entries.findAllByPeriod(NOVEMBER)).thenReturn(List.of(sale("100")));
+
+        assertThat(service.accountBalancesAt(day).get("10")).isEqualByComparingTo("150.50");
+        assertThat(service.accountBalancesAt(day).get("70")).isEqualByComparingTo("150.50");
+        assertThat(service.balancesByTypeAt(day)).containsOnlyKeys("ASSET", "REVENUE");
+        assertThat(service.resultByPeriod(NOVEMBER).get("RESULT")).isEqualByComparingTo("100");
+        assertThat(service.resultByPeriod(NOVEMBER).get("EXPENSE")).isEqualByComparingTo("0");
+    }
 }
