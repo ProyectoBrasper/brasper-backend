@@ -12,6 +12,11 @@ import com.brasper.platform.expenses.domain.model.valueobjects.PaymentMethod;
 import com.brasper.platform.shared.domain.model.valueobjects.Currency;
 import com.brasper.platform.shared.domain.model.valueobjects.Money;
 import com.brasper.platform.shared.domain.model.valueobjects.Period;
+import com.brasper.platform.treasury.application.commandservices.BankAccountCommandService;
+import com.brasper.platform.treasury.domain.model.commands.OpenBankAccountCommand;
+import com.brasper.platform.treasury.domain.model.valueobjects.AccountNumber;
+import com.brasper.platform.treasury.domain.model.valueobjects.AccountType;
+import com.brasper.platform.treasury.domain.model.valueobjects.Bank;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.List;
@@ -33,6 +38,13 @@ class ExpensesPostingEventHandlerTest {
     @Autowired private TransactionTemplate transaction;
     @Autowired private LedgerQueryService ledger;
 
+    @Autowired private BankAccountCommandService bankAccounts;
+
+    private Long bankAccount() {
+        return bankAccounts.handle(new OpenBankAccountCommand(Bank.BCP, new AccountNumber("992-2"),
+                AccountType.CHECKING, Currency.PEN, pen("0"), DAY)).success().orElseThrow().getId();
+    }
+
     private static Money pen(String amount) {
         return new Money(new BigDecimal(amount), Currency.PEN);
     }
@@ -48,15 +60,16 @@ class ExpensesPostingEventHandlerTest {
 
     @Test
     void postsARegisteredExpenseOnceAndReversesItWhenAnnulled() {
+        Long bank = bankAccount();
         var event = new ExpenseRegisteredEvent(8001L, DAY, null, pen("100"), pen("18"), pen("118"), true,
-                PaymentMethod.BANK_ACCOUNT, 1L, null);
+                PaymentMethod.BANK_ACCOUNT, bank, null);
         publish(event);
         publish(event);
 
         assertThat(entries(EntrySource.EXPENSE, 8001L)).hasSize(1);
 
-        publish(new ExpenseAnnulledEvent(8001L, DAY));
-        publish(new ExpenseAnnulledEvent(8999L, DAY));
+        publish(new ExpenseAnnulledEvent(8001L, DAY, true, bank, pen("118")));
+        publish(new ExpenseAnnulledEvent(8999L, DAY, false, null, pen("118")));
 
         assertThat(entries(EntrySource.EXPENSE, 8001L).getFirst().isReversed()).isTrue();
     }
