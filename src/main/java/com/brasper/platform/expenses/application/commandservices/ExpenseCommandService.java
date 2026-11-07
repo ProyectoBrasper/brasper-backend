@@ -93,7 +93,8 @@ public class ExpenseCommandService {
         }
         expense.annul();
         Expense saved = expenses.save(expense);
-        events.publishEvent(new ExpenseAnnulledEvent(saved.getId(), LocalDate.now()));
+        events.publishEvent(new ExpenseAnnulledEvent(saved.getId(), LocalDate.now(),
+                saved.getPaymentStatus() == PaymentStatus.PAID, saved.getBankAccountId(), saved.getAmounts().total()));
         return Result.success(saved);
     }
 

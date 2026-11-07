@@ -14,6 +14,11 @@ import com.brasper.platform.billing.domain.model.valueobjects.InvoicePaymentType
 import com.brasper.platform.shared.domain.model.valueobjects.Currency;
 import com.brasper.platform.shared.domain.model.valueobjects.Money;
 import com.brasper.platform.shared.domain.model.valueobjects.Period;
+import com.brasper.platform.treasury.application.commandservices.BankAccountCommandService;
+import com.brasper.platform.treasury.domain.model.commands.OpenBankAccountCommand;
+import com.brasper.platform.treasury.domain.model.valueobjects.AccountNumber;
+import com.brasper.platform.treasury.domain.model.valueobjects.AccountType;
+import com.brasper.platform.treasury.domain.model.valueobjects.Bank;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.List;
@@ -36,6 +41,13 @@ class BillingPostingEventHandlerTest {
     @Autowired private TransactionTemplate transaction;
     @Autowired private LedgerQueryService ledger;
 
+    @Autowired private BankAccountCommandService bankAccounts;
+
+    private Long bankAccount() {
+        return bankAccounts.handle(new OpenBankAccountCommand(Bank.BCP, new AccountNumber("992-1"),
+                AccountType.CHECKING, Currency.PEN, pen("0"), DAY)).success().orElseThrow().getId();
+    }
+
     private static Money pen(String amount) {
         return new Money(new BigDecimal(amount), Currency.PEN);
     }
@@ -51,8 +63,9 @@ class BillingPostingEventHandlerTest {
 
     @Test
     void postsAnIssuedInvoiceAndItsPaymentAndReversesItWhenVoided() {
+        Long bank = bankAccount();
         publish(new InvoiceIssuedEvent(9001L, null, DAY, pen("1000"), pen("180"), pen("1180"), false));
-        publish(new InvoicePaymentReceivedEvent(9002L, 9001L, DAY, pen("500"), InvoicePaymentType.NET_DEPOSIT, 1L));
+        publish(new InvoicePaymentReceivedEvent(9002L, 9001L, DAY, pen("500"), InvoicePaymentType.NET_DEPOSIT, bank));
         publish(new InvoicePaymentReceivedEvent(9003L, 9001L, DAY, pen("35"), InvoicePaymentType.RETENTION_CERTIFICATE, null));
 
         assertThat(entries(EntrySource.INVOICE_ISSUED, 9001L)).hasSize(1);
