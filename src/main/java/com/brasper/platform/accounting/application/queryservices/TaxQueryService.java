@@ -1,6 +1,9 @@
 package com.brasper.platform.accounting.application.queryservices;
 import com.brasper.platform.accounting.domain.model.aggregates.TaxParameters;
+import com.brasper.platform.accounting.domain.model.aggregates.TaxReturn;
 import com.brasper.platform.accounting.domain.repositories.TaxParametersRepository;
+import com.brasper.platform.accounting.domain.repositories.TaxReturnRepository;
+import com.brasper.platform.shared.domain.model.valueobjects.Period;
 import java.time.LocalDate;
 import java.util.Comparator;
 import java.util.List;
@@ -12,7 +15,16 @@ import org.springframework.transaction.annotation.Transactional;
 @Transactional(readOnly = true)
 public class TaxQueryService {
     private final TaxParametersRepository parameters;
-    public TaxQueryService(TaxParametersRepository parameters) { this.parameters = parameters; }
+    private final TaxReturnRepository returns;
+    public TaxQueryService(TaxParametersRepository parameters, TaxReturnRepository returns) {
+        this.parameters = parameters;
+        this.returns = returns;
+    }
+    public Optional<TaxReturn> findReturnByPeriod(Period period) { return returns.findByPeriod(period); }
+    public List<TaxReturn> findAllReturns() {
+        return returns.findAll().stream().sorted(Comparator.comparing(TaxReturn::getPeriod,
+                Comparator.comparingInt(Period::year).thenComparingInt(Period::month)).reversed()).toList();
+    }
     public Optional<TaxParameters> findParametersAt(LocalDate date) {
         return parameters.findFirstByEffectiveFromLessThanEqualOrderByEffectiveFromDesc(date);
     }
