@@ -1,11 +1,13 @@
 package com.brasper.platform.treasury.application.commandservices;
 
 import com.brasper.platform.shared.application.result.Result;
+import com.brasper.platform.treasury.domain.events.PartnerContributionRegisteredEvent;
 import com.brasper.platform.treasury.domain.model.aggregates.Partner;
 import com.brasper.platform.treasury.domain.model.commands.RegisterPartnerCommand;
 import com.brasper.platform.treasury.domain.model.commands.RegisterPartnerContributionCommand;
 import com.brasper.platform.treasury.domain.repositories.BankAccountRepository;
 import com.brasper.platform.treasury.domain.repositories.PartnerRepository;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -14,10 +16,13 @@ public class PartnerCommandService {
 
     private final PartnerRepository partners;
     private final BankAccountRepository accounts;
+    private final ApplicationEventPublisher events;
 
-    public PartnerCommandService(PartnerRepository partners, BankAccountRepository accounts) {
+    public PartnerCommandService(PartnerRepository partners, BankAccountRepository accounts,
+            ApplicationEventPublisher events) {
         this.partners = partners;
         this.accounts = accounts;
+        this.events = events;
     }
 
     @Transactional
@@ -42,6 +47,11 @@ public class PartnerCommandService {
             return Result.failure(PartnerCommandFailure.CONTRIBUTION_ACCOUNT_NOT_FOUND);
         }
         partner.registerContribution(command);
-        return Result.success(partners.save(partner));
+        Partner saved = partners.save(partner);
+        // Read the contribution back from the saved aggregate: that instance is the persisted one, with its id.
+        var contribution = saved.getContributions().getLast();
+        events.publishEvent(new PartnerContributionRegisteredEvent(contribution.getId(), saved.getId(),
+                command.contributedOn(), command.amount(), command.bankAccountId(), command.expenseId()));
+        return Result.success(saved);
     }
 }

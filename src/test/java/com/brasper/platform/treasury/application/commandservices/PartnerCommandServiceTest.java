@@ -19,6 +19,7 @@ import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.Optional;
 import org.junit.jupiter.api.Test;
+import org.springframework.context.ApplicationEventPublisher;
 
 class PartnerCommandServiceTest {
 
@@ -26,7 +27,7 @@ class PartnerCommandServiceTest {
 
     private final PartnerRepository partners = mock(PartnerRepository.class);
     private final BankAccountRepository accounts = mock(BankAccountRepository.class);
-    private final PartnerCommandService service = new PartnerCommandService(partners, accounts);
+    private final PartnerCommandService service = new PartnerCommandService(partners, accounts, mock(ApplicationEventPublisher.class));
 
     private static Money pen(String amount) {
         return new Money(new BigDecimal(amount), Currency.PEN);

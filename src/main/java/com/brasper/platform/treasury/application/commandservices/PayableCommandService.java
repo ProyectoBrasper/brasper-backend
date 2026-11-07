@@ -3,6 +3,7 @@ package com.brasper.platform.treasury.application.commandservices;
 import com.brasper.platform.shared.application.result.Result;
 import com.brasper.platform.shared.domain.model.valueobjects.PaymentStatus;
 import com.brasper.platform.treasury.domain.model.aggregates.BankAccount;
+import com.brasper.platform.treasury.domain.events.PayablePaidEvent;
 import com.brasper.platform.treasury.domain.model.aggregates.Payable;
 import com.brasper.platform.treasury.domain.model.commands.CreatePayableCommand;
 import com.brasper.platform.treasury.domain.model.commands.RegisterCashMovementCommand;
@@ -13,6 +14,7 @@ import com.brasper.platform.treasury.domain.model.valueobjects.MovementDirection
 import com.brasper.platform.treasury.domain.model.valueobjects.MovementSource;
 import com.brasper.platform.treasury.domain.repositories.BankAccountRepository;
 import com.brasper.platform.treasury.domain.repositories.PayableRepository;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -21,10 +23,13 @@ public class PayableCommandService {
 
     private final PayableRepository payables;
     private final BankAccountRepository accounts;
+    private final ApplicationEventPublisher events;
 
-    public PayableCommandService(PayableRepository payables, BankAccountRepository accounts) {
+    public PayableCommandService(PayableRepository payables, BankAccountRepository accounts,
+            ApplicationEventPublisher events) {
         this.payables = payables;
         this.accounts = accounts;
+        this.events = events;
     }
 
     @Transactional
@@ -63,6 +68,8 @@ public class PayableCommandService {
                 MovementDirection.OUTFLOW, command.amount(), "Payable payment: " + saved.getConcept(),
                 MovementSource.PAYABLE_PAYMENT, payment.getId()));
         accounts.save(account);
+        events.publishEvent(new PayablePaidEvent(payment.getId(), saved.getId(), command.paidOn(), command.amount(),
+                account.getId()));
         return Result.success(saved);
     }
 
