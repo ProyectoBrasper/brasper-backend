@@ -31,6 +31,14 @@ public class FixedAssetsController {
         return respond(commands.handle(new RegisterFixedAssetCommand(resource.description(), resource.acquiredOn(),
                 new Money(resource.taxableBase(), resource.currency()), resource.usefulLifeMonths(), resource.expenseId())), HttpStatus.CREATED);
     }
+    @PostMapping("/depreciation") @PreAuthorize(WRITE)
+    public ResponseEntity<?> depreciate(@Valid @RequestBody RunDepreciationResource resource) {
+        return commands.handle(new RunMonthlyDepreciationCommand(
+                new com.brasper.platform.shared.domain.model.valueobjects.Period(resource.year(), resource.month())))
+                .<ResponseEntity<?>>fold(entries -> ResponseEntity.status(HttpStatus.CREATED)
+                                .body(entries.stream().map(LedgerResourceAssembler::toResource).toList()),
+                        failure -> FixedAssetFailureResponseAssembler.toResponse(failure, messages));
+    }
     @PostMapping("/{id}/disposal") @PreAuthorize(WRITE)
     public ResponseEntity<?> dispose(@PathVariable Long id, @Valid @RequestBody DisposeFixedAssetResource resource) {
         return respond(commands.handle(new DisposeFixedAssetCommand(id, resource.disposedOn())), HttpStatus.OK);

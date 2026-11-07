@@ -23,6 +23,7 @@ class FixedAssetsControllerTest {
     private static final String BODY = """
             {"description":"Laptop","acquiredOn":"2000-01-01","taxableBase":1200,"currency":"PEN","usefulLifeMonths":12,"expenseId":42}
             """;
+    @Autowired com.brasper.platform.accounting.application.commandservices.LedgerCommandService ledger;
     @Autowired MockMvc mvc;
     @Autowired UserRepository users;
     @Autowired HashingService hashing;
@@ -58,6 +59,23 @@ class FixedAssetsControllerTest {
         org.junit.jupiter.api.Assertions.assertEquals(400, com.brasper.platform.accounting.interfaces.rest.transform.FixedAssetFailureResponseAssembler
                 .toResponse(com.brasper.platform.accounting.application.commandservices.FixedAssetCommandFailure.INVALID_USEFUL_LIFE,
                         new org.springframework.context.support.StaticMessageSource()).getStatusCode().value());
+    }
+    @Test void postsDepreciationOnceAndRejectsEngineers() throws Exception {
+        var expense = com.brasper.platform.accounting.domain.model.valueobjects.LedgerAccountType.EXPENSE;
+        var asset = com.brasper.platform.accounting.domain.model.valueobjects.LedgerAccountType.ASSET;
+        ledger.handle(new com.brasper.platform.accounting.domain.model.commands.CreateLedgerAccountCommand(
+                new com.brasper.platform.accounting.domain.model.valueobjects.AccountCode("68"), "Depreciation", expense));
+        ledger.handle(new com.brasper.platform.accounting.domain.model.commands.CreateLedgerAccountCommand(
+                new com.brasper.platform.accounting.domain.model.valueobjects.AccountCode("39"), "Accumulated depreciation", asset));
+        String token = bearer(Role.ROLE_ACCOUNTING);
+        send(token, URL, BODY).andExpect(status().isCreated());
+        String period = "{\"month\":2,\"year\":2000}";
+        send(token, URL + "/depreciation", period).andExpect(status().isCreated())
+                .andExpect(jsonPath("$.length()").value(1))
+                .andExpect(jsonPath("$[0].source").value("DEPRECIATION"))
+                .andExpect(jsonPath("$[0].totalDebit.amount").value(100));
+        send(token, URL + "/depreciation", period).andExpect(status().isConflict());
+        send(bearer(Role.ROLE_ENGINEER), URL + "/depreciation", period).andExpect(status().isForbidden());
     }
     @Test void enforcesRoles() throws Exception {
         for (Role role : Role.values()) {
