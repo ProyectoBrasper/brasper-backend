@@ -10,6 +10,8 @@ import static org.mockito.Mockito.when;
 import com.brasper.platform.expenses.application.outboundservices.ExpenseProjectLookup;
 import com.brasper.platform.expenses.application.outboundservices.ExpenseTaxRatesProvider;
 import com.brasper.platform.expenses.application.outboundservices.ExpenseTreasuryLookup;
+import com.brasper.platform.expenses.domain.events.ExpenseAnnulledEvent;
+import com.brasper.platform.expenses.domain.events.ExpenseRegisteredEvent;
 import com.brasper.platform.expenses.domain.model.aggregates.Expense;
 import com.brasper.platform.expenses.domain.model.aggregates.Supplier;
 import com.brasper.platform.expenses.domain.model.commands.AnnulExpenseCommand;
@@ -30,6 +32,7 @@ import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.Optional;
 import org.junit.jupiter.api.Test;
+import org.springframework.context.ApplicationEventPublisher;
 
 class ExpenseCommandServiceTest {
 
@@ -40,8 +43,9 @@ class ExpenseCommandServiceTest {
     private final ExpenseProjectLookup projects = mock(ExpenseProjectLookup.class);
     private final ExpenseTaxRatesProvider taxRates = mock(ExpenseTaxRatesProvider.class);
     private final ExpenseTreasuryLookup treasury = mock(ExpenseTreasuryLookup.class);
+    private final ApplicationEventPublisher events = mock(ApplicationEventPublisher.class);
     private final ExpenseCommandService service = new ExpenseCommandService(expenses, suppliers, projects, taxRates,
-            treasury);
+            treasury, events);
 
     private static RegisterExpenseCommand register(Long projectId, Long supplierId, PaymentMethod method,
             Long account, Long partner) {
@@ -175,5 +179,16 @@ class ExpenseCommandServiceTest {
                 .contains(ExpenseCommandFailure.EXPENSE_NOT_FOUND);
         assertThat(service.handle(new CorrectExpenseCommand(9L, null, CostCategory.OTHER, null)).failure())
                 .contains(ExpenseCommandFailure.EXPENSE_NOT_FOUND);
+    }
+
+    @Test
+    void publishesAnEventWhenAnExpenseIsRegisteredOrAnnulled() {
+        everythingExists();
+        service.handle(valid());
+        verify(events).publishEvent(any(ExpenseRegisteredEvent.class));
+
+        stored();
+        service.handle(new AnnulExpenseCommand(1L));
+        verify(events).publishEvent(any(ExpenseAnnulledEvent.class));
     }
 }
