@@ -2,6 +2,7 @@ package com.brasper.platform.accounting.application.eventhandlers;
 
 import com.brasper.platform.accounting.application.commandservices.LedgerCommandService;
 import com.brasper.platform.accounting.domain.services.PostingRules;
+import com.brasper.platform.staff.domain.events.FixedCostPaidEvent;
 import com.brasper.platform.treasury.domain.events.LoanDisbursedEvent;
 import com.brasper.platform.treasury.domain.events.LoanInstallmentPaidEvent;
 import com.brasper.platform.treasury.domain.events.PartnerContributionRegisteredEvent;
@@ -10,7 +11,7 @@ import org.springframework.stereotype.Component;
 import org.springframework.transaction.event.TransactionPhase;
 import org.springframework.transaction.event.TransactionalEventListener;
 
-/** Entries for the cash movements Treasury makes by itself, posted in the transaction that made them. */
+/** Entries for payments made elsewhere, posted in the transaction that made them. Staff payments arrive here too. */
 @Component
 class TreasuryPostingEventHandler {
 
@@ -18,6 +19,11 @@ class TreasuryPostingEventHandler {
 
     TreasuryPostingEventHandler(LedgerCommandService ledger) {
         this.ledger = ledger;
+    }
+
+    @TransactionalEventListener(phase = TransactionPhase.BEFORE_COMMIT)
+    void on(FixedCostPaidEvent event) {
+        PostingResults.check(ledger.handle(PostingRules.forFixedCostPayment(event)));
     }
 
     @TransactionalEventListener(phase = TransactionPhase.BEFORE_COMMIT)

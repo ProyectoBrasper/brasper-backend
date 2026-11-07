@@ -2,6 +2,7 @@ package com.brasper.platform.staff.application.commandservices;
 
 import com.brasper.platform.shared.application.result.Result;
 import com.brasper.platform.staff.application.outboundservices.StaffTreasuryLookup;
+import com.brasper.platform.staff.domain.events.FixedCostPaidEvent;
 import com.brasper.platform.staff.domain.model.aggregates.FixedCost;
 import com.brasper.platform.staff.domain.model.commands.CreateFixedCostCommand;
 import com.brasper.platform.staff.domain.model.commands.DeactivateFixedCostCommand;
@@ -10,6 +11,7 @@ import com.brasper.platform.staff.domain.model.commands.UpdateFixedCostCommand;
 import com.brasper.platform.staff.domain.model.valueobjects.FixedCostType;
 import com.brasper.platform.staff.domain.repositories.EmployeeRepository;
 import com.brasper.platform.staff.domain.repositories.FixedCostRepository;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -19,12 +21,14 @@ public class FixedCostCommandService {
     private final FixedCostRepository costs;
     private final EmployeeRepository employees;
     private final StaffTreasuryLookup treasury;
+    private final ApplicationEventPublisher events;
 
     public FixedCostCommandService(FixedCostRepository costs, EmployeeRepository employees,
-            StaffTreasuryLookup treasury) {
+            StaffTreasuryLookup treasury, ApplicationEventPublisher events) {
         this.costs = costs;
         this.employees = employees;
         this.treasury = treasury;
+        this.events = events;
     }
 
     @Transactional
@@ -77,6 +81,11 @@ public class FixedCostCommandService {
             return Result.failure(FixedCostCommandFailure.BANK_ACCOUNT_NOT_FOUND);
         }
         cost.registerPayment(command);
-        return Result.success(costs.save(cost));
+        FixedCost saved = costs.save(cost);
+        // Read the payment back from the saved aggregate: that instance is the persisted one, with its id.
+        var payment = saved.getPayments().getLast();
+        events.publishEvent(new FixedCostPaidEvent(payment.getId(), saved.getId(), saved.getType(), payment.getPaidOn(),
+                payment.getAmount(), payment.getBankAccountId()));
+        return Result.success(saved);
     }
 }

@@ -1,11 +1,13 @@
 package com.brasper.platform.treasury.application.eventhandlers;
 
+import com.brasper.platform.accounting.domain.events.TaxReturnPaidEvent;
 import com.brasper.platform.billing.domain.events.InvoicePaymentReceivedEvent;
 import com.brasper.platform.billing.domain.model.valueobjects.InvoicePaymentType;
 import com.brasper.platform.expenses.domain.events.ExpenseAnnulledEvent;
 import com.brasper.platform.expenses.domain.events.ExpenseRegisteredEvent;
 import com.brasper.platform.expenses.domain.model.valueobjects.PaymentMethod;
 import com.brasper.platform.shared.domain.model.valueobjects.Money;
+import com.brasper.platform.staff.domain.events.FixedCostPaidEvent;
 import com.brasper.platform.treasury.application.commandservices.BankAccountCommandService;
 import com.brasper.platform.treasury.domain.events.PartnerContributionRegisteredEvent;
 import com.brasper.platform.treasury.domain.model.commands.RegisterCashMovementCommand;
@@ -55,6 +57,20 @@ class CashPostingEventHandler {
             move(event.bankAccountId(), event.annulledOn(), MovementDirection.INFLOW, event.total(),
                     "Expense annulled", MovementSource.EXPENSE, event.expenseId());
         }
+    }
+
+    @TransactionalEventListener(phase = TransactionPhase.BEFORE_COMMIT)
+    void on(FixedCostPaidEvent event) {
+        if (event.bankAccountId() != null) {
+            move(event.bankAccountId(), event.paidOn(), MovementDirection.OUTFLOW, event.amount(), "Fixed cost payment",
+                    MovementSource.FIXED_COST_PAYMENT, event.paymentId());
+        }
+    }
+
+    @TransactionalEventListener(phase = TransactionPhase.BEFORE_COMMIT)
+    void on(TaxReturnPaidEvent event) {
+        move(event.bankAccountId(), event.paidOn(), MovementDirection.OUTFLOW, event.amount(), "Tax return payment",
+                MovementSource.TAX_PAYMENT, event.taxReturnId());
     }
 
     /** Money a partner put into an account. One that paid an expense out of pocket moved no company cash. */

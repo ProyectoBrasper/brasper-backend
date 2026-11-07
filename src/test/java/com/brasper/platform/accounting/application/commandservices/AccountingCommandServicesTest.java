@@ -30,7 +30,8 @@ class AccountingCommandServicesTest {
             mock(com.brasper.platform.accounting.domain.repositories.TaxReturnRepository.class),
             mock(com.brasper.platform.accounting.domain.repositories.JournalEntryRepository.class),
             mock(LedgerCommandService.class),
-            mock(com.brasper.platform.accounting.application.outboundservices.AccountingTreasuryLookup.class));
+            mock(com.brasper.platform.accounting.application.outboundservices.AccountingTreasuryLookup.class),
+            mock(org.springframework.context.ApplicationEventPublisher.class));
     private final FixedAssetCommandService fixedAssets = new FixedAssetCommandService(assets, parameters, mock(LedgerCommandService.class));
 
     private static RegisterFixedAssetCommand register(int months) {

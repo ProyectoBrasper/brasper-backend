@@ -11,6 +11,8 @@ import com.brasper.platform.expenses.domain.model.valueobjects.PaymentMethod;
 import com.brasper.platform.billing.domain.events.InvoicePaymentReceivedEvent;
 import com.brasper.platform.billing.domain.model.valueobjects.InvoicePaymentType;
 import com.brasper.platform.shared.domain.model.valueobjects.Currency;
+import com.brasper.platform.staff.domain.events.FixedCostPaidEvent;
+import com.brasper.platform.staff.domain.model.valueobjects.FixedCostType;
 import com.brasper.platform.treasury.domain.events.LoanDisbursedEvent;
 import com.brasper.platform.treasury.domain.events.LoanInstallmentPaidEvent;
 import com.brasper.platform.treasury.domain.events.PartnerContributionRegisteredEvent;
@@ -145,5 +147,18 @@ class PostingRulesTest {
         assertThat(line(command, "50").credit().amount()).isEqualByComparingTo("300");
         assertThat(PostingRules.forPartnerContribution(forExpense)).isEmpty();
         assertThat(PostingRules.forPartnerContribution(noAccount)).isEmpty();
+    }
+
+    @Test
+    void aFixedCostPaymentDebitsTheAccountOfItsTypeAndCreditsCash() {
+        var salary = PostingRules.forFixedCostPayment(new FixedCostPaidEvent(1L, 2L, FixedCostType.SALARY, DAY, pen("900"), 1L));
+        var fees = PostingRules.forFixedCostPayment(new FixedCostPaidEvent(2L, 3L, FixedCostType.ITF, DAY, pen("5"), null));
+        var rent = PostingRules.forFixedCostPayment(new FixedCostPaidEvent(3L, 4L, FixedCostType.OFFICE_RENT, DAY, pen("700"), 1L));
+
+        assertThat(salary.source()).isEqualTo(EntrySource.FIXED_COST_PAYMENT);
+        assertThat(line(salary, "62").debit().amount()).isEqualByComparingTo("900");
+        assertThat(line(salary, "10").credit().amount()).isEqualByComparingTo("900");
+        assertThat(line(fees, "67").debit().amount()).isEqualByComparingTo("5");
+        assertThat(line(rent, "63").debit().amount()).isEqualByComparingTo("700");
     }
 }
