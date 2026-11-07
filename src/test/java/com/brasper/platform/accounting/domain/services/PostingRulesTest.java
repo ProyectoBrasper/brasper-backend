@@ -11,6 +11,11 @@ import com.brasper.platform.expenses.domain.model.valueobjects.PaymentMethod;
 import com.brasper.platform.billing.domain.events.InvoicePaymentReceivedEvent;
 import com.brasper.platform.billing.domain.model.valueobjects.InvoicePaymentType;
 import com.brasper.platform.shared.domain.model.valueobjects.Currency;
+import com.brasper.platform.treasury.domain.events.LoanDisbursedEvent;
+import com.brasper.platform.treasury.domain.events.LoanInstallmentPaidEvent;
+import com.brasper.platform.treasury.domain.events.PartnerContributionRegisteredEvent;
+import com.brasper.platform.treasury.domain.events.PayablePaidEvent;
+import com.brasper.platform.treasury.domain.model.valueobjects.LoanType;
 import com.brasper.platform.shared.domain.model.valueobjects.Money;
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -86,5 +91,59 @@ class PostingRulesTest {
         assertThat(line(pending, "63").debit().amount()).isEqualByComparingTo("100");
         assertThat(line(pending, "42").credit().amount()).isEqualByComparingTo("118");
         assertThat(line(partner, "50").credit().amount()).isEqualByComparingTo("118");
+    }
+
+    @Test
+    void aPayablePaymentDebitsSuppliersAndCreditsCash() {
+        RegisterJournalEntryCommand command = PostingRules.forPayablePayment(new PayablePaidEvent(3L, 2L, DAY, pen("90"), 1L));
+
+        assertThat(command.source()).isEqualTo(EntrySource.PAYABLE_PAYMENT);
+        assertThat(line(command, "42").debit().amount()).isEqualByComparingTo("90");
+        assertThat(line(command, "10").credit().amount()).isEqualByComparingTo("90");
+    }
+
+    @Test
+    void loansPostOnTheLoanAccountOfTheirDirection() {
+        RegisterJournalEntryCommand received = PostingRules.forLoanDisbursement(
+                new LoanDisbursedEvent(1L, LoanType.RECEIVED, DAY, pen("5000"), 1L));
+        RegisterJournalEntryCommand granted = PostingRules.forLoanDisbursement(
+                new LoanDisbursedEvent(2L, LoanType.GRANTED, DAY, pen("5000"), 1L));
+
+        assertThat(line(received, "10").debit().amount()).isEqualByComparingTo("5000");
+        assertThat(line(received, "45").credit().amount()).isEqualByComparingTo("5000");
+        assertThat(line(granted, "16").debit().amount()).isEqualByComparingTo("5000");
+        assertThat(line(granted, "10").credit().amount()).isEqualByComparingTo("5000");
+    }
+
+    @Test
+    void installmentsSplitPrincipalAndInterest() {
+        RegisterJournalEntryCommand paid = PostingRules.forLoanInstallment(
+                new LoanInstallmentPaidEvent(7L, 1L, LoanType.RECEIVED, DAY, pen("400"), pen("50"), 1L));
+        RegisterJournalEntryCommand collected = PostingRules.forLoanInstallment(
+                new LoanInstallmentPaidEvent(8L, 2L, LoanType.GRANTED, DAY, pen("400"), pen("50"), 1L));
+        RegisterJournalEntryCommand noInterest = PostingRules.forLoanInstallment(
+                new LoanInstallmentPaidEvent(9L, 1L, LoanType.RECEIVED, DAY, pen("400"), pen("0"), 1L));
+
+        assertThat(line(paid, "45").debit().amount()).isEqualByComparingTo("400");
+        assertThat(line(paid, "67").debit().amount()).isEqualByComparingTo("50");
+        assertThat(line(paid, "10").credit().amount()).isEqualByComparingTo("450");
+        assertThat(line(collected, "10").debit().amount()).isEqualByComparingTo("450");
+        assertThat(line(collected, "16").credit().amount()).isEqualByComparingTo("400");
+        assertThat(line(collected, "77").credit().amount()).isEqualByComparingTo("50");
+        assertThat(noInterest.lines()).extracting(l -> l.accountCode().value()).containsExactly("45", "10");
+    }
+
+    @Test
+    void aPartnerContributionIsPostedOnlyWhenMoneyReachedAnAccountAndNoExpenseCarriesIt() {
+        var deposit = new PartnerContributionRegisteredEvent(5L, 6L, DAY, pen("300"), 1L, null);
+        var forExpense = new PartnerContributionRegisteredEvent(6L, 6L, DAY, pen("80"), 1L, 4L);
+        var noAccount = new PartnerContributionRegisteredEvent(7L, 6L, DAY, pen("80"), null, null);
+
+        RegisterJournalEntryCommand command = PostingRules.forPartnerContribution(deposit).orElseThrow();
+
+        assertThat(line(command, "10").debit().amount()).isEqualByComparingTo("300");
+        assertThat(line(command, "50").credit().amount()).isEqualByComparingTo("300");
+        assertThat(PostingRules.forPartnerContribution(forExpense)).isEmpty();
+        assertThat(PostingRules.forPartnerContribution(noAccount)).isEmpty();
     }
 }

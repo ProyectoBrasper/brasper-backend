@@ -3,6 +3,8 @@ package com.brasper.platform.treasury.application.commandservices;
 import com.brasper.platform.shared.application.result.Result;
 import com.brasper.platform.shared.domain.model.valueobjects.Money;
 import com.brasper.platform.treasury.domain.model.aggregates.BankAccount;
+import com.brasper.platform.treasury.domain.events.LoanDisbursedEvent;
+import com.brasper.platform.treasury.domain.events.LoanInstallmentPaidEvent;
 import com.brasper.platform.treasury.domain.model.aggregates.Loan;
 import com.brasper.platform.treasury.domain.model.commands.PayLoanInstallmentCommand;
 import com.brasper.platform.treasury.domain.model.commands.RegisterCashMovementCommand;
@@ -14,6 +16,7 @@ import com.brasper.platform.treasury.domain.model.valueobjects.MovementDirection
 import com.brasper.platform.treasury.domain.model.valueobjects.MovementSource;
 import com.brasper.platform.treasury.domain.repositories.BankAccountRepository;
 import com.brasper.platform.treasury.domain.repositories.LoanRepository;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -22,10 +25,13 @@ public class LoanCommandService {
 
     private final LoanRepository loans;
     private final BankAccountRepository accounts;
+    private final ApplicationEventPublisher events;
 
-    public LoanCommandService(LoanRepository loans, BankAccountRepository accounts) {
+    public LoanCommandService(LoanRepository loans, BankAccountRepository accounts,
+            ApplicationEventPublisher events) {
         this.loans = loans;
         this.accounts = accounts;
+        this.events = events;
     }
 
     @Transactional
@@ -44,6 +50,8 @@ public class LoanCommandService {
                 loan.getPrincipal(), "Loan disbursement: " + loan.getCounterparty(),
                 MovementSource.LOAN_DISBURSEMENT, loan.getId()));
         accounts.save(account);
+        events.publishEvent(new LoanDisbursedEvent(loan.getId(), loan.getType(), loan.getDisbursedOn(),
+                loan.getPrincipal(), account.getId()));
         return Result.success(loan);
     }
 
@@ -93,6 +101,8 @@ public class LoanCommandService {
                 total, "Loan installment: " + loan.getCounterparty(),
                 MovementSource.LOAN_INSTALLMENT, command.installmentId()));
         accounts.save(account);
+        events.publishEvent(new LoanInstallmentPaidEvent(command.installmentId(), loan.getId(), loan.getType(),
+                command.paidOn(), installment.getPrincipal(), installment.getInterest(), account.getId()));
         return Result.success(loan);
     }
 }

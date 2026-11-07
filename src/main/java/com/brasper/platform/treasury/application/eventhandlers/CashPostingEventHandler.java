@@ -7,6 +7,7 @@ import com.brasper.platform.expenses.domain.events.ExpenseRegisteredEvent;
 import com.brasper.platform.expenses.domain.model.valueobjects.PaymentMethod;
 import com.brasper.platform.shared.domain.model.valueobjects.Money;
 import com.brasper.platform.treasury.application.commandservices.BankAccountCommandService;
+import com.brasper.platform.treasury.domain.events.PartnerContributionRegisteredEvent;
 import com.brasper.platform.treasury.domain.model.commands.RegisterCashMovementCommand;
 import com.brasper.platform.treasury.domain.model.valueobjects.MovementDirection;
 import com.brasper.platform.treasury.domain.model.valueobjects.MovementSource;
@@ -53,6 +54,15 @@ class CashPostingEventHandler {
         if (event.paid() && event.bankAccountId() != null) {
             move(event.bankAccountId(), event.annulledOn(), MovementDirection.INFLOW, event.total(),
                     "Expense annulled", MovementSource.EXPENSE, event.expenseId());
+        }
+    }
+
+    /** Money a partner put into an account. One that paid an expense out of pocket moved no company cash. */
+    @TransactionalEventListener(phase = TransactionPhase.BEFORE_COMMIT)
+    void on(PartnerContributionRegisteredEvent event) {
+        if (event.expenseId() == null && event.bankAccountId() != null) {
+            move(event.bankAccountId(), event.contributedOn(), MovementDirection.INFLOW, event.amount(),
+                    "Partner contribution", MovementSource.PARTNER_CONTRIBUTION, event.contributionId());
         }
     }
 

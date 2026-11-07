@@ -29,6 +29,7 @@ import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.Optional;
 import org.junit.jupiter.api.Test;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.test.util.ReflectionTestUtils;
 
 class PayableCommandServiceTest {
@@ -36,7 +37,7 @@ class PayableCommandServiceTest {
     private static final LocalDate DAY = LocalDate.of(2026, 11, 6);
     private final PayableRepository payables = mock(PayableRepository.class);
     private final BankAccountRepository accounts = mock(BankAccountRepository.class);
-    private final PayableCommandService service = new PayableCommandService(payables, accounts);
+    private final PayableCommandService service = new PayableCommandService(payables, accounts, mock(ApplicationEventPublisher.class));
 
     private static Money pen(String amount) {
         return new Money(new BigDecimal(amount), Currency.PEN);

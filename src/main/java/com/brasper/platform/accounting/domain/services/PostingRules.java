@@ -10,6 +10,11 @@ import com.brasper.platform.billing.domain.model.valueobjects.InvoicePaymentType
 import com.brasper.platform.expenses.domain.events.ExpenseRegisteredEvent;
 import com.brasper.platform.expenses.domain.model.valueobjects.PaymentMethod;
 import com.brasper.platform.shared.domain.model.valueobjects.Money;
+import com.brasper.platform.treasury.domain.events.LoanDisbursedEvent;
+import com.brasper.platform.treasury.domain.events.LoanInstallmentPaidEvent;
+import com.brasper.platform.treasury.domain.events.PartnerContributionRegisteredEvent;
+import com.brasper.platform.treasury.domain.events.PayablePaidEvent;
+import com.brasper.platform.treasury.domain.model.valueobjects.LoanType;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
@@ -26,6 +31,10 @@ public final class PostingRules {
     static final AccountCode CAPITAL = new AccountCode("50");
     static final AccountCode DIRECT_COSTS = new AccountCode("60");
     static final AccountCode SERVICES = new AccountCode("63");
+    static final AccountCode LOANS_GRANTED = new AccountCode("16");
+    static final AccountCode LOANS_RECEIVED = new AccountCode("45");
+    static final AccountCode FINANCIAL_EXPENSES = new AccountCode("67");
+    static final AccountCode FINANCIAL_INCOME = new AccountCode("77");
 
     private PostingRules() { }
 
@@ -68,6 +77,57 @@ public final class PostingRules {
         }
         lines.add(credit(settlement, event.total(), null));
         return new RegisterJournalEntryCommand(event.spentOn(), "Expense", EntrySource.EXPENSE, event.expenseId(), lines);
+    }
+
+    /** D 42 / H 10. shortcut: every payable goes through 42 (suppliers), none through 46 (other accounts payable). */
+    public static RegisterJournalEntryCommand forPayablePayment(PayablePaidEvent event) {
+        return new RegisterJournalEntryCommand(event.paidOn(), "Payable payment", EntrySource.PAYABLE_PAYMENT,
+                event.paymentId(), List.of(debit(PAYABLES, event.amount(), null), credit(CASH, event.amount(), null)));
+    }
+
+    /** Received loan: D 10 / H 45. Granted loan: D 16 / H 10. */
+    public static RegisterJournalEntryCommand forLoanDisbursement(LoanDisbursedEvent event) {
+        boolean received = event.type() == LoanType.RECEIVED;
+        return new RegisterJournalEntryCommand(event.disbursedOn(), "Loan disbursement", EntrySource.LOAN_DISBURSEMENT,
+                event.loanId(), List.of(debit(received ? CASH : LOANS_GRANTED, event.principal(), null),
+                        credit(received ? LOANS_RECEIVED : CASH, event.principal(), null)));
+    }
+
+    /**
+     * Received loan: D 45 principal + D 67 interest / H 10. Granted loan: D 10 / H 16 principal + H 77 interest.
+     */
+    public static RegisterJournalEntryCommand forLoanInstallment(LoanInstallmentPaidEvent event) {
+        boolean received = event.type() == LoanType.RECEIVED;
+        Money total = event.principal().add(event.interest());
+        List<JournalLineData> lines = new ArrayList<>();
+        if (received) {
+            lines.add(debit(LOANS_RECEIVED, event.principal(), null));
+            if (event.interest().isPositive()) {
+                lines.add(debit(FINANCIAL_EXPENSES, event.interest(), null));
+            }
+            lines.add(credit(CASH, total, null));
+        } else {
+            lines.add(debit(CASH, total, null));
+            lines.add(credit(LOANS_GRANTED, event.principal(), null));
+            if (event.interest().isPositive()) {
+                lines.add(credit(FINANCIAL_INCOME, event.interest(), null));
+            }
+        }
+        return new RegisterJournalEntryCommand(event.paidOn(), "Loan installment", EntrySource.LOAN_INSTALLMENT,
+                event.installmentId(), lines);
+    }
+
+    /**
+     * D 10 / H 50 for money a partner put into a bank account. A contribution that is an expense paid out of pocket
+     * is already in the expense's entry, and one without an account moved no money, so neither is posted here.
+     */
+    public static Optional<RegisterJournalEntryCommand> forPartnerContribution(PartnerContributionRegisteredEvent event) {
+        if (event.expenseId() != null || event.bankAccountId() == null) {
+            return Optional.empty();
+        }
+        return Optional.of(new RegisterJournalEntryCommand(event.contributedOn(), "Partner contribution",
+                EntrySource.PARTNER_CONTRIBUTION, event.contributionId(),
+                List.of(debit(CASH, event.amount(), null), credit(CAPITAL, event.amount(), null))));
     }
 
     private static JournalLineData debit(AccountCode account, Money amount, Long projectId) {
