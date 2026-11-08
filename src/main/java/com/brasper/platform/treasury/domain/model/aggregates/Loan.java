@@ -22,6 +22,7 @@ import jakarta.persistence.OneToMany;
 import jakarta.persistence.PrePersist;
 import jakarta.persistence.PreUpdate;
 import jakarta.persistence.Table;
+import jakarta.persistence.Version;
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.time.LocalDate;
@@ -33,6 +34,9 @@ import java.util.Objects;
 @Table(name = "loans")
 public class Loan {
     @Id @GeneratedValue(strategy = GenerationType.IDENTITY) private Long id;
+    /** Optimistic lock: two concurrent payments cannot both pass the balance check. */
+    @Version
+    private long version;
     @Enumerated(EnumType.STRING) @Column(nullable = false, length = 20, updatable = false) private LoanType type;
     @Column(nullable = false, length = 200, updatable = false) private String counterparty;
     @Column(nullable = false, precision = 14, scale = 2, updatable = false) private BigDecimal principal;

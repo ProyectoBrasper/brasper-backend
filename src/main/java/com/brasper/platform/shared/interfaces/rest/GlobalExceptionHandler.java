@@ -5,6 +5,7 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 import org.springframework.context.MessageSource;
 import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.dao.OptimisticLockingFailureException;
 import org.springframework.http.ProblemDetail;
 import org.springframework.http.ResponseEntity;
 import org.springframework.validation.FieldError;
@@ -40,6 +41,12 @@ public class GlobalExceptionHandler {
     /** E.g. two requests created the same unique value at once; the database constraint is the last guard. */
     @ExceptionHandler(DataIntegrityViolationException.class)
     public ResponseEntity<ProblemDetail> handle(DataIntegrityViolationException ex) {
+        return ProblemDetailAssembler.conflict(messages, "error.data-conflict");
+    }
+
+    /** Two requests changed the same record at once: the second one lost and must be retried. */
+    @ExceptionHandler(OptimisticLockingFailureException.class)
+    public ResponseEntity<ProblemDetail> handle(OptimisticLockingFailureException ex) {
         return ProblemDetailAssembler.conflict(messages, "error.data-conflict");
     }
 
