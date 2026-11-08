@@ -19,6 +19,8 @@ import com.brasper.platform.shared.domain.model.valueobjects.Period;
 import com.brasper.platform.shared.domain.model.valueobjects.Ruc;
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.util.ArrayList;
+import java.util.List;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -92,9 +94,18 @@ class ProjectsContextFacadeTest {
         Long second = saveProject("863BR-AGO-2026");
         Long third = saveProject("864BR-AGO-2026");
 
-        assertThat(facade.fetchProjectSnapshots(0, 2)).extracting(ProjectSnapshot::id).containsExactly(first, second);
-        assertThat(facade.fetchProjectSnapshots(1, 2)).extracting(ProjectSnapshot::id).containsExactly(third);
-        assertThat(facade.fetchProjectSnapshots(5, 2)).isEmpty();
+        // other tests may have committed projects, so walk every page instead of assuming an empty table
+        List<Long> all = new ArrayList<>();
+        for (int page = 0; ; page++) {
+            List<ProjectSnapshot> snapshots = facade.fetchProjectSnapshots(page, 2);
+            assertThat(snapshots.size()).isLessThanOrEqualTo(2);
+            if (snapshots.isEmpty()) {
+                break;
+            }
+            snapshots.forEach(snapshot -> all.add(snapshot.id()));
+        }
+        assertThat(all).endsWith(first, second, third).isSorted();
+        assertThat(facade.fetchProjectSnapshots(all.size() + 5, 2)).isEmpty();
         assertThatThrownBy(() -> facade.fetchProjectSnapshots(-1, 2)).isInstanceOf(IllegalArgumentException.class);
         assertThatThrownBy(() -> facade.fetchProjectSnapshots(0, 0)).isInstanceOf(IllegalArgumentException.class);
     }
