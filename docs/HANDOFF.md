@@ -87,6 +87,26 @@ Pendiente, en este orden sugerido:
 - Los certificados de retención no cuentan como cobrado en `BillingContextFacade`, y los aportes de socio no cuentan como pagado en `ExpensesContextFacade`.
 - Swagger UI y la especificación son públicos (no exponen datos); cada llamada sigue pidiendo token.
 
+## Auditoría ponytail: arreglos en curso
+Auditoría de todo el backend (17 hallazgos). Se arreglan en este orden, un PR por arreglo; marcar al terminar cada uno.
+1. [ ] Activos fijos: asentar el costo en la cuenta 33 (hoy solo se deprecia contra la 39).
+2. [ ] Pendientes de pago: el gasto pendiente crea el pendiente en Treasury, un pendiente sin gasto asienta D 63 / H 42, y al saldarse se llama `Expense.markAsPaid`.
+3. [x] Doble pago por concurrencia: `@Version` en `Invoice`, `Payable` y `Loan` (V35); el segundo guardado responde 409. `BankAccount` no lleva versión porque su saldo se calcula de los movimientos.
+4. [ ] Balance y estado de resultados: sumar en la base (`group by`) en vez de cargar todos los asientos.
+5. [ ] Flujo de caja: pedir los movimientos una sola vez para todo el rango.
+6. [ ] Rentabilidad y tablero: totales de todos los proyectos en una consulta.
+7. [ ] Flujo de caja: la semana actual suma lo real hasta hoy más lo programado.
+8. [ ] Lecturas de Treasury, Billing, Expenses y Projects restringidas por rol.
+9. [ ] Facturas y gastos en USD fuera de reportes e IGV.
+10. [ ] Aporte de socio reembolsable asentado como pasivo, no como capital.
+11. [ ] Errores internos (`IllegalStateException`) registrados en el log y sin texto interno al cliente.
+12. [ ] Límite de intentos al iniciar sesión.
+13. [ ] Paginación en listas de facturas, gastos, pagos pendientes y costos fijos.
+14. [ ] `AGENTS.md` dice que Lombok se usa y no está en el `pom.xml`.
+15. [ ] `LedgerQueryService` carga las cuentas varias veces por llamada.
+16. [ ] Tests con datos confirmados en la base compartida.
+17. [ ] ArchUnit solo hace cumplir 2 de las reglas documentadas.
+
 ## Pendientes de operación
 - Las migraciones V2 a V23 aún no se aplicaron en Supabase: se aplican en el siguiente arranque contra esa base. Solo tiene la baseline `V1`.
 - La contraseña de Supabase se expuso en el chat al inicio; el usuario decidió no rotarla.
@@ -98,4 +118,4 @@ Pendiente, en este orden sugerido:
 - Advertencia de Mockito sobre el agente en JDK 25 (inofensiva).
 
 ## Migraciones (esquema `brasper`)
-V1 baseline, V2 users, V3 clients, V4 projects, V5 project_progress, V6 project_cost_estimates, V7 invoices, V8 invoice_payments, V9 scheduled_collections, V10 suppliers, V11 expenses, V20 bank_accounts, V21 partners, V22 payables, V23 cash_movements, V24 loans y loan_installments, V25 employees, V26 fixed_costs, V27 ledger_accounts, V28 journal_entries y journal_lines, V29 tax_parameters y tax_returns, V30 fixed_assets, V31 seed_chart_of_accounts, V32 seed_income_tax_account. Los saltos de numeración (V12 a V19) son a propósito: eran números reservados para trabajo en paralelo. Flyway no exige que sean consecutivos.
+V1 baseline, V2 users, V3 clients, V4 projects, V5 project_progress, V6 project_cost_estimates, V7 invoices, V8 invoice_payments, V9 scheduled_collections, V10 suppliers, V11 expenses, V20 bank_accounts, V21 partners, V22 payables, V23 cash_movements, V24 loans y loan_installments, V25 employees, V26 fixed_costs, V27 ledger_accounts, V28 journal_entries y journal_lines, V29 tax_parameters y tax_returns, V30 fixed_assets, V31 seed_chart_of_accounts, V32 seed_income_tax_account. Los saltos de numeración (V12 a V19) son a propósito: eran números reservados para trabajo en paralelo. Flyway no exige que sean consecutivos. V35 version (bloqueo optimista) en invoices, payables y loans.

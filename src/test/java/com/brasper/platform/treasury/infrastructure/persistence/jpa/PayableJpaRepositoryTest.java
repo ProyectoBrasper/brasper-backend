@@ -1,6 +1,7 @@
 package com.brasper.platform.treasury.infrastructure.persistence.jpa;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.brasper.platform.TestcontainersConfiguration;
 import com.brasper.platform.shared.domain.model.valueobjects.CashFlowWeek;
@@ -13,6 +14,7 @@ import com.brasper.platform.treasury.domain.model.commands.RegisterPayablePaymen
 import com.brasper.platform.treasury.domain.model.valueobjects.PayableType;
 import com.brasper.platform.treasury.domain.repositories.PayableRepository;
 import jakarta.persistence.EntityManager;
+import jakarta.persistence.OptimisticLockException;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import org.junit.jupiter.api.Test;
@@ -61,5 +63,23 @@ class PayableJpaRepositoryTest {
         assertThat(reloaded.getPayments()).hasSize(1);
         assertThat(reloaded.getPayments().getFirst()).extracting("id", "amount", "paidOn", "bankAccountId")
                 .containsExactly(paymentId, total, paidOn, bankId);
+    }
+
+    @Test
+    void aStalePayableCannotBeSavedOverAConcurrentChange() {
+        Long bankId = ((Number) em.createNativeQuery("""
+                insert into bank_accounts (bank, account_number, type, currency, opening_balance, opened_on, created_at, updated_at)
+                values ('BCP', 'payables-lock-test', 'CHECKING', 'USD', 0, current_date, now(), now()) returning id
+                """, Long.class).getSingleResult()).longValue();
+        Money total = new Money(new BigDecimal("50.00"), Currency.USD);
+        Long id = payables.save(new Payable(new CreatePayableCommand("stale", PayableType.OTHER,
+                total, null, null, null, new CashFlowWeek(2026, 11, 6)))).getId();
+        em.flush();
+        Payable stale = payables.findById(id).orElseThrow();
+        // Another transaction already changed the row (version 0 -> 1).
+        em.createNativeQuery("update payables set version = version + 1 where id = :id")
+                .setParameter("id", id).executeUpdate();
+        stale.registerPayment(new RegisterPayablePaymentCommand(id, LocalDate.of(2026, 11, 30), total, bankId));
+        assertThatThrownBy(em::flush).isInstanceOf(OptimisticLockException.class);
     }
 }
