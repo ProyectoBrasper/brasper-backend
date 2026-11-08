@@ -1,5 +1,6 @@
 package com.brasper.platform.projects.application.commandservices;
 
+import com.brasper.platform.projects.domain.events.ProjectCompletedEvent;
 import com.brasper.platform.projects.domain.model.aggregates.Project;
 import com.brasper.platform.projects.domain.model.commands.CancelProjectCommand;
 import com.brasper.platform.projects.domain.model.commands.CreateProjectCommand;
@@ -14,7 +15,9 @@ import com.brasper.platform.projects.domain.repositories.ClientRepository;
 import com.brasper.platform.projects.domain.repositories.ProjectRepository;
 import com.brasper.platform.shared.application.result.Result;
 import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.util.function.Consumer;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -23,10 +26,13 @@ public class ProjectCommandService {
 
     private final ProjectRepository projects;
     private final ClientRepository clients;
+    private final ApplicationEventPublisher events;
 
-    public ProjectCommandService(ProjectRepository projects, ClientRepository clients) {
+    public ProjectCommandService(ProjectRepository projects, ClientRepository clients,
+            ApplicationEventPublisher events) {
         this.projects = projects;
         this.clients = clients;
+        this.events = events;
     }
 
     @Transactional
@@ -74,6 +80,9 @@ public class ProjectCommandService {
         }
         project.registerProgress(command.period(), command.percentage());
         Project saved = projects.save(project);
+        if (saved.getStatus() == ProjectStatus.COMPLETED) {
+            events.publishEvent(new ProjectCompletedEvent(saved.getId(), LocalDate.now()));
+        }
         // Read the record back from the saved aggregate: that instance is the persisted one, with its id.
         return Result.success(saved.getProgressRecords().stream()
                 .filter(record -> record.getPeriod().equals(command.period())).findFirst().orElseThrow());

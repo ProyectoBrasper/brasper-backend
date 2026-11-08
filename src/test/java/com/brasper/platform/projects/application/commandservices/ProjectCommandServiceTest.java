@@ -8,6 +8,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.brasper.platform.projects.domain.model.aggregates.Client;
+import com.brasper.platform.projects.domain.events.ProjectCompletedEvent;
 import com.brasper.platform.projects.domain.model.aggregates.Project;
 import com.brasper.platform.projects.domain.model.commands.CancelProjectCommand;
 import com.brasper.platform.projects.domain.model.commands.CreateClientCommand;
@@ -30,6 +31,7 @@ import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.Optional;
 import org.junit.jupiter.api.Test;
+import org.springframework.context.ApplicationEventPublisher;
 
 class ProjectCommandServiceTest {
 
@@ -37,7 +39,8 @@ class ProjectCommandServiceTest {
 
     private final ProjectRepository projects = mock(ProjectRepository.class);
     private final ClientRepository clients = mock(ClientRepository.class);
-    private final ProjectCommandService service = new ProjectCommandService(projects, clients);
+    private final ApplicationEventPublisher events = mock(ApplicationEventPublisher.class);
+    private final ProjectCommandService service = new ProjectCommandService(projects, clients, events);
 
     private static CreateProjectCommand create() {
         return new CreateProjectCommand(CODE, "Planta", null, 1L, new Money(BigDecimal.TEN, Currency.PEN),
@@ -116,8 +119,11 @@ class ProjectCommandServiceTest {
         assertThat(first.getPercentage().value()).isEqualByComparingTo("0.6");
         assertThat(project.getStatus()).isEqualTo(ProjectStatus.IN_PROGRESS);
 
+        verify(events, never()).publishEvent(any(ProjectCompletedEvent.class));
+
         service.handle(progress(9, "0.4"));
         assertThat(project.getStatus()).isEqualTo(ProjectStatus.COMPLETED);
+        verify(events).publishEvent(any(ProjectCompletedEvent.class));
     }
 
     @Test
