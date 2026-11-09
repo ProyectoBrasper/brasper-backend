@@ -17,6 +17,8 @@ import com.brasper.platform.treasury.domain.events.LoanDisbursedEvent;
 import com.brasper.platform.treasury.domain.events.LoanInstallmentPaidEvent;
 import com.brasper.platform.treasury.domain.events.PartnerContributionRegisteredEvent;
 import com.brasper.platform.treasury.domain.events.PayablePaidEvent;
+import com.brasper.platform.treasury.domain.events.PayableRegisteredEvent;
+import com.brasper.platform.treasury.domain.model.valueobjects.PayableType;
 import com.brasper.platform.treasury.domain.model.valueobjects.LoanType;
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -87,6 +89,20 @@ public final class PostingRules {
         }
         lines.add(credit(settlement, event.total(), null));
         return new RegisterJournalEntryCommand(event.spentOn(), "Expense", EntrySource.EXPENSE, event.expenseId(), lines);
+    }
+
+    /**
+     * D 60 (63 without a project) / H 42 for a payable that is not an expense yet. One created from an expense is
+     * already in the expense's entry, and a tax or self-detraction payable is not a cost.
+     */
+    public static Optional<RegisterJournalEntryCommand> forPayableRegistered(PayableRegisteredEvent event) {
+        if (event.expenseId() != null || event.type() == PayableType.TAX || event.type() == PayableType.SELF_DETRACTION) {
+            return Optional.empty();
+        }
+        return Optional.of(new RegisterJournalEntryCommand(event.registeredOn(), "Payable registered",
+                EntrySource.PAYABLE_REGISTERED, event.payableId(), List.of(
+                        debit(event.projectId() != null ? DIRECT_COSTS : SERVICES, event.total(), event.projectId()),
+                        credit(PAYABLES, event.total(), null))));
     }
 
     /** D 42 / H 10. shortcut: every payable goes through 42 (suppliers), none through 46 (other accounts payable). */
