@@ -4,7 +4,10 @@ import com.brasper.platform.billing.domain.model.aggregates.Invoice;
 import com.brasper.platform.billing.domain.model.entities.InvoicePayment;
 import com.brasper.platform.billing.domain.model.valueobjects.InvoiceStatus;
 import com.brasper.platform.billing.domain.repositories.InvoiceRepository;
+import com.brasper.platform.shared.domain.model.valueobjects.PageSpec;
+import com.brasper.platform.shared.domain.model.valueobjects.PagedList;
 import com.brasper.platform.shared.domain.model.valueobjects.Period;
+import java.time.LocalDate;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Optional;
@@ -21,14 +24,24 @@ public class InvoiceQueryService {
         this.invoices = invoices;
     }
 
-    /** All filters are optional; newest first. shortcut: filters in memory, move them into the query if invoices reach thousands. */
+    /** All filters are optional; newest first. */
     public List<Invoice> findAll(InvoiceStatus status, Long projectId, Period issuedIn) {
-        return invoices.findAll().stream()
-                .filter(invoice -> status == null || invoice.getStatus() == status)
-                .filter(invoice -> projectId == null || invoice.getProjectId().equals(projectId))
-                .filter(invoice -> issuedIn == null || Period.from(invoice.getIssuedOn()).equals(issuedIn))
-                .sorted(Comparator.comparing(Invoice::getIssuedOn).thenComparing(Invoice::getId).reversed())
-                .toList();
+        return invoices.filter(status, projectId, from(issuedIn), to(issuedIn), 0, Integer.MAX_VALUE);
+    }
+
+    /** Same filters as {@link #findAll}, one page of them plus the total that match. */
+    public PagedList<Invoice> findPage(InvoiceStatus status, Long projectId, Period issuedIn, PageSpec page) {
+        return new PagedList<>(invoices.filter(status, projectId, from(issuedIn), to(issuedIn), page.page(), page.size()),
+                invoices.countFiltered(status, projectId, from(issuedIn), to(issuedIn)));
+    }
+
+    // Postgres cannot type a null date parameter, so "no period" is the widest range instead.
+    private static LocalDate from(Period period) {
+        return period == null ? LocalDate.of(1900, 1, 1) : period.startDate();
+    }
+
+    private static LocalDate to(Period period) {
+        return period == null ? LocalDate.of(9999, 12, 31) : period.endDate();
     }
 
     /** Empty when the invoice does not exist; oldest first. */

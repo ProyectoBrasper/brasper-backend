@@ -40,6 +40,12 @@ class InvoiceJpaRepositoryTest {
                 4L, TaxRates.standard());
     }
 
+    private static Invoice invoiceOn(String series, int correlative, long projectId, LocalDate issuedOn) {
+        return new Invoice(new IssueInvoiceCommand(new InvoiceNumber(series, correlative), issuedOn, null, projectId,
+                new Money(new BigDecimal("100"), Currency.PEN), false, false, false, false, null),
+                4L, TaxRates.standard());
+    }
+
     private Invoice saveAndFlush(Invoice invoice) {
         Invoice saved = invoices.save(invoice);
         em.flush();
@@ -87,6 +93,29 @@ class InvoiceJpaRepositoryTest {
         assertThat(found.getStatus()).isEqualTo(InvoiceStatus.PARTIALLY_COLLECTED);
         assertThat(found.getPayments()).extracting(p -> p.getType())
                 .containsExactlyInAnyOrder(InvoicePaymentType.NET_DEPOSIT, InvoicePaymentType.RETENTION_CERTIFICATE);
+    }
+
+    @Test
+    void filtersAndPagesInTheQueryNewestFirst() {
+        long project = 987_654L;
+        Invoice august = saveAndFlush(invoiceOn("F001", 1, project, LocalDate.of(2026, 8, 20)));
+        Invoice septemberA = saveAndFlush(invoiceOn("F001", 2, project, LocalDate.of(2026, 9, 1)));
+        Invoice septemberB = saveAndFlush(invoiceOn("F001", 3, project, LocalDate.of(2026, 9, 30)));
+        saveAndFlush(invoiceOn("F001", 4, project + 1, LocalDate.of(2026, 9, 15)));
+        septemberA.voidInvoice();
+        em.flush();
+
+        LocalDate first = LocalDate.of(1900, 1, 1);
+        LocalDate last = LocalDate.of(9999, 12, 31);
+        assertThat(invoices.filter(null, project, first, last, 0, 10)).containsExactly(septemberB, septemberA, august);
+        assertThat(invoices.filter(null, project, first, last, 1, 2)).containsExactly(august);
+        assertThat(invoices.countFiltered(null, project, first, last)).isEqualTo(3);
+        assertThat(invoices.filter(InvoiceStatus.PENDING, project, first, last, 0, 10))
+                .containsExactly(septemberB, august);
+        assertThat(invoices.filter(null, project, LocalDate.of(2026, 9, 1), LocalDate.of(2026, 9, 30), 0, 10))
+                .containsExactly(septemberB, septemberA);
+        assertThat(invoices.countFiltered(InvoiceStatus.VOIDED, project, LocalDate.of(2026, 9, 1),
+                LocalDate.of(2026, 9, 30))).isEqualTo(1);
     }
 
     @Test
