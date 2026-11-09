@@ -21,6 +21,19 @@ public record Period(int year, int month) {
         return new Period(date.getYear(), date.getMonthValue());
     }
 
+    /**
+     * First day of the period, or the earliest date a query accepts when there is none: Postgres cannot type a null
+     * date parameter, so "no period" in a query filter is the widest range instead.
+     */
+    public static LocalDate startOrEarliest(Period period) {
+        return period == null ? LocalDate.of(1900, 1, 1) : period.startDate();
+    }
+
+    /** Last day of the period, or the latest date a query accepts when there is none (see {@link #startOrEarliest}). */
+    public static LocalDate endOrLatest(Period period) {
+        return period == null ? LocalDate.of(9999, 12, 31) : period.endDate();
+    }
+
     public LocalDate startDate() {
         return LocalDate.of(year, month, 1);
     }

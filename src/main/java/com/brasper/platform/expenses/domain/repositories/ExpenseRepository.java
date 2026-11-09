@@ -13,8 +13,6 @@ public interface ExpenseRepository {
 
     Optional<Expense> findById(Long id);
 
-    List<Expense> findAll();
-
     /**
      * Newest first. {@code projectId} and {@code category} are optional (null); {@code from} and {@code to} bound
      * the spending date, both inclusive and never null.

@@ -89,7 +89,8 @@ class ExpenseJpaRepositoryTest {
         em.flush();
         em.clear();
         assertThat(expenses.findById(id).orElseThrow().isAnnulled()).isTrue();
-        assertThat(expenses.findAll()).hasSize(1);
+        assertThat(expenses.countFiltered(null, null, LocalDate.of(1900, 1, 1), LocalDate.of(9999, 12, 31)))
+                .isEqualTo(1);
     }
 
     private Expense saved(long projectId, CostCategory category, LocalDate spentOn) {
