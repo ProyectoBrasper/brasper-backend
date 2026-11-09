@@ -1,6 +1,6 @@
 # Traspaso: estado del backend de Brasper
 
-Documento para retomar el trabajo en otra sesión (persona o agente). Última actualización: 2026-11-08, `develop` en el PR #126.
+Documento para retomar el trabajo en otra sesión (persona o agente). Última actualización: 2026-11-09, `develop` en el PR #131.
 Reglas del repo: `AGENTS.md`. Diseño de dominio: `docs/uml/` (empezar por `00-context-map.puml`).
 
 ## Cómo correr y verificar
@@ -67,7 +67,7 @@ Hecho (dominio, servicios, API y fachada salvo que se indique):
 Pendiente, en este orden sugerido:
 1. **Reporting** está completo (rentabilidad por proyecto, estado de resultados, balance general, flujo de caja y tablero).
 2. Eventos de dominio: están todos los del UML. Falta una carga inicial: lo cobrado, gastado o pagado antes de estos eventos no tiene asiento ni movimiento de caja, y los saldos de apertura de las cuentas bancarias no tienen asiento. Criterio aplicado: los eventos de otros contextos alimentan a Accounting y, donde el flujo no movía caja, también a Treasury; lo que Treasury ya mueve por su cuenta (pagos pendientes, préstamos, transferencias) solo publica para Accounting, así la caja no se cuenta dos veces.
-3. Siguiente trabajo, en este orden: (a) carga inicial de datos cuando el usuario la pida (hoy no quiere cargar datos reales); (b) paginación de costos fijos (hallazgo 13, facturas, gastos y pagos pendientes ya hechos) y totales por lote (hallazgo 6) si el volumen o el frontend lo piden.
+3. Siguiente trabajo, en este orden: (a) carga inicial de datos cuando el usuario la pida (hoy no quiere cargar datos reales); (b) totales por lote (hallazgo 6) si el portafolio pasa de unos 100 proyectos; la paginación (hallazgo 13) ya está hecha.
 
 ## Atajos y desvíos del UML (todos documentados en el código)
 - Las fachadas y sus implementaciones viven en `interfaces/acl` (el UML las pone en `application/acl`) porque ArchUnit prohíbe que `application` dependa de `interfaces`.
@@ -102,7 +102,7 @@ Auditoría de todo el backend (17 hallazgos). Hechos: 1, 2, 3, 4, 5, 7, 8, 9, 10
 10. [x] Un aporte de socio reembolsable con cuenta bancaria asienta D 10 / H 455 (pasivo, V37 siembra la 455) en vez de capital. Límite: un gasto pagado de su bolsillo por un socio sigue yendo a capital (50).
 11. [x] `IllegalStateException`, `IllegalArgumentException` y conflictos de concurrencia se registran en el log (WARN, con traza). Decisión propia: el texto del error se sigue devolviendo al cliente porque es el motivo del 409; no se tradujo.
 12. [x] Cinco contraseñas incorrectas seguidas bloquean el usuario 15 minutos (429, `SignInThrottle`). Límites: el conteo está en memoria (se borra al reiniciar y no se comparte entre instancias) y quien conoce un usuario puede bloquearlo 15 minutos; no hay límite por IP ni configuración CORS (depende de dónde corra el frontend).
-13. [ ] (en curso) Paginación en listas: facturas, gastos y pagos pendientes hechos (filtros, orden y página dentro de la consulta; `page` y `size` opcionales y juntos, tamaño máximo 200; el total va en el header `X-Total-Count`; sin `page`/`size` devuelve todo como antes; no hay CORS configurado, cuando se configure hay que exponer ese header). Falta costos fijos, con el mismo patrón (`PageSpec`/`PagedList` en shared; en las consultas con fechas usar un rango siempre presente, Postgres no tipa un parámetro de fecha nulo en `? is null`).
+13. [x] Paginación en listas de facturas, gastos, pagos pendientes y costos fijos (filtros, orden y página dentro de la consulta; `page` y `size` opcionales y juntos, tamaño máximo 200; el total va en el header `X-Total-Count`; sin `page`/`size` devuelve todo como antes; no hay CORS configurado, cuando se configure hay que exponer ese header). Patrón: `PageSpec`/`PagedList` en shared; en las consultas con fechas usar un rango siempre presente, porque Postgres no tipa un parámetro de fecha nulo en `? is null`. Las demás listas (socios, préstamos, cuentas, activos, etc.) siguen sin paginar, son cortas.
 14. [x] `AGENTS.md` ya dice que no se usa Lombok.
 15. [x] `LedgerQueryService` carga las cuentas una sola vez por llamada (se hizo junto con el 4).
 16. [ ] (aplazado) Tests con datos confirmados en la base compartida: se aíslan por fechas lejanas y números únicos; ya rompió un test una vez. Solucionarlo bien es un esquema de base por clase de test.

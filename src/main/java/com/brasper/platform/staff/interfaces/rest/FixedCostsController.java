@@ -2,6 +2,8 @@ package com.brasper.platform.staff.interfaces.rest;
 
 import com.brasper.platform.shared.application.result.Result;
 import com.brasper.platform.shared.domain.model.valueobjects.Money;
+import com.brasper.platform.shared.domain.model.valueobjects.PageSpec;
+import com.brasper.platform.shared.domain.model.valueobjects.PagedList;
 import com.brasper.platform.shared.domain.model.valueobjects.Period;
 import com.brasper.platform.staff.application.commandservices.*;
 import com.brasper.platform.staff.application.queryservices.FixedCostQueryService;
@@ -50,9 +52,17 @@ public class FixedCostsController {
     public ResponseEntity<?> deactivate(@PathVariable Long id) {
         return respond(commands.handle(new DeactivateFixedCostCommand(id)), HttpStatus.OK);
     }
+    /** {@code page} and {@code size} (together) return one page; the total that match goes in {@code X-Total-Count}. */
     @GetMapping
-    public ResponseEntity<?> list(@RequestParam(required = false) Boolean active) {
-        return ResponseEntity.ok(queries.findAll(active).stream().map(FixedCostResourceAssembler::toResource).toList());
+    public ResponseEntity<?> list(@RequestParam(required = false) Boolean active,
+            @RequestParam(required = false) Integer page, @RequestParam(required = false) Integer size) {
+        PageSpec pageSpec = PageSpec.of(page, size);
+        if (pageSpec == null) {
+            return ResponseEntity.ok(queries.findAll(active).stream().map(FixedCostResourceAssembler::toResource).toList());
+        }
+        PagedList<FixedCost> result = queries.findPage(active, pageSpec);
+        return ResponseEntity.ok().header("X-Total-Count", String.valueOf(result.total()))
+                .body(result.items().stream().map(FixedCostResourceAssembler::toResource).toList());
     }
     @GetMapping("/{id}")
     public ResponseEntity<?> get(@PathVariable Long id) {

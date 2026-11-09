@@ -63,6 +63,23 @@ class FixedCostsControllerTest {
         return JsonPath.read(send(token, URL, body).andExpect(status().isCreated())
                 .andReturn().getResponse().getContentAsString(), "$.id");
     }
+    @Test
+    void pagesTheListAndReportsTheTotalInAHeader() throws Exception {
+        String token = bearer("ana", Role.ROLE_ACCOUNTING);
+        for (String code : new String[]{"RENT1", "RENT2", "RENT3"}) {
+            create(token, COST.replace("\"code\":\"RENT\"", "\"code\":\"" + code + "\""));
+        }
+        String all = read(token, "").andExpect(header().doesNotExist("X-Total-Count"))
+                .andReturn().getResponse().getContentAsString();
+        int total = JsonPath.read(all, "$.length()");
+
+        read(token, "?page=0&size=2").andExpect(status().isOk())
+                .andExpect(header().string("X-Total-Count", String.valueOf(total)))
+                .andExpect(jsonPath("$.length()").value(2));
+        read(token, "?active=false&page=0&size=2").andExpect(jsonPath("$.length()").value(0));
+        read(token, "?size=2").andExpect(status().isBadRequest());
+        read(token, "?page=0&size=201").andExpect(status().isBadRequest());
+    }
     private String payment(Object account) {
         return """
                 {"paidOn":"2026-11-02","year":2026,"month":11,"amount":25,"bankAccountId":%s,"notes":"Paid"}
