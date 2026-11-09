@@ -17,7 +17,7 @@ import org.junit.jupiter.api.Test;
 class CashFlowCalculatorTest {
 
     private static final Period MARCH = new Period(2038, 3);
-    /** In the second week: the first week is past, the rest are current or future. */
+    /** In the second week: the first week is past, the second is the current one, the rest are future. */
     private static final LocalDate TODAY = LocalDate.of(2038, 3, 10);
 
     /** Real cash 1000 before March; actual: +300 collected, -100 suppliers; projected: +50 collections, -80 payables. */
@@ -60,9 +60,12 @@ class CashFlowCalculatorTest {
         assertThat(past.closingBalance()).isEqualByComparingTo("1200");
         assertThat(current.projected()).isTrue();
         assertThat(current.openingBalance()).isEqualByComparingTo("1200");
-        assertThat(current.netFlow()).isEqualByComparingTo("-30");
-        assertThat(future.openingBalance()).isEqualByComparingTo("1170");
-        assertThat(report.finalBalance()).isEqualByComparingTo("1140");
+        // the week of today: 300 collected and 100 paid already, 50 still expected in and 80 still to pay
+        assertThat(current.totalInflows()).isEqualByComparingTo("350");
+        assertThat(current.netFlow()).isEqualByComparingTo("170");
+        assertThat(future.openingBalance()).isEqualByComparingTo("1370");
+        assertThat(future.netFlow()).isEqualByComparingTo("-30");
+        assertThat(report.finalBalance()).isEqualByComparingTo("1340");
         assertThat(report.from()).isEqualTo(LocalDate.of(2038, 3, 1));
         assertThat(report.hasNegativeBalance()).isFalse();
     }
@@ -74,7 +77,7 @@ class CashFlowCalculatorTest {
         CashFlowLine march = report.lines().get(0);
         assertThat(march.label()).isEqualTo("2038-03");
         assertThat(march.projected()).isTrue();
-        assertThat(march.totalInflows()).isEqualByComparingTo("500");
+        assertThat(march.totalInflows()).isEqualByComparingTo("800");
         assertThat(report.lines().get(1).openingBalance()).isEqualByComparingTo(march.closingBalance());
     }
 

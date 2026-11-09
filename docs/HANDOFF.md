@@ -95,7 +95,7 @@ Auditoría de todo el backend (17 hallazgos). Se arreglan en este orden, un PR p
 4. [x] Balance, estado de resultados, balance de comprobación y preparación del IGV suman en la base (`group by` cuenta y moneda, `JournalEntryRepository.totalsUpTo/totalsBetween/totalsByPeriod`) en vez de cargar cada asiento con sus líneas.
 5. [x] Flujo de caja: el saldo y los movimientos por semana se suman en la base (`BankAccountRepository.sumBalancesAt/sumMovementsBetween`) y los pendientes y préstamos se cargan con sus pagos y cuotas en una consulta. Sigue siendo una consulta por semana, no una para todo el rango.
 6. [ ] Rentabilidad y tablero: totales de todos los proyectos en una consulta.
-7. [ ] Flujo de caja: la semana actual suma lo real hasta hoy más lo programado.
+7. [x] Flujo de caja: la semana de hoy suma lo real ya movido más lo que sigue programado (antes solo mostraba lo programado). Límite: un costo fijo con el mes pagado a medias aún cuenta su parte programada completa.
 8. [ ] Lecturas de Treasury, Billing, Expenses y Projects restringidas por rol.
 9. [ ] Facturas y gastos en USD fuera de reportes e IGV.
 10. [ ] Aporte de socio reembolsable asentado como pasivo, no como capital.
