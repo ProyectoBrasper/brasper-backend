@@ -102,10 +102,10 @@ Auditoría de todo el backend (17 hallazgos). Se arreglan en este orden, un PR p
 11. [x] `IllegalStateException`, `IllegalArgumentException` y conflictos de concurrencia se registran en el log (WARN, con traza). Decisión propia: el texto del error se sigue devolviendo al cliente porque es el motivo del 409; no se tradujo.
 12. [x] Cinco contraseñas incorrectas seguidas bloquean el usuario 15 minutos (429, `SignInThrottle`). Límites: el conteo está en memoria (se borra al reiniciar y no se comparte entre instancias) y quien conoce un usuario puede bloquearlo 15 minutos; no hay límite por IP ni configuración CORS (depende de dónde corra el frontend).
 13. [ ] Paginación en listas de facturas, gastos, pagos pendientes y costos fijos.
-14. [ ] `AGENTS.md` dice que Lombok se usa y no está en el `pom.xml`.
+14. [x] `AGENTS.md` ya dice que no se usa Lombok.
 15. [x] `LedgerQueryService` carga las cuentas una sola vez por llamada (se hizo junto con el 4).
 16. [ ] Tests con datos confirmados en la base compartida.
-17. [ ] ArchUnit solo hace cumplir 2 de las reglas documentadas.
+17. [x] ArchUnit ahora también vigila que ningún contexto use los repositorios, la persistencia ni los servicios de otro (`ArchitectureTest`). Decisión propia: los eventos y enums de `domain` de otro contexto se consideran el lenguaje público compartido y se pueden importar.
 
 ## Pendientes de operación
 - Las migraciones V2 a V23 aún no se aplicaron en Supabase: se aplican en el siguiente arranque contra esa base. Solo tiene la baseline `V1`.
