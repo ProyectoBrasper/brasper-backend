@@ -12,12 +12,12 @@ brasper:
       # Missing or blank JWT_SECRET: the app refuses to start (allow-random-secret is only set in dev).
       secret: ${JWT_SECRET}
 
-# The API docs list every endpoint to anyone; they stay off in production.
+# The API docs list every endpoint to anyone, so they stay off unless SWAGGER_ENABLED=true is set.
 springdoc:
   api-docs:
-    enabled: false
+    enabled: ${SWAGGER_ENABLED:false}
   swagger-ui:
-    enabled: false
+    enabled: ${SWAGGER_ENABLED:false}
 
 logging:
   level:
