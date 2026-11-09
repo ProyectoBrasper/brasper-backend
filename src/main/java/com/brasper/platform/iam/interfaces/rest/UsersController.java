@@ -6,7 +6,9 @@ import com.brasper.platform.iam.application.queryservices.UserQueryService;
 import com.brasper.platform.iam.domain.model.commands.ChangeUserRoleCommand;
 import com.brasper.platform.iam.domain.model.commands.DeactivateUserCommand;
 import com.brasper.platform.iam.domain.model.commands.ReactivateUserCommand;
+import com.brasper.platform.iam.domain.model.commands.ResetUserPasswordCommand;
 import com.brasper.platform.iam.interfaces.rest.resources.ChangeRoleResource;
+import com.brasper.platform.iam.interfaces.rest.resources.ResetPasswordResource;
 import com.brasper.platform.iam.interfaces.rest.transform.UserFailureResponseAssembler;
 import com.brasper.platform.iam.interfaces.rest.transform.UserResourceFromEntityAssembler;
 import jakarta.validation.Valid;
@@ -61,6 +63,13 @@ public class UsersController {
     public ResponseEntity<?> deactivate(@PathVariable Long id) {
         return userCommands.handle(new DeactivateUserCommand(id)).fold(
                 user -> ResponseEntity.ok(UserResourceFromEntityAssembler.toResourceFromEntity(user)),
+                failure -> UserFailureResponseAssembler.toResponse(failure, messages));
+    }
+
+    @PutMapping("/{id}/password")
+    public ResponseEntity<?> resetPassword(@PathVariable Long id, @Valid @RequestBody ResetPasswordResource resource) {
+        return userCommands.handle(new ResetUserPasswordCommand(id, resource.newPassword())).fold(
+                user -> ResponseEntity.noContent().build(),
                 failure -> UserFailureResponseAssembler.toResponse(failure, messages));
     }
 

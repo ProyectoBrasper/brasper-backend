@@ -15,6 +15,7 @@ import com.brasper.platform.iam.domain.model.commands.ChangePasswordCommand;
 import com.brasper.platform.iam.domain.model.commands.ChangeUserRoleCommand;
 import com.brasper.platform.iam.domain.model.commands.DeactivateUserCommand;
 import com.brasper.platform.iam.domain.model.commands.ReactivateUserCommand;
+import com.brasper.platform.iam.domain.model.commands.ResetUserPasswordCommand;
 import com.brasper.platform.iam.domain.model.commands.SignInCommand;
 import com.brasper.platform.iam.domain.model.commands.SignUpCommand;
 import com.brasper.platform.iam.domain.model.valueobjects.Role;
@@ -196,6 +197,31 @@ class UserCommandServiceTest {
                 .contains(UserCommandFailure.USER_INACTIVE);
         assertThat(service.handle(new SignInCommand(ANA, "otra-clave1")).failure())
                 .contains(UserCommandFailure.INVALID_CREDENTIALS);
+    }
+
+    @Test
+    void anAdminResetsAPasswordAndThatLiftsTheLockout() {
+        User user = storedUser();
+        when(users.findById(1L)).thenReturn(Optional.of(user));
+        when(users.findById(2L)).thenReturn(Optional.empty());
+        when(users.findByUsername(ANA)).thenReturn(Optional.of(user));
+        when(users.save(any(User.class))).thenAnswer(call -> call.getArgument(0));
+        for (int attempt = 0; attempt < SignInThrottle.MAX_FAILURES; attempt++) {
+            service.handle(new SignInCommand(ANA, "otra-clave1"));
+        }
+        assertThat(service.handle(new SignInCommand(ANA, "clave1234")).failure())
+                .contains(UserCommandFailure.TOO_MANY_ATTEMPTS);
+
+        assertThat(service.handle(new ResetUserPasswordCommand(1L, "corta1")).failure())
+                .contains(UserCommandFailure.WEAK_PASSWORD);
+        assertThat(service.handle(new ResetUserPasswordCommand(2L, "nueva-clave99")).failure())
+                .contains(UserCommandFailure.USER_NOT_FOUND);
+        assertThat(user.getPasswordHash()).isEqualTo("hash(clave1234)");
+
+        assertThat(service.handle(new ResetUserPasswordCommand(1L, "nueva-clave99")).isSuccess()).isTrue();
+        assertThat(user.getPasswordHash()).isEqualTo("hash(nueva-clave99)");
+        when(tokens.generateToken(user)).thenReturn("jwt-token");
+        assertThat(service.handle(new SignInCommand(ANA, "nueva-clave99")).isSuccess()).isTrue();
     }
 
     @Test

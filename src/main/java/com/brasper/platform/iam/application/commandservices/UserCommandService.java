@@ -7,6 +7,7 @@ import com.brasper.platform.iam.domain.model.commands.ChangePasswordCommand;
 import com.brasper.platform.iam.domain.model.commands.ChangeUserRoleCommand;
 import com.brasper.platform.iam.domain.model.commands.DeactivateUserCommand;
 import com.brasper.platform.iam.domain.model.commands.ReactivateUserCommand;
+import com.brasper.platform.iam.domain.model.commands.ResetUserPasswordCommand;
 import com.brasper.platform.iam.domain.model.commands.SignInCommand;
 import com.brasper.platform.iam.domain.model.commands.SignUpCommand;
 import com.brasper.platform.iam.domain.model.valueobjects.Role;
@@ -123,6 +124,21 @@ public class UserCommandService {
             return Result.failure(UserCommandFailure.CANNOT_MODIFY_LAST_ADMIN);
         }
         user.deactivate();
+        return Result.success(users.save(user));
+    }
+
+    /** An admin sets a new password for any user, which also lifts that user's sign-in lockout. */
+    @Transactional
+    public Result<User, UserCommandFailure> handle(ResetUserPasswordCommand command) {
+        User user = users.findById(command.userId()).orElse(null);
+        if (user == null) {
+            return Result.failure(UserCommandFailure.USER_NOT_FOUND);
+        }
+        if (!isStrong(command.newPassword())) {
+            return Result.failure(UserCommandFailure.WEAK_PASSWORD);
+        }
+        user.changePasswordHash(hashing.encode(command.newPassword()));
+        throttle.succeeded(user.getUsername().value());
         return Result.success(users.save(user));
     }
 
