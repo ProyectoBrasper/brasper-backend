@@ -97,6 +97,41 @@ class UsersControllerTest {
     }
 
     @Test
+    void adminResetsAUsersPassword() throws Exception {
+        createUser("root", Role.ROLE_ADMIN);
+        User ana = createUser("ana", Role.ROLE_ENGINEER);
+        String token = bearer("root");
+        String url = "/api/v1/users/" + ana.getId() + "/password";
+
+        mockMvc.perform(put(url).header("Authorization", token).contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"newPassword\":\"nueva-clave99\"}"))
+                .andExpect(status().isNoContent());
+        mockMvc.perform(post("/api/v1/auth/sign-in").contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"username\":\"ana\",\"password\":\"nueva-clave99\"}"))
+                .andExpect(status().isOk());
+        mockMvc.perform(put(url).header("Authorization", token).contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"newPassword\":\"corta1\"}"))
+                .andExpect(status().isUnprocessableEntity())
+                .andExpect(jsonPath("$.code").value("iam.error.weak-password"));
+        mockMvc.perform(put(url).header("Authorization", token).contentType(MediaType.APPLICATION_JSON)
+                        .content("{}"))
+                .andExpect(status().isBadRequest());
+        mockMvc.perform(put("/api/v1/users/999999/password").header("Authorization", token)
+                        .contentType(MediaType.APPLICATION_JSON).content("{\"newPassword\":\"nueva-clave99\"}"))
+                .andExpect(status().isNotFound());
+        mockMvc.perform(put(url).header("Authorization", bearerOf("ana", "nueva-clave99"))
+                        .contentType(MediaType.APPLICATION_JSON).content("{\"newPassword\":\"otra-clave99\"}"))
+                .andExpect(status().isForbidden());
+    }
+
+    private String bearerOf(String username, String password) throws Exception {
+        String body = mockMvc.perform(post("/api/v1/auth/sign-in").contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"username\":\"%s\",\"password\":\"%s\"}".formatted(username, password)))
+                .andReturn().getResponse().getContentAsString();
+        return "Bearer " + JsonPath.read(body, "$.token");
+    }
+
+    @Test
     void adminReactivatesADeactivatedUserWhoCanSignInAgain() throws Exception {
         createUser("root", Role.ROLE_ADMIN);
         User ana = createUser("ana", Role.ROLE_ENGINEER);
