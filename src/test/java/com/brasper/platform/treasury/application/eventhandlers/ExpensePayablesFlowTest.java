@@ -69,7 +69,7 @@ class ExpensePayablesFlowTest {
     }
 
     private Payable payableOf(Long expenseId) {
-        return payableQueries.findAll().stream().filter(p -> expenseId.equals(p.getExpenseId())).findFirst().orElse(null);
+        return payableQueries.findAll(null).stream().filter(p -> expenseId.equals(p.getExpenseId())).findFirst().orElse(null);
     }
 
     private List<String> accountsOf(EntrySource source, Long sourceId, Period period) {

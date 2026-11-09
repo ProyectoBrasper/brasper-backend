@@ -66,6 +66,25 @@ class PayableJpaRepositoryTest {
     }
 
     @Test
+    void filtersByStatusAndPagesInTheQueryOldestFirst() {
+        Money total = new Money(new BigDecimal("10.00"), Currency.PEN);
+        CashFlowWeek week = new CashFlowWeek(2026, 11, 6);
+        Payable first = payables.save(new Payable(new CreatePayableCommand("a", PayableType.OTHER, total, null, null, null, week)));
+        Payable second = payables.save(new Payable(new CreatePayableCommand("b", PayableType.OTHER, total, null, null, null, week)));
+        Payable third = payables.save(new Payable(new CreatePayableCommand("c", PayableType.OTHER, total, null, null, null, week)));
+        em.flush();
+
+        var all = payables.filter(null, 0, Integer.MAX_VALUE);
+        assertThat(all).containsSubsequence(first, second, third);
+        assertThat(payables.countFiltered(null)).isEqualTo(all.size());
+        assertThat(payables.filter(null, all.size() - 1, 1)).containsExactly(third);
+        assertThat(payables.filter(PaymentStatus.PAID, 0, Integer.MAX_VALUE)).doesNotContain(first, second, third);
+        assertThat(payables.filter(PaymentStatus.PENDING, 0, Integer.MAX_VALUE)).contains(first, second, third);
+        assertThat(payables.countFiltered(PaymentStatus.PENDING))
+                .isEqualTo(payables.filter(PaymentStatus.PENDING, 0, Integer.MAX_VALUE).size());
+    }
+
+    @Test
     void aStalePayableCannotBeSavedOverAConcurrentChange() {
         Long bankId = ((Number) em.createNativeQuery("""
                 insert into bank_accounts (bank, account_number, type, currency, opening_balance, opened_on, created_at, updated_at)

@@ -3,6 +3,7 @@ package com.brasper.platform.treasury.interfaces.rest;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -64,6 +65,27 @@ class PayablesControllerTest {
     private ResultActions send(String token, String url, String json) throws Exception {
         return mockMvc.perform(post(url).header("Authorization", token)
                 .contentType(MediaType.APPLICATION_JSON).content(json));
+    }
+
+    @Test
+    void pagesTheListAndReportsTheTotalInAHeader() throws Exception {
+        String token = bearer("ana", Role.ROLE_ACCOUNTING);
+        create(token);
+        create(token);
+        create(token);
+        String all = mockMvc.perform(get(URL).header("Authorization", token))
+                .andExpect(header().doesNotExist("X-Total-Count")).andReturn().getResponse().getContentAsString();
+        int total = JsonPath.read(all, "$.length()");
+
+        mockMvc.perform(get(URL + "?page=0&size=2").header("Authorization", token))
+                .andExpect(status().isOk())
+                .andExpect(header().string("X-Total-Count", String.valueOf(total)))
+                .andExpect(jsonPath("$.length()").value(2));
+        mockMvc.perform(get(URL + "?status=PAID&page=0&size=2").header("Authorization", token))
+                .andExpect(jsonPath("$.length()").value(0));
+        mockMvc.perform(get(URL + "?page=0").header("Authorization", token)).andExpect(status().isBadRequest());
+        mockMvc.perform(get(URL + "?page=0&size=201").header("Authorization", token))
+                .andExpect(status().isBadRequest());
     }
 
     private int create(String token) throws Exception {
