@@ -77,6 +77,24 @@ class PostingRulesTest {
     }
 
     @Test
+    void aStandalonePayableBooksTheCostAndTheDebtButOneFromAnExpenseOrATaxDoesNot() {
+        var payable = new com.brasper.platform.treasury.domain.events.PayableRegisteredEvent(4L, null,
+                com.brasper.platform.treasury.domain.model.valueobjects.PayableType.SUPPLIER, 3L, pen("700"), DAY);
+
+        RegisterJournalEntryCommand command = PostingRules.forPayableRegistered(payable).orElseThrow();
+
+        assertThat(command.source()).isEqualTo(EntrySource.PAYABLE_REGISTERED);
+        assertThat(line(command, "60").debit().amount()).isEqualByComparingTo("700");
+        assertThat(line(command, "60").projectId()).isEqualTo(3L);
+        assertThat(line(command, "42").credit().amount()).isEqualByComparingTo("700");
+        assertThat(PostingRules.forPayableRegistered(new com.brasper.platform.treasury.domain.events.PayableRegisteredEvent(
+                4L, 9L, payable.type(), null, pen("700"), DAY))).isEmpty();
+        assertThat(PostingRules.forPayableRegistered(new com.brasper.platform.treasury.domain.events.PayableRegisteredEvent(
+                4L, null, com.brasper.platform.treasury.domain.model.valueobjects.PayableType.TAX, null, pen("700"), DAY)))
+                .isEmpty();
+    }
+
+    @Test
     void anAdvanceGoesToCustomerAdvancesAndAnInvoiceWithoutIgvHasNoIgvLine() {
         RegisterJournalEntryCommand command = PostingRules.forInvoiceIssued(issued(true, "0"));
 

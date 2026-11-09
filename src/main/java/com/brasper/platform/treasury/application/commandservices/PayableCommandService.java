@@ -4,6 +4,8 @@ import com.brasper.platform.shared.application.result.Result;
 import com.brasper.platform.shared.domain.model.valueobjects.PaymentStatus;
 import com.brasper.platform.treasury.domain.model.aggregates.BankAccount;
 import com.brasper.platform.treasury.domain.events.PayablePaidEvent;
+import com.brasper.platform.treasury.domain.events.PayableRegisteredEvent;
+import com.brasper.platform.treasury.domain.events.PayableSettledEvent;
 import com.brasper.platform.treasury.domain.model.aggregates.Payable;
 import com.brasper.platform.treasury.domain.model.commands.CreatePayableCommand;
 import com.brasper.platform.treasury.domain.model.commands.RegisterCashMovementCommand;
@@ -14,6 +16,7 @@ import com.brasper.platform.treasury.domain.model.valueobjects.MovementDirection
 import com.brasper.platform.treasury.domain.model.valueobjects.MovementSource;
 import com.brasper.platform.treasury.domain.repositories.BankAccountRepository;
 import com.brasper.platform.treasury.domain.repositories.PayableRepository;
+import java.time.LocalDate;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -34,7 +37,10 @@ public class PayableCommandService {
 
     @Transactional
     public Result<Payable, PayableCommandFailure> handle(CreatePayableCommand command) {
-        return Result.success(payables.save(new Payable(command)));
+        Payable saved = payables.save(new Payable(command));
+        events.publishEvent(new PayableRegisteredEvent(saved.getId(), saved.getExpenseId(), saved.getType(),
+                saved.getProjectId(), saved.getTotalAmount(), LocalDate.now()));
+        return Result.success(saved);
     }
 
     @Transactional
@@ -70,6 +76,9 @@ public class PayableCommandService {
         accounts.save(account);
         events.publishEvent(new PayablePaidEvent(payment.getId(), saved.getId(), command.paidOn(), command.amount(),
                 account.getId()));
+        if (saved.getStatus() == PaymentStatus.PAID && saved.getExpenseId() != null) {
+            events.publishEvent(new PayableSettledEvent(saved.getId(), saved.getExpenseId(), command.paidOn()));
+        }
         return Result.success(saved);
     }
 

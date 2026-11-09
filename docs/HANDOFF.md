@@ -90,7 +90,7 @@ Pendiente, en este orden sugerido:
 ## Auditoría ponytail: arreglos en curso
 Auditoría de todo el backend (17 hallazgos). Se arreglan en este orden, un PR por arreglo; marcar al terminar cada uno.
 1. [x] Activos fijos: registrar un activo asienta D 33 / H la cuenta que llevaba el costo del gasto (60 o 63, mismo proyecto) o H 59 si no viene de un gasto (saldo inicial); darlo de baja asienta D 39 + D 65 (lo no depreciado) / H 33 (V36 siembra la 65). Decisión propia: el IGV del gasto no se toca y anular el gasto después no revierte el asiento del activo.
-2. [ ] Pendientes de pago: el gasto pendiente crea el pendiente en Treasury, un pendiente sin gasto asienta D 63 / H 42, y al saldarse se llama `Expense.markAsPaid`.
+2. [x] Pagos pendientes: un gasto pendiente crea su pendiente en Treasury (semana del gasto), pagarlo del todo marca el gasto como pagado (`PayableSettledEvent`), anular un gasto pendiente borra su pendiente (si ya tiene pagos, 409), y un pendiente sin gasto asienta D 60/63 / H 42 al crearse (fecha = hoy). Límites: los pendientes de tipo TAX y SELF_DETRACTION no asientan nada al crearse; un gasto anulado después de saldado no devuelve el dinero.
 3. [x] Doble pago por concurrencia: `@Version` en `Invoice`, `Payable` y `Loan` (V35); el segundo guardado responde 409. `BankAccount` no lleva versión porque su saldo se calcula de los movimientos.
 4. [ ] Balance y estado de resultados: sumar en la base (`group by`) en vez de cargar todos los asientos.
 5. [ ] Flujo de caja: pedir los movimientos una sola vez para todo el rango.

@@ -7,6 +7,7 @@ import com.brasper.platform.treasury.domain.events.LoanDisbursedEvent;
 import com.brasper.platform.treasury.domain.events.LoanInstallmentPaidEvent;
 import com.brasper.platform.treasury.domain.events.PartnerContributionRegisteredEvent;
 import com.brasper.platform.treasury.domain.events.PayablePaidEvent;
+import com.brasper.platform.treasury.domain.events.PayableRegisteredEvent;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.event.TransactionPhase;
 import org.springframework.transaction.event.TransactionalEventListener;
@@ -24,6 +25,12 @@ class TreasuryPostingEventHandler {
     @TransactionalEventListener(phase = TransactionPhase.BEFORE_COMMIT)
     void on(FixedCostPaidEvent event) {
         PostingResults.check(ledger.handle(PostingRules.forFixedCostPayment(event)));
+    }
+
+    /** A payable that did not come from an expense is a new debt: the expense is booked now, the payment later. */
+    @TransactionalEventListener(phase = TransactionPhase.BEFORE_COMMIT)
+    void on(PayableRegisteredEvent event) {
+        PostingRules.forPayableRegistered(event).ifPresent(command -> PostingResults.check(ledger.handle(command)));
     }
 
     @TransactionalEventListener(phase = TransactionPhase.BEFORE_COMMIT)
