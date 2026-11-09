@@ -3,6 +3,8 @@ package com.brasper.platform.shared.interfaces.rest;
 import com.brasper.platform.shared.interfaces.rest.transform.ProblemDetailAssembler;
 import java.util.LinkedHashMap;
 import java.util.Map;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.context.MessageSource;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.dao.OptimisticLockingFailureException;
@@ -15,6 +17,8 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 
 @RestControllerAdvice
 public class GlobalExceptionHandler {
+
+    private static final Logger log = LoggerFactory.getLogger(GlobalExceptionHandler.class);
 
     private final MessageSource messages;
 
@@ -35,6 +39,7 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(IllegalArgumentException.class)
     public ResponseEntity<ProblemDetail> handle(IllegalArgumentException ex) {
+        log.warn("Invalid argument: {}", ex.getMessage());
         return ProblemDetailAssembler.badRequest(messages, "error.invalid-argument", ex.getMessage());
     }
 
@@ -47,11 +52,14 @@ public class GlobalExceptionHandler {
     /** Two requests changed the same record at once: the second one lost and must be retried. */
     @ExceptionHandler(OptimisticLockingFailureException.class)
     public ResponseEntity<ProblemDetail> handle(OptimisticLockingFailureException ex) {
+        log.warn("Concurrent change: {}", ex.getMessage());
         return ProblemDetailAssembler.conflict(messages, "error.data-conflict");
     }
 
     @ExceptionHandler(IllegalStateException.class)
     public ResponseEntity<ProblemDetail> handle(IllegalStateException ex) {
+        // Business conflicts and failed postings both arrive here: log them, a programming error looks the same.
+        log.warn("Invalid state: {}", ex.getMessage(), ex);
         return ProblemDetailAssembler.conflict(messages, "error.invalid-state", ex.getMessage());
     }
 }

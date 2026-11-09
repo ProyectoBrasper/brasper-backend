@@ -99,7 +99,7 @@ Auditoría de todo el backend (17 hallazgos). Se arreglan en este orden, un PR p
 8. [ ] Lecturas de Treasury, Billing, Expenses y Projects restringidas por rol.
 9. [ ] Facturas y gastos en USD fuera de reportes e IGV.
 10. [x] Un aporte de socio reembolsable con cuenta bancaria asienta D 10 / H 455 (pasivo, V37 siembra la 455) en vez de capital. Límite: un gasto pagado de su bolsillo por un socio sigue yendo a capital (50).
-11. [ ] Errores internos (`IllegalStateException`) registrados en el log y sin texto interno al cliente.
+11. [x] `IllegalStateException`, `IllegalArgumentException` y conflictos de concurrencia se registran en el log (WARN, con traza). Decisión propia: el texto del error se sigue devolviendo al cliente porque es el motivo del 409; no se tradujo.
 12. [ ] Límite de intentos al iniciar sesión.
 13. [ ] Paginación en listas de facturas, gastos, pagos pendientes y costos fijos.
 14. [ ] `AGENTS.md` dice que Lombok se usa y no está en el `pom.xml`.
