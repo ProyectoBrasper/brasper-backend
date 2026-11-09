@@ -20,6 +20,8 @@ jobs:
       - run: ./mvnw -B verify
 
   pr-size:
+    # develop -> main bundles PRs that already passed this check.
+    if: github.head_ref != 'develop' && !startsWith(github.head_ref, 'release/')
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
