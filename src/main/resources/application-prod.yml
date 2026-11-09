@@ -9,6 +9,13 @@ brasper:
       # Missing or blank JWT_SECRET: the app refuses to start (allow-random-secret is only set in dev).
       secret: ${JWT_SECRET}
 
+# The API docs list every endpoint to anyone; they stay off in production.
+springdoc:
+  api-docs:
+    enabled: false
+  swagger-ui:
+    enabled: false
+
 logging:
   level:
     com.brasper: INFO
