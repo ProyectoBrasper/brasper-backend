@@ -36,6 +36,9 @@ class TaxReturnCommandServiceTest {
     private static JournalLineData line(String account, String debit, String credit) {
         return new JournalLineData(new AccountCode(account), pen(debit), pen(credit), null);
     }
+    private static AccountTotals totals(String account, String debit, String credit) {
+        return new AccountTotals(new AccountCode(account), Currency.PEN, new BigDecimal(debit), new BigDecimal(credit));
+    }
     private static TaxReturn taxReturn(String output, String input, String prepayment) {
         var value = new TaxReturn(new PrepareTaxReturnCommand(PERIOD), pen(output), pen(input), pen("0"), pen(prepayment));
         ReflectionTestUtils.setField(value, "id", 1L);
@@ -52,13 +55,9 @@ class TaxReturnCommandServiceTest {
     private PayTaxReturnCommand pay() { return new PayTaxReturnCommand(1L, DAY, 2L); }
 
     @Test void preparesFromPenEntriesAndCarriesPreviousCredit() {
-        when(entries.findAllByPeriod(PERIOD)).thenReturn(List.of(
-                entry(line("10", "1180", "0"), line("70", "0", "1000"), line("40111", "0", "180")),
-                entry(line("40111", "50", "0"), line("10", "0", "50")),
-                entry(line("70", "100", "0"), line("10", "0", "100")),
-                new JournalEntry(new RegisterJournalEntryCommand(DAY, "USD", EntrySource.MANUAL, null, List.of(
-                        new JournalLineData(new AccountCode("10"), new Money(BigDecimal.TEN, Currency.USD), Money.zero(Currency.USD), null),
-                        new JournalLineData(new AccountCode("40111"), Money.zero(Currency.USD), new Money(BigDecimal.TEN, Currency.USD), null))))));
+        // the database sums the month: sales 1000 less a 100 return, IGV 180 out and 50 in; a USD line is left out
+        when(entries.totalsByPeriod(PERIOD)).thenReturn(List.of(totals("70", "100", "1000"), totals("40111", "50", "180"),
+                new AccountTotals(new AccountCode("40111"), Currency.USD, BigDecimal.ZERO, BigDecimal.TEN)));
         when(returns.findByPeriod(PERIOD.previous())).thenReturn(Optional.of(taxReturn("0", "20", "0")));
         when(returns.save(any())).thenAnswer(call -> call.getArgument(0));
         var value = service.handle(new PrepareTaxReturnCommand(PERIOD)).success().orElseThrow();
@@ -77,9 +76,9 @@ class TaxReturnCommandServiceTest {
         when(parameters.findFirstByEffectiveFromLessThanEqualOrderByEffectiveFromDesc(DAY))
                 .thenReturn(Optional.of(new TaxParameters(new SetTaxParametersCommand(rates, DAY))));
         when(returns.save(any())).thenAnswer(call -> call.getArgument(0));
-        when(entries.findAllByPeriod(PERIOD)).thenReturn(List.of(entry(line("10", "1", "0"), line("70", "0", "1"))));
+        when(entries.totalsByPeriod(PERIOD)).thenReturn(List.of(totals("70", "0", "1")));
         assertThat(service.handle(new PrepareTaxReturnCommand(PERIOD)).success().orElseThrow().getIncomeTaxPrepayment()).isEqualTo(pen("0.03"));
-        when(entries.findAllByPeriod(PERIOD)).thenReturn(List.of(entry(line("70", "1", "0"), line("10", "0", "1"))));
+        when(entries.totalsByPeriod(PERIOD)).thenReturn(List.of(totals("70", "1", "0")));
         assertThat(service.handle(new PrepareTaxReturnCommand(PERIOD)).success().orElseThrow().getIncomeTaxPrepayment()).isEqualTo(pen("0"));
     }
     @Test void paysWithBalancedTaxAndCashLines() {

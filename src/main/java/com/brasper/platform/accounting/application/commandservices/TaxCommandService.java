@@ -50,15 +50,13 @@ public class TaxCommandService {
         Money zero = Money.zero(Currency.PEN);
         Money outputIgv = zero, inputIgv = zero, sales = zero;
         // shortcut: reversals count on the opposite side of 40111; the net IGV is right, the gross figures are not
-        for (var entry : entries.findAllByPeriod(period)) {
-            for (var line : entry.getLines()) {
-                if (line.getDebit().currency() != Currency.PEN) continue;
-                if (line.getAccountCode().equals(new AccountCode("40111"))) {
-                    outputIgv = outputIgv.add(line.getCredit());
-                    inputIgv = inputIgv.add(line.getDebit());
-                } else if (line.getAccountCode().equals(new AccountCode("70"))) {
-                    sales = sales.add(line.getCredit()).subtract(line.getDebit());
-                }
+        for (var total : entries.totalsByPeriod(period)) {
+            if (total.currency() != Currency.PEN) continue;
+            if (total.accountCode().equals(new AccountCode("40111"))) {
+                outputIgv = new Money(total.credit(), Currency.PEN);
+                inputIgv = new Money(total.debit(), Currency.PEN);
+            } else if (total.accountCode().equals(new AccountCode("70"))) {
+                sales = new Money(total.credit().subtract(total.debit()), Currency.PEN);
             }
         }
         Money carriedCredit = returns.findByPeriod(period.previous()).map(TaxReturn::nextCarriedCredit).orElse(zero);
