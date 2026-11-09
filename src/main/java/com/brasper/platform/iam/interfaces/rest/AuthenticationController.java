@@ -12,6 +12,7 @@ import com.brasper.platform.iam.interfaces.rest.transform.AuthenticatedUserResou
 import com.brasper.platform.iam.interfaces.rest.transform.SignUpCommandFromResourceAssembler;
 import com.brasper.platform.iam.interfaces.rest.transform.UserFailureResponseAssembler;
 import com.brasper.platform.iam.interfaces.rest.transform.UserResourceFromEntityAssembler;
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import org.springframework.context.MessageSource;
 import org.springframework.http.HttpStatus;
@@ -37,7 +38,7 @@ public class AuthenticationController {
     }
 
     @PostMapping("/sign-in")
-    public ResponseEntity<?> signIn(@Valid @RequestBody SignInResource resource) {
+    public ResponseEntity<?> signIn(@Valid @RequestBody SignInResource resource, HttpServletRequest request) {
         Username username;
         try {
             username = new Username(resource.username());
@@ -45,7 +46,7 @@ public class AuthenticationController {
             // A malformed name cannot exist; answer like any wrong login instead of describing the name rules.
             return UserFailureResponseAssembler.toResponse(UserCommandFailure.INVALID_CREDENTIALS, messages);
         }
-        return userCommands.handle(new SignInCommand(username, resource.password())).fold(
+        return userCommands.handle(new SignInCommand(username, resource.password(), request.getRemoteAddr())).fold(
                 authenticated -> ResponseEntity.ok(
                         AuthenticatedUserResourceFromEntityAssembler.toResourceFromEntity(authenticated)),
                 failure -> UserFailureResponseAssembler.toResponse(failure, messages));

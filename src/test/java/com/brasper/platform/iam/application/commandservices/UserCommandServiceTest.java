@@ -30,6 +30,7 @@ import org.junit.jupiter.params.provider.ValueSource;
 class UserCommandServiceTest {
 
     private static final Username ANA = new Username("ana");
+    private static final String IP = "10.0.0.1";
 
     private final UserRepository users = mock(UserRepository.class);
     private final HashingService hashing = mock(HashingService.class);
@@ -148,7 +149,7 @@ class UserCommandServiceTest {
         when(users.findByUsername(ANA)).thenReturn(Optional.of(user));
         when(tokens.generateToken(user)).thenReturn("jwt-token");
 
-        var result = service.handle(new SignInCommand(ANA, "clave1234"));
+        var result = service.handle(new SignInCommand(ANA, "clave1234", IP));
 
         assertThat(result.success()).contains(new AuthenticatedUser(user, "jwt-token"));
     }
@@ -157,7 +158,7 @@ class UserCommandServiceTest {
     void signInWithWrongPasswordIsInvalidCredentials() {
         when(users.findByUsername(ANA)).thenReturn(Optional.of(storedUser()));
 
-        var result = service.handle(new SignInCommand(ANA, "otra-clave1"));
+        var result = service.handle(new SignInCommand(ANA, "otra-clave1", IP));
 
         assertThat(result.failure()).contains(UserCommandFailure.INVALID_CREDENTIALS);
         verify(tokens, never()).generateToken(any());
@@ -167,7 +168,7 @@ class UserCommandServiceTest {
     void signInWithUnknownUserIsTheSameFailureAndStillHashes() {
         when(users.findByUsername(ANA)).thenReturn(Optional.empty());
 
-        var result = service.handle(new SignInCommand(ANA, "clave1234"));
+        var result = service.handle(new SignInCommand(ANA, "clave1234", IP));
 
         assertThat(result.failure()).contains(UserCommandFailure.INVALID_CREDENTIALS);
         verify(hashing).matches(anyString(), anyString());
@@ -178,11 +179,11 @@ class UserCommandServiceTest {
         when(users.findByUsername(ANA)).thenReturn(Optional.of(storedUser()));
 
         for (int i = 0; i < 5; i++) {
-            assertThat(service.handle(new SignInCommand(ANA, "otra-clave1")).failure())
+            assertThat(service.handle(new SignInCommand(ANA, "otra-clave1", IP)).failure())
                     .contains(UserCommandFailure.INVALID_CREDENTIALS);
         }
 
-        assertThat(service.handle(new SignInCommand(ANA, "clave1234")).failure())
+        assertThat(service.handle(new SignInCommand(ANA, "clave1234", IP)).failure())
                 .contains(UserCommandFailure.TOO_MANY_ATTEMPTS);
         verify(tokens, never()).generateToken(any());
     }
@@ -193,10 +194,24 @@ class UserCommandServiceTest {
         user.deactivate();
         when(users.findByUsername(ANA)).thenReturn(Optional.of(user));
 
-        assertThat(service.handle(new SignInCommand(ANA, "clave1234")).failure())
+        assertThat(service.handle(new SignInCommand(ANA, "clave1234", IP)).failure())
                 .contains(UserCommandFailure.USER_INACTIVE);
-        assertThat(service.handle(new SignInCommand(ANA, "otra-clave1")).failure())
+        assertThat(service.handle(new SignInCommand(ANA, "otra-clave1", IP)).failure())
                 .contains(UserCommandFailure.INVALID_CREDENTIALS);
+    }
+
+    @Test
+    void guessesFromAnotherAddressDoNotLockTheRealUserOut() {
+        User user = storedUser();
+        when(users.findByUsername(ANA)).thenReturn(Optional.of(user));
+        when(tokens.generateToken(user)).thenReturn("jwt-token");
+        for (int attempt = 0; attempt < SignInThrottle.MAX_FAILURES; attempt++) {
+            service.handle(new SignInCommand(ANA, "otra-clave1", "203.0.113.9"));
+        }
+
+        assertThat(service.handle(new SignInCommand(ANA, "clave1234", "203.0.113.9")).failure())
+                .contains(UserCommandFailure.TOO_MANY_ATTEMPTS);
+        assertThat(service.handle(new SignInCommand(ANA, "clave1234", IP)).isSuccess()).isTrue();
     }
 
     @Test
@@ -207,9 +222,9 @@ class UserCommandServiceTest {
         when(users.findByUsername(ANA)).thenReturn(Optional.of(user));
         when(users.save(any(User.class))).thenAnswer(call -> call.getArgument(0));
         for (int attempt = 0; attempt < SignInThrottle.MAX_FAILURES; attempt++) {
-            service.handle(new SignInCommand(ANA, "otra-clave1"));
+            service.handle(new SignInCommand(ANA, "otra-clave1", IP));
         }
-        assertThat(service.handle(new SignInCommand(ANA, "clave1234")).failure())
+        assertThat(service.handle(new SignInCommand(ANA, "clave1234", IP)).failure())
                 .contains(UserCommandFailure.TOO_MANY_ATTEMPTS);
 
         assertThat(service.handle(new ResetUserPasswordCommand(1L, "corta1")).failure())
@@ -221,7 +236,7 @@ class UserCommandServiceTest {
         assertThat(service.handle(new ResetUserPasswordCommand(1L, "nueva-clave99")).isSuccess()).isTrue();
         assertThat(user.getPasswordHash()).isEqualTo("hash(nueva-clave99)");
         when(tokens.generateToken(user)).thenReturn("jwt-token");
-        assertThat(service.handle(new SignInCommand(ANA, "nueva-clave99")).isSuccess()).isTrue();
+        assertThat(service.handle(new SignInCommand(ANA, "nueva-clave99", IP)).isSuccess()).isTrue();
     }
 
     @Test
