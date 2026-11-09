@@ -37,6 +37,7 @@ public class WebSecurityConfiguration {
                         new HttpStatusEntryPoint(HttpStatus.UNAUTHORIZED)))
                 .addFilterBefore(new BearerAuthorizationRequestFilter(tokens, users),
                         UsernamePasswordAuthenticationFilter.class)
+                .addFilterAfter(new AuditLogFilter(), BearerAuthorizationRequestFilter.class)
                 .build();
     }
 }
