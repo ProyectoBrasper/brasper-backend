@@ -98,7 +98,7 @@ Auditoría de todo el backend (17 hallazgos). Se arreglan en este orden, un PR p
 7. [x] Flujo de caja: la semana de hoy suma lo real ya movido más lo que sigue programado (antes solo mostraba lo programado). Límite: un costo fijo con el mes pagado a medias aún cuenta su parte programada completa.
 8. [ ] Lecturas de Treasury, Billing, Expenses y Projects restringidas por rol.
 9. [ ] Facturas y gastos en USD fuera de reportes e IGV.
-10. [ ] Aporte de socio reembolsable asentado como pasivo, no como capital.
+10. [x] Un aporte de socio reembolsable con cuenta bancaria asienta D 10 / H 455 (pasivo, V37 siembra la 455) en vez de capital. Límite: un gasto pagado de su bolsillo por un socio sigue yendo a capital (50).
 11. [ ] Errores internos (`IllegalStateException`) registrados en el log y sin texto interno al cliente.
 12. [ ] Límite de intentos al iniciar sesión.
 13. [ ] Paginación en listas de facturas, gastos, pagos pendientes y costos fijos.
@@ -118,4 +118,4 @@ Auditoría de todo el backend (17 hallazgos). Se arreglan en este orden, un PR p
 - Advertencia de Mockito sobre el agente en JDK 25 (inofensiva).
 
 ## Migraciones (esquema `brasper`)
-V1 baseline, V2 users, V3 clients, V4 projects, V5 project_progress, V6 project_cost_estimates, V7 invoices, V8 invoice_payments, V9 scheduled_collections, V10 suppliers, V11 expenses, V20 bank_accounts, V21 partners, V22 payables, V23 cash_movements, V24 loans y loan_installments, V25 employees, V26 fixed_costs, V27 ledger_accounts, V28 journal_entries y journal_lines, V29 tax_parameters y tax_returns, V30 fixed_assets, V31 seed_chart_of_accounts, V32 seed_income_tax_account. Los saltos de numeración (V12 a V19) son a propósito: eran números reservados para trabajo en paralelo. Flyway no exige que sean consecutivos. V35 version (bloqueo optimista) en invoices, payables y loans, V36 seed other_management_expenses_account.
+V1 baseline, V2 users, V3 clients, V4 projects, V5 project_progress, V6 project_cost_estimates, V7 invoices, V8 invoice_payments, V9 scheduled_collections, V10 suppliers, V11 expenses, V20 bank_accounts, V21 partners, V22 payables, V23 cash_movements, V24 loans y loan_installments, V25 employees, V26 fixed_costs, V27 ledger_accounts, V28 journal_entries y journal_lines, V29 tax_parameters y tax_returns, V30 fixed_assets, V31 seed_chart_of_accounts, V32 seed_income_tax_account. Los saltos de numeración (V12 a V19) son a propósito: eran números reservados para trabajo en paralelo. Flyway no exige que sean consecutivos. V35 version (bloqueo optimista) en invoices, payables y loans, V36 seed other_management_expenses_account, V37 seed_partner_loans_account.

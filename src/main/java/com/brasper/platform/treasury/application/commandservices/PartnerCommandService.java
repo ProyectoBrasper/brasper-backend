@@ -51,7 +51,8 @@ public class PartnerCommandService {
         // Read the contribution back from the saved aggregate: that instance is the persisted one, with its id.
         var contribution = saved.getContributions().getLast();
         events.publishEvent(new PartnerContributionRegisteredEvent(contribution.getId(), saved.getId(),
-                command.contributedOn(), command.amount(), command.bankAccountId(), command.expenseId()));
+                command.contributedOn(), command.amount(), command.bankAccountId(), command.expenseId(),
+                command.reimbursable()));
         return Result.success(saved);
     }
 }
