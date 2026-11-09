@@ -3,6 +3,7 @@ package com.brasper.platform.iam.application.commandservices;
 import com.brasper.platform.iam.application.outboundservices.HashingService;
 import com.brasper.platform.iam.application.outboundservices.TokenService;
 import com.brasper.platform.iam.domain.model.aggregates.User;
+import com.brasper.platform.iam.domain.model.commands.ChangePasswordCommand;
 import com.brasper.platform.iam.domain.model.commands.ChangeUserRoleCommand;
 import com.brasper.platform.iam.domain.model.commands.DeactivateUserCommand;
 import com.brasper.platform.iam.domain.model.commands.SignInCommand;
@@ -69,6 +70,33 @@ public class UserCommandService {
             return Result.failure(UserCommandFailure.USER_INACTIVE);
         }
         return Result.success(new AuthenticatedUser(user, tokens.generateToken(user)));
+    }
+
+    /**
+     * A signed-in user changes their own password. Wrong current passwords count toward the sign-in lockout, so a
+     * stolen token cannot be used to guess it. shortcut: tokens already issued stay valid until they expire (the JWT is
+     * stateless); add a per-user token version if revoking them matters.
+     */
+    @Transactional
+    public Result<User, UserCommandFailure> handle(ChangePasswordCommand command) {
+        String name = command.username().value();
+        if (throttle.isLocked(name)) {
+            return Result.failure(UserCommandFailure.TOO_MANY_ATTEMPTS);
+        }
+        User user = users.findByUsername(command.username()).filter(User::isActive).orElse(null);
+        if (user == null) {
+            return Result.failure(UserCommandFailure.USER_NOT_FOUND);
+        }
+        if (!hashing.matches(command.currentPassword(), user.getPasswordHash())) {
+            throttle.failed(name);
+            return Result.failure(UserCommandFailure.INVALID_CURRENT_PASSWORD);
+        }
+        if (!isStrong(command.newPassword())) {
+            return Result.failure(UserCommandFailure.WEAK_PASSWORD);
+        }
+        throttle.succeeded(name);
+        user.changePasswordHash(hashing.encode(command.newPassword()));
+        return Result.success(users.save(user));
     }
 
     @Transactional

@@ -2,8 +2,10 @@ package com.brasper.platform.iam.interfaces.rest;
 
 import com.brasper.platform.iam.application.commandservices.UserCommandFailure;
 import com.brasper.platform.iam.application.commandservices.UserCommandService;
+import com.brasper.platform.iam.domain.model.commands.ChangePasswordCommand;
 import com.brasper.platform.iam.domain.model.commands.SignInCommand;
 import com.brasper.platform.iam.domain.model.valueobjects.Username;
+import com.brasper.platform.iam.interfaces.rest.resources.ChangePasswordResource;
 import com.brasper.platform.iam.interfaces.rest.resources.SignInResource;
 import com.brasper.platform.iam.interfaces.rest.resources.SignUpResource;
 import com.brasper.platform.iam.interfaces.rest.transform.AuthenticatedUserResourceFromEntityAssembler;
@@ -15,7 +17,9 @@ import org.springframework.context.MessageSource;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
@@ -44,6 +48,17 @@ public class AuthenticationController {
         return userCommands.handle(new SignInCommand(username, resource.password())).fold(
                 authenticated -> ResponseEntity.ok(
                         AuthenticatedUserResourceFromEntityAssembler.toResourceFromEntity(authenticated)),
+                failure -> UserFailureResponseAssembler.toResponse(failure, messages));
+    }
+
+    /** The signed-in user changes their own password. */
+    @PutMapping("/password")
+    public ResponseEntity<?> changePassword(Authentication authentication,
+            @Valid @RequestBody ChangePasswordResource resource) {
+        var command = new ChangePasswordCommand(new Username(authentication.getName()), resource.currentPassword(),
+                resource.newPassword());
+        return userCommands.handle(command).fold(
+                user -> ResponseEntity.noContent().build(),
                 failure -> UserFailureResponseAssembler.toResponse(failure, messages));
     }
 

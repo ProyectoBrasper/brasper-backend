@@ -21,6 +21,7 @@ public final class UserFailureResponseAssembler {
             case WEAK_PASSWORD -> ProblemDetailAssembler.unprocessable(messages, key);
             case USER_NOT_FOUND -> ProblemDetailAssembler.notFound(messages, key);
             case CANNOT_MODIFY_LAST_ADMIN -> ProblemDetailAssembler.conflict(messages, key);
+            case INVALID_CURRENT_PASSWORD -> ProblemDetailAssembler.unprocessable(messages, key);
         };
     }
 }
