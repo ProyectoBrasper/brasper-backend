@@ -4,10 +4,13 @@ import com.brasper.platform.accounting.domain.model.aggregates.FixedAsset;
 import com.brasper.platform.accounting.domain.model.commands.DisposeFixedAssetCommand;
 import com.brasper.platform.accounting.domain.model.commands.RegisterFixedAssetCommand;
 import com.brasper.platform.accounting.domain.repositories.FixedAssetRepository;
+import com.brasper.platform.accounting.domain.repositories.JournalEntryRepository;
+import com.brasper.platform.accounting.domain.services.PostingRules;
 import com.brasper.platform.accounting.domain.repositories.TaxParametersRepository;
 import com.brasper.platform.shared.application.result.Result;
 import com.brasper.platform.shared.domain.model.valueobjects.TaxRates;
 import com.brasper.platform.accounting.domain.model.aggregates.JournalEntry;
+import com.brasper.platform.accounting.domain.model.entities.JournalLine;
 import com.brasper.platform.accounting.domain.model.commands.RunMonthlyDepreciationCommand;
 import com.brasper.platform.accounting.domain.model.commands.RegisterJournalEntryCommand;
 import com.brasper.platform.accounting.domain.model.commands.JournalLineData;
@@ -32,11 +35,14 @@ public class FixedAssetCommandService {
     private final TaxParametersRepository parameters;
 
     private final LedgerCommandService ledger;
+    private final JournalEntryRepository entries;
 
-    public FixedAssetCommandService(FixedAssetRepository assets, TaxParametersRepository parameters, LedgerCommandService ledger) {
+    public FixedAssetCommandService(FixedAssetRepository assets, TaxParametersRepository parameters,
+            LedgerCommandService ledger, JournalEntryRepository entries) {
         this.assets = assets;
         this.parameters = parameters;
         this.ledger = ledger;
+        this.entries = entries;
     }
 
     @Transactional
@@ -58,13 +64,8 @@ public class FixedAssetCommandService {
                     List.of(new JournalLineData(new AccountCode("68"), total, zero, null),
                             new JournalLineData(new AccountCode("39"), zero, total, null))));
             if (result.isFailure()) {
-                try {
-                    TransactionAspectSupport.currentTransactionStatus().setRollbackOnly();
-                } catch (NoTransactionException ignored) {
-                    // Plain unit tests invoke this service without a transaction proxy.
-                }
-                return Result.failure(result.failure().orElseThrow() == LedgerCommandFailure.DUPLICATE_SOURCE
-                        ? FixedAssetCommandFailure.DEPRECIATION_ALREADY_RUN : FixedAssetCommandFailure.ACCOUNTS_NOT_CONFIGURED);
+                return Result.failure(rollBack(result.failure().orElseThrow() == LedgerCommandFailure.DUPLICATE_SOURCE
+                        ? FixedAssetCommandFailure.DEPRECIATION_ALREADY_RUN : FixedAssetCommandFailure.ACCOUNTS_NOT_CONFIGURED));
             }
             entries.add(result.success().orElseThrow());
         }
@@ -79,7 +80,34 @@ public class FixedAssetCommandService {
         }
         TaxRates rates = parameters.findFirstByEffectiveFromLessThanEqualOrderByEffectiveFromDesc(command.acquiredOn())
                 .map(found -> found.getRates()).orElseGet(TaxRates::standard);
-        return Result.success(assets.save(new FixedAsset(command, rates)));
+        FixedAsset asset = assets.save(new FixedAsset(command, rates));
+        var cost = asset.getAmounts().taxableBase();
+        var originalCost = command.expenseId() == null ? null : costDebitOf(command.expenseId());
+        var posting = ledger.handle(PostingRules.forFixedAssetAcquisition(asset.getId(), asset.getAcquiredOn(), cost,
+                originalCost != null ? originalCost.getAccountCode() : new AccountCode("59"),
+                originalCost != null ? originalCost.getProjectId() : null));
+        if (posting.isFailure()) {
+            return Result.failure(rollBack(FixedAssetCommandFailure.ACCOUNTS_NOT_CONFIGURED));
+        }
+        return Result.success(asset);
+    }
+
+    /** The expense that paid for the asset charged 60 or 63 when it was registered; the asset takes that cost over. */
+    private JournalLine costDebitOf(Long expenseId) {
+        return entries.findBySourceAndSourceId(EntrySource.EXPENSE, expenseId).stream()
+                .flatMap(entry -> entry.getLines().stream())
+                .filter(line -> line.getDebit().isPositive()
+                        && (line.getAccountCode().equals(new AccountCode("60")) || line.getAccountCode().equals(new AccountCode("63"))))
+                .findFirst().orElse(null);
+    }
+
+    private static FixedAssetCommandFailure rollBack(FixedAssetCommandFailure failure) {
+        try {
+            TransactionAspectSupport.currentTransactionStatus().setRollbackOnly();
+        } catch (NoTransactionException ignored) {
+            // Plain unit tests invoke this service without a transaction proxy.
+        }
+        return failure;
     }
 
     @Transactional
@@ -95,6 +123,11 @@ public class FixedAssetCommandService {
             return Result.failure(FixedAssetCommandFailure.INVALID_DISPOSAL_DATE);
         }
         asset.dispose(command.disposedOn());
+        var posting = ledger.handle(PostingRules.forFixedAssetDisposal(asset.getId(), command.disposedOn(),
+                asset.getAmounts().taxableBase(), asset.accumulatedDepreciationAt(command.disposedOn())));
+        if (posting.isFailure()) {
+            return Result.failure(rollBack(FixedAssetCommandFailure.ACCOUNTS_NOT_CONFIGURED));
+        }
         return Result.success(assets.save(asset));
     }
 }

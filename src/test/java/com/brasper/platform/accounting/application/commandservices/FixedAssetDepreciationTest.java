@@ -20,7 +20,7 @@ class FixedAssetDepreciationTest {
     private final FixedAssetRepository assets = mock(FixedAssetRepository.class);
     private final LedgerCommandService ledger = mock(LedgerCommandService.class);
     private final FixedAssetCommandService service = new FixedAssetCommandService(
-            assets, mock(TaxParametersRepository.class), ledger);
+            assets, mock(TaxParametersRepository.class), ledger, mock(JournalEntryRepository.class));
     private FixedAsset asset(Currency currency) {
         return new FixedAsset(new RegisterFixedAssetCommand("Laptop", LocalDate.of(2026, 1, 10),
                 new Money(new BigDecimal("1200"), currency), 12, null), TaxRates.standard());
