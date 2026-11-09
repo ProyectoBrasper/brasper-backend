@@ -2,8 +2,10 @@ package com.brasper.platform.billing.infrastructure.persistence.jpa;
 
 import com.brasper.platform.billing.domain.model.aggregates.Invoice;
 import com.brasper.platform.billing.domain.model.valueobjects.InvoiceNumber;
+import com.brasper.platform.billing.domain.model.valueobjects.InvoicePaymentType;
 import com.brasper.platform.billing.domain.model.valueobjects.InvoiceStatus;
 import com.brasper.platform.billing.domain.repositories.InvoiceRepository;
+import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.List;
 import org.springframework.data.domain.PageRequest;
@@ -34,6 +36,27 @@ public interface InvoiceJpaRepository extends JpaRepository<Invoice, Long>, Invo
     default List<Invoice> filter(InvoiceStatus status, Long projectId, LocalDate from, LocalDate to, int page,
             int size) {
         return filterPage(status, projectId, from, to, PageRequest.of(page, size));
+    }
+
+    @Query("""
+            select sum(p.amount) from InvoicePayment p
+            where p.invoice.status <> :voided and p.type <> :certificate and p.receivedOn between :from and :to""")
+    BigDecimal sumDeposits(@Param("voided") InvoiceStatus voided, @Param("certificate") InvoicePaymentType certificate,
+            @Param("from") LocalDate from, @Param("to") LocalDate to);
+
+    @Override
+    default BigDecimal sumDepositsReceived(LocalDate from, LocalDate to) {
+        BigDecimal sum = sumDeposits(InvoiceStatus.VOIDED, InvoicePaymentType.RETENTION_CERTIFICATE, from, to);
+        return sum == null ? BigDecimal.ZERO : sum;
+    }
+
+    @Query("select sum(i.igv) from Invoice i where i.status <> :voided and i.issuedOn between :from and :to")
+    BigDecimal sumIgv(@Param("voided") InvoiceStatus voided, @Param("from") LocalDate from, @Param("to") LocalDate to);
+
+    @Override
+    default BigDecimal sumIgvIssued(LocalDate from, LocalDate to) {
+        BigDecimal sum = sumIgv(InvoiceStatus.VOIDED, from, to);
+        return sum == null ? BigDecimal.ZERO : sum;
     }
 
     @Override

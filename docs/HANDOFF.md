@@ -74,7 +74,7 @@ Pendiente, en este orden sugerido:
 - Puertos de salida en `application/outboundservices`, adaptadores en `infrastructure/acl`.
 - Billing y Expenses leen las tasas de Accounting por la fachada (`BillingAccountingTaxRatesProvider`, `ExpenseAccountingTaxRatesProvider`). Mientras no haya parámetros fijados rigen las tasas estándar (IGV 18%).
 - Las fachadas suman montos de monedas distintas como números simples.
-- Filtros y paginación en memoria; pagos, avances y movimientos con carga EAGER o historial completo. Pasar a SQL si los volúmenes crecen.
+- Los filtros y la página de las listas de facturas, gastos, pagos pendientes y costos fijos van en SQL. Las sumas del flujo de caja que más pesaban también: cobros por semana e IGV por mes de Billing (`sumDepositsReceived`, `sumIgvIssued`), y saldos y movimientos de Treasury. Siguen cargando todo en memoria, con una consulta por llamada (fetch join) y sin problema hoy: pagos pendientes y cuotas de préstamos por semana, y los costos fijos con sus pagos por semana (una consulta por costo). Pasarlos a SQL si un reporte de 24 meses tarda más de un par de segundos. Pagos, avances y movimientos de cada agregado siguen con carga EAGER o historial completo.
 - Billing: `markAsRealized` de los cobros programados todavía no se llama: falta que Billing escuche su propio `InvoicePaymentReceivedEvent`.
 - Billing no valida que la moneda de la factura coincida con la del proyecto ni el tipo de cuenta bancaria del depósito.
 - Expenses: registrar o anular un gasto pagado mueve la caja por los eventos (ver Eventos de dominio); el servicio solo comprueba que la cuenta o el socio existan. Un proyecto solo `CANCELLED` rechaza gastos nuevos (uno `COMPLETED` los acepta).
