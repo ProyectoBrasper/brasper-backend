@@ -15,5 +15,8 @@ services:
         sync: false
       - key: SPRING_DATASOURCE_PASSWORD
         sync: false
+      # Set to true only while you need Swagger; anyone can read the docs when it is on.
+      - key: SWAGGER_ENABLED
+        value: "false"
       - key: JWT_SECRET
         generateValue: true
