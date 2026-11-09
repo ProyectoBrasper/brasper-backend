@@ -7,7 +7,7 @@ Diseño de dominio: `docs/uml/` (empezar por `00-context-map.puml`).
 - Java 25, Maven, Spring Boot 4.1.x
 - PostgreSQL en Supabase, esquema con Flyway (`spring.jpa.hibernate.ddl-auto=validate`)
 - Tests: JUnit 5, Testcontainers (PostgreSQL), ArchUnit
-- Lombok solo para `@Getter`
+- Sin Lombok: los getters se escriben a mano
 - Deploy: servidor local del cliente o Render (una sola imagen Docker)
 
 ## Git (gitflow)
@@ -71,7 +71,7 @@ Reglas:
 3. Un contexto **nunca** usa el repositorio de otro: usa la fachada ACL (`I*ContextFacade`) o eventos de dominio.
 4. Referencias entre agregados de distintos contextos solo por `Id`, nunca por relación JPA.
 5. Eventos de dominio se publican después de persistir y se consumen con `@TransactionalEventListener`.
-6. ArchUnit hace cumplir estas reglas en CI.
+6. ArchUnit (`ArchitectureTest`) hace cumplir en CI las reglas 1, 2 y 3; la 4 y la 5 se revisan a mano.
 
 Convenciones que salieron de aplicar esas reglas (desvían un poco de los UML):
 - Los puertos de salida (hacia otro contexto) viven en `application/outboundservices`; sus adaptadores en `infrastructure/acl`.
