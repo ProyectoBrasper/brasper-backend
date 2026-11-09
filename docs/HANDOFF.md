@@ -87,24 +87,24 @@ Pendiente, en este orden sugerido:
 - Los certificados de retención no cuentan como cobrado en `BillingContextFacade`, y los aportes de socio no cuentan como pagado en `ExpensesContextFacade`.
 - Swagger UI y la especificación son públicos (no exponen datos); cada llamada sigue pidiendo token.
 
-## Auditoría ponytail: arreglos en curso
-Auditoría de todo el backend (17 hallazgos). Se arreglan en este orden, un PR por arreglo; marcar al terminar cada uno.
+## Auditoría ponytail: arreglos
+Auditoría de todo el backend (17 hallazgos). Hechos: 1, 2, 3, 4, 5, 7, 8, 10, 11, 12, 14, 15 y 17. Quedan el 6, 9, 13 y 16, con el motivo en cada uno.
 1. [x] Activos fijos: registrar un activo asienta D 33 / H la cuenta que llevaba el costo del gasto (60 o 63, mismo proyecto) o H 59 si no viene de un gasto (saldo inicial); darlo de baja asienta D 39 + D 65 (lo no depreciado) / H 33 (V36 siembra la 65). Decisión propia: el IGV del gasto no se toca y anular el gasto después no revierte el asiento del activo.
 2. [x] Pagos pendientes: un gasto pendiente crea su pendiente en Treasury (semana del gasto), pagarlo del todo marca el gasto como pagado (`PayableSettledEvent`), anular un gasto pendiente borra su pendiente (si ya tiene pagos, 409), y un pendiente sin gasto asienta D 60/63 / H 42 al crearse (fecha = hoy). Límites: los pendientes de tipo TAX y SELF_DETRACTION no asientan nada al crearse; un gasto anulado después de saldado no devuelve el dinero.
 3. [x] Doble pago por concurrencia: `@Version` en `Invoice`, `Payable` y `Loan` (V35); el segundo guardado responde 409. `BankAccount` no lleva versión porque su saldo se calcula de los movimientos.
 4. [x] Balance, estado de resultados, balance de comprobación y preparación del IGV suman en la base (`group by` cuenta y moneda, `JournalEntryRepository.totalsUpTo/totalsBetween/totalsByPeriod`) en vez de cargar cada asiento con sus líneas.
 5. [x] Flujo de caja: el saldo y los movimientos por semana se suman en la base (`BankAccountRepository.sumBalancesAt/sumMovementsBetween`) y los pendientes y préstamos se cargan con sus pagos y cuotas en una consulta. Sigue siendo una consulta por semana, no una para todo el rango.
-6. [ ] Rentabilidad y tablero: totales de todos los proyectos en una consulta.
+6. [ ] (aplazado) Rentabilidad y tablero: son 4 consultas indexadas por proyecto; con decenas de proyectos tarda menos de un segundo. Se hace si el portafolio pasa de unos 100 proyectos: las fachadas de Expenses, Billing y Projects devolverían los totales de todos los proyectos agrupados.
 7. [x] Flujo de caja: la semana de hoy suma lo real ya movido más lo que sigue programado (antes solo mostraba lo programado). Límite: un costo fijo con el mes pagado a medias aún cuenta su parte programada completa.
 8. [x] Las lecturas de Treasury (cuentas, préstamos, socios, pendientes) y Billing (facturas, pagos, cobros programados) quedan para ADMIN, ACCOUNTING y MANAGEMENT. Decisión propia sin confirmar: Projects, clientes, proveedores y gastos siguen abiertos a cualquier usuario porque ENGINEER también los escribe.
-9. [ ] Facturas y gastos en USD fuera de reportes e IGV.
+9. [ ] (necesita decisión del usuario) Facturas y gastos en USD quedan fuera de los reportes, del IGV declarado y de los balances (solo suman PEN). Opciones: rechazar USD hasta tener tipo de cambio, o convertir a PEN al asentar con el tipo de cambio de SUNAT guardado en el asiento.
 10. [x] Un aporte de socio reembolsable con cuenta bancaria asienta D 10 / H 455 (pasivo, V37 siembra la 455) en vez de capital. Límite: un gasto pagado de su bolsillo por un socio sigue yendo a capital (50).
 11. [x] `IllegalStateException`, `IllegalArgumentException` y conflictos de concurrencia se registran en el log (WARN, con traza). Decisión propia: el texto del error se sigue devolviendo al cliente porque es el motivo del 409; no se tradujo.
 12. [x] Cinco contraseñas incorrectas seguidas bloquean el usuario 15 minutos (429, `SignInThrottle`). Límites: el conteo está en memoria (se borra al reiniciar y no se comparte entre instancias) y quien conoce un usuario puede bloquearlo 15 minutos; no hay límite por IP ni configuración CORS (depende de dónde corra el frontend).
-13. [ ] Paginación en listas de facturas, gastos, pagos pendientes y costos fijos.
+13. [ ] (aplazado) Paginación en listas de facturas, gastos, pagos pendientes y costos fijos: cargan todo y filtran en memoria (atajo documentado en el código, límite: miles de filas). Se hace con `page`/`size` opcionales y los filtros dentro de la consulta cuando el frontend lo pida.
 14. [x] `AGENTS.md` ya dice que no se usa Lombok.
 15. [x] `LedgerQueryService` carga las cuentas una sola vez por llamada (se hizo junto con el 4).
-16. [ ] Tests con datos confirmados en la base compartida.
+16. [ ] (aplazado) Tests con datos confirmados en la base compartida: se aíslan por fechas lejanas y números únicos; ya rompió un test una vez. Solucionarlo bien es un esquema de base por clase de test.
 17. [x] ArchUnit ahora también vigila que ningún contexto use los repositorios, la persistencia ni los servicios de otro (`ArchitectureTest`). Decisión propia: los eventos y enums de `domain` de otro contexto se consideran el lenguaje público compartido y se pueden importar.
 
 ## Pendientes de operación
