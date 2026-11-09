@@ -1,6 +1,6 @@
 # Traspaso: estado del backend de Brasper
 
-Documento para retomar el trabajo en otra sesión (persona o agente). Última actualización: 2026-11-09, `develop` en el PR #131.
+Documento para retomar el trabajo en otra sesión (persona o agente). Última actualización: 2026-11-09, `develop` en el PR #139.
 Reglas del repo: `AGENTS.md`. Diseño de dominio: `docs/uml/` (empezar por `00-context-map.puml`).
 
 ## Cómo correr y verificar

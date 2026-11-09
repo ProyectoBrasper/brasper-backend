@@ -27,13 +27,13 @@ public class InvoiceQueryService {
 
     /** All filters are optional; newest first. */
     public List<Invoice> findAll(InvoiceStatus status, Long projectId, Period issuedIn) {
-        return invoices.filter(status, projectId, from(issuedIn), to(issuedIn), 0, Integer.MAX_VALUE);
+        return invoices.filter(status, projectId, Period.startOrEarliest(issuedIn), Period.endOrLatest(issuedIn), 0, Integer.MAX_VALUE);
     }
 
     /** Same filters as {@link #findAll}, one page of them plus the total that match. */
     public PagedList<Invoice> findPage(InvoiceStatus status, Long projectId, Period issuedIn, PageSpec page) {
-        return new PagedList<>(invoices.filter(status, projectId, from(issuedIn), to(issuedIn), page.page(), page.size()),
-                invoices.countFiltered(status, projectId, from(issuedIn), to(issuedIn)));
+        return new PagedList<>(invoices.filter(status, projectId, Period.startOrEarliest(issuedIn), Period.endOrLatest(issuedIn), page.page(), page.size()),
+                invoices.countFiltered(status, projectId, Period.startOrEarliest(issuedIn), Period.endOrLatest(issuedIn)));
     }
 
     /** Deposits received from {@code from} to {@code to}, both inclusive (retention certificates are no money). */
@@ -44,15 +44,6 @@ public class InvoiceQueryService {
     /** IGV of the invoices issued from {@code from} to {@code to}, both inclusive, voided ones left out. */
     public BigDecimal sumIgvIssued(LocalDate from, LocalDate to) {
         return invoices.sumIgvIssued(from, to);
-    }
-
-    // Postgres cannot type a null date parameter, so "no period" is the widest range instead.
-    private static LocalDate from(Period period) {
-        return period == null ? LocalDate.of(1900, 1, 1) : period.startDate();
-    }
-
-    private static LocalDate to(Period period) {
-        return period == null ? LocalDate.of(9999, 12, 31) : period.endDate();
     }
 
     /** Empty when the invoice does not exist; oldest first. */

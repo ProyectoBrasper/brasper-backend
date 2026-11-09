@@ -17,8 +17,6 @@ public interface InvoiceRepository {
 
     boolean existsByNumber(InvoiceNumber number);
 
-    List<Invoice> findAll();
-
     /** Newest first. {@code status} and {@code projectId} are optional (null); {@code from} and {@code to} bound the issue date, both inclusive and never null. */
     List<Invoice> filter(InvoiceStatus status, Long projectId, LocalDate from, LocalDate to, int page, int size);
 
