@@ -14,8 +14,8 @@ import java.util.Map;
 
 /**
  * Chains the weeks: the first opening balance is the real cash the day before, and each next week opens with the
- * previous closing. A week that ended before today shows what happened; the current and later weeks show what is
- * scheduled. shortcut: a range that starts in the future still opens with today's cash, the weeks in between
+ * previous closing. A week that ended before today shows what happened, a later week what is scheduled, and the
+ * week of today both: what already happened plus what is still scheduled. shortcut: a range that starts in the future still opens with today's cash, the weeks in between
  * are not projected.
  */
 public final class CashFlowCalculator {
@@ -63,9 +63,22 @@ public final class CashFlowCalculator {
 
     private static CashFlowLine weekLine(CashFlowWeek week, BigDecimal opening, CashFlowSource source, LocalDate today) {
         boolean projected = !week.endDate().isBefore(today);
+        // The current week has already happened in part: what was paid or collected plus what is still scheduled.
+        boolean current = projected && !week.startDate().isAfter(today);
+        Map<CashFlowConcept, BigDecimal> inflows = !projected ? source.actualInflows(week) : source.projectedInflows(week);
+        Map<CashFlowConcept, BigDecimal> outflows = !projected ? source.actualOutflows(week) : source.projectedOutflows(week);
+        if (current) {
+            inflows = sum(source.actualInflows(week), inflows);
+            outflows = sum(source.actualOutflows(week), outflows);
+        }
         return new CashFlowLine("%d-%02d Week %02d".formatted(week.year(), week.month(), week.number()),
-                week.startDate(), week.endDate(), projected, opening,
-                projected ? source.projectedInflows(week) : source.actualInflows(week),
-                projected ? source.projectedOutflows(week) : source.actualOutflows(week));
+                week.startDate(), week.endDate(), projected, opening, inflows, outflows);
+    }
+
+    private static Map<CashFlowConcept, BigDecimal> sum(Map<CashFlowConcept, BigDecimal> a, Map<CashFlowConcept, BigDecimal> b) {
+        Map<CashFlowConcept, BigDecimal> total = new EnumMap<>(CashFlowConcept.class);
+        a.forEach((concept, amount) -> total.merge(concept, amount, BigDecimal::add));
+        b.forEach((concept, amount) -> total.merge(concept, amount, BigDecimal::add));
+        return total;
     }
 }
