@@ -83,7 +83,7 @@ Pendiente, en este orden sugerido:
 - Flujo de caja semanal: un mes puede tener hasta 6 semanas (lunes a domingo, recortadas al mes). Se permite "Semana 06" porque algunos meses la necesitan (ej. noviembre de 2026, donde la semana 6 es solo el día 30). El Excel original solo llegaba a 5. Ver `CashFlowWeek`.
 
 ## Decisiones propias del agente, sin confirmar por el usuario
-- Matriz de permisos: lecturas para cualquier usuario autenticado; escribir en Projects, clientes, proveedores y gastos con ADMIN, ACCOUNTING y ENGINEER; escribir en Billing con ADMIN y ACCOUNTING; MANAGEMENT solo lee. Treasury (cuentas, ajustes, transferencias) se escribe solo con ADMIN y ACCOUNTING.
+- Matriz de permisos (las lecturas de Treasury y Billing ya son solo ADMIN, ACCOUNTING y MANAGEMENT, ver la auditoría): lecturas para cualquier usuario autenticado; escribir en Projects, clientes, proveedores y gastos con ADMIN, ACCOUNTING y ENGINEER; escribir en Billing con ADMIN y ACCOUNTING; MANAGEMENT solo lee. Treasury (cuentas, ajustes, transferencias) se escribe solo con ADMIN y ACCOUNTING.
 - Los certificados de retención no cuentan como cobrado en `BillingContextFacade`, y los aportes de socio no cuentan como pagado en `ExpensesContextFacade`.
 - Swagger UI y la especificación son públicos (no exponen datos); cada llamada sigue pidiendo token.
 
@@ -96,7 +96,7 @@ Auditoría de todo el backend (17 hallazgos). Se arreglan en este orden, un PR p
 5. [x] Flujo de caja: el saldo y los movimientos por semana se suman en la base (`BankAccountRepository.sumBalancesAt/sumMovementsBetween`) y los pendientes y préstamos se cargan con sus pagos y cuotas en una consulta. Sigue siendo una consulta por semana, no una para todo el rango.
 6. [ ] Rentabilidad y tablero: totales de todos los proyectos en una consulta.
 7. [x] Flujo de caja: la semana de hoy suma lo real ya movido más lo que sigue programado (antes solo mostraba lo programado). Límite: un costo fijo con el mes pagado a medias aún cuenta su parte programada completa.
-8. [ ] Lecturas de Treasury, Billing, Expenses y Projects restringidas por rol.
+8. [x] Las lecturas de Treasury (cuentas, préstamos, socios, pendientes) y Billing (facturas, pagos, cobros programados) quedan para ADMIN, ACCOUNTING y MANAGEMENT. Decisión propia sin confirmar: Projects, clientes, proveedores y gastos siguen abiertos a cualquier usuario porque ENGINEER también los escribe.
 9. [ ] Facturas y gastos en USD fuera de reportes e IGV.
 10. [x] Un aporte de socio reembolsable con cuenta bancaria asienta D 10 / H 455 (pasivo, V37 siembra la 455) en vez de capital. Límite: un gasto pagado de su bolsillo por un socio sigue yendo a capital (50).
 11. [x] `IllegalStateException`, `IllegalArgumentException` y conflictos de concurrencia se registran en el log (WARN, con traza). Decisión propia: el texto del error se sigue devolviendo al cliente porque es el motivo del 409; no se tradujo.

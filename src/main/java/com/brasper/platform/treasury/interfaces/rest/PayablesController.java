@@ -32,6 +32,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 @RestController
 @RequestMapping("/api/v1/payables")
+@PreAuthorize("hasAnyRole('ADMIN','ACCOUNTING','MANAGEMENT')")
 public class PayablesController {
 
     private static final String CAN_WRITE = "hasAnyRole('ADMIN','ACCOUNTING')";

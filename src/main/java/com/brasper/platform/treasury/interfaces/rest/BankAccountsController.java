@@ -34,6 +34,7 @@ import org.springframework.web.bind.annotation.RestController;
 /** Any signed-in user reads; cash movements are written only by admin and accounting. */
 @RestController
 @RequestMapping("/api/v1/bank-accounts")
+@PreAuthorize("hasAnyRole('ADMIN','ACCOUNTING','MANAGEMENT')")
 public class BankAccountsController {
 
     private static final String CAN_WRITE = "hasAnyRole('ADMIN','ACCOUNTING')";

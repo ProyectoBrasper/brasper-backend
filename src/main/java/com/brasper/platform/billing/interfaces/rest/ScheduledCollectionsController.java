@@ -28,6 +28,7 @@ import org.springframework.web.bind.annotation.RestController;
 /** Any signed-in user reads; only admin and accounting change the schedule. */
 @RestController
 @RequestMapping("/api/v1/scheduled-collections")
+@PreAuthorize("hasAnyRole('ADMIN','ACCOUNTING','MANAGEMENT')")
 public class ScheduledCollectionsController {
 
     private static final String CAN_WRITE = "hasAnyRole('ADMIN','ACCOUNTING')";
