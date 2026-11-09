@@ -4,7 +4,7 @@ Documento para retomar el trabajo en otra sesión (persona o agente). Última ac
 Reglas del repo: `AGENTS.md`. Diseño de dominio: `docs/uml/` (empezar por `00-context-map.puml`).
 
 ## Cómo correr y verificar
-- `./mvnw -B verify` (usa Testcontainers: Docker Desktop debe estar encendido). Hoy pasan 276 tests.
+- `./mvnw -B verify` (usa Testcontainers: Docker Desktop debe estar encendido). Hoy pasan unos 485 tests.
 - Swagger UI: `/swagger-ui.html`. Especificación: `/v3/api-docs`. Para probar: `POST /api/v1/auth/sign-in`, copiar el token y pegarlo en "Authorize".
 - CI en GitHub Actions: `build` (`./mvnw -B verify`) y `pr-size` (máximo 400 líneas por PR). Los dos son obligatorios.
 
@@ -67,6 +67,7 @@ Hecho (dominio, servicios, API y fachada salvo que se indique):
 Pendiente, en este orden sugerido:
 1. **Reporting** está completo (rentabilidad por proyecto, estado de resultados, balance general, flujo de caja y tablero).
 2. Eventos de dominio: están todos los del UML. Falta una carga inicial: lo cobrado, gastado o pagado antes de estos eventos no tiene asiento ni movimiento de caja, y los saldos de apertura de las cuentas bancarias no tienen asiento. Criterio aplicado: los eventos de otros contextos alimentan a Accounting y, donde el flujo no movía caja, también a Treasury; lo que Treasury ya mueve por su cuenta (pagos pendientes, préstamos, transferencias) solo publica para Accounting, así la caja no se cuenta dos veces.
+3. Siguiente trabajo, en este orden: (a) la decisión del usuario sobre USD (hallazgo 9 de la auditoría: rechazar o convertir con tipo de cambio de SUNAT); (b) carga inicial de datos cuando el usuario la pida (hoy no quiere cargar datos reales); (c) paginación y totales por lote (hallazgos 13 y 6) si el volumen o el frontend lo piden; (d) probar contra Supabase real al aplicar V2 a V37.
 
 ## Atajos y desvíos del UML (todos documentados en el código)
 - Las fachadas y sus implementaciones viven en `interfaces/acl` (el UML las pone en `application/acl`) porque ArchUnit prohíbe que `application` dependa de `interfaces`.
@@ -108,7 +109,7 @@ Auditoría de todo el backend (17 hallazgos). Hechos: 1, 2, 3, 4, 5, 7, 8, 10, 1
 17. [x] ArchUnit ahora también vigila que ningún contexto use los repositorios, la persistencia ni los servicios de otro (`ArchitectureTest`). Decisión propia: los eventos y enums de `domain` de otro contexto se consideran el lenguaje público compartido y se pueden importar.
 
 ## Pendientes de operación
-- Las migraciones V2 a V23 aún no se aplicaron en Supabase: se aplican en el siguiente arranque contra esa base. Solo tiene la baseline `V1`.
+- Las migraciones V2 a V37 (V12 a V19 se saltaron a propósito) aún no se aplicaron en Supabase: se aplican en el siguiente arranque contra esa base. Solo tiene la baseline `V1`.
 - La contraseña de Supabase se expuso en el chat al inicio; el usuario decidió no rotarla.
 - Avisar al compañero del frontend de los desvíos del UML y de la reescritura del historial de `main` y `develop` (`git fetch && git reset --hard origin/develop`).
 - Contenedores Docker viejos: el usuario nunca dijo cuáles borrar.
