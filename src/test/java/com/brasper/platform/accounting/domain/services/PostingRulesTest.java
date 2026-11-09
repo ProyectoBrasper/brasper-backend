@@ -180,14 +180,17 @@ class PostingRulesTest {
 
     @Test
     void aPartnerContributionIsPostedOnlyWhenMoneyReachedAnAccountAndNoExpenseCarriesIt() {
-        var deposit = new PartnerContributionRegisteredEvent(5L, 6L, DAY, pen("300"), 1L, null);
-        var forExpense = new PartnerContributionRegisteredEvent(6L, 6L, DAY, pen("80"), 1L, 4L);
-        var noAccount = new PartnerContributionRegisteredEvent(7L, 6L, DAY, pen("80"), null, null);
+        var deposit = new PartnerContributionRegisteredEvent(5L, 6L, DAY, pen("300"), 1L, null, false);
+        var forExpense = new PartnerContributionRegisteredEvent(6L, 6L, DAY, pen("80"), 1L, 4L, false);
+        var noAccount = new PartnerContributionRegisteredEvent(7L, 6L, DAY, pen("80"), null, null, false);
 
         RegisterJournalEntryCommand command = PostingRules.forPartnerContribution(deposit).orElseThrow();
 
         assertThat(line(command, "10").debit().amount()).isEqualByComparingTo("300");
         assertThat(line(command, "50").credit().amount()).isEqualByComparingTo("300");
+        RegisterJournalEntryCommand loan = PostingRules.forPartnerContribution(
+                new PartnerContributionRegisteredEvent(5L, 6L, DAY, pen("300"), 1L, null, true)).orElseThrow();
+        assertThat(loan.lines()).extracting(l -> l.accountCode().value()).containsExactly("10", "455");
         assertThat(PostingRules.forPartnerContribution(forExpense)).isEmpty();
         assertThat(PostingRules.forPartnerContribution(noAccount)).isEmpty();
     }

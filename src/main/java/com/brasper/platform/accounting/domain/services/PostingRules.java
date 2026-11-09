@@ -36,6 +36,7 @@ public final class PostingRules {
     static final AccountCode SALES = new AccountCode("70");
     static final AccountCode PAYABLES = new AccountCode("42");
     static final AccountCode CAPITAL = new AccountCode("50");
+    static final AccountCode PARTNER_LOANS = new AccountCode("455");
     static final AccountCode DIRECT_COSTS = new AccountCode("60");
     static final AccountCode SERVICES = new AccountCode("63");
     static final AccountCode PERSONNEL = new AccountCode("62");
@@ -170,8 +171,9 @@ public final class PostingRules {
     }
 
     /**
-     * D 10 / H 50 for money a partner put into a bank account. A contribution that is an expense paid out of pocket
-     * is already in the expense's entry, and one without an account moved no money, so neither is posted here.
+     * D 10 / H 50 for money a partner put into a bank account, H 455 when the partner will get it back. A contribution
+     * that is an expense paid out of pocket is already in the expense's entry, and one without an account moved no
+     * money, so neither is posted here.
      */
     public static Optional<RegisterJournalEntryCommand> forPartnerContribution(PartnerContributionRegisteredEvent event) {
         if (event.expenseId() != null || event.bankAccountId() == null) {
@@ -179,7 +181,8 @@ public final class PostingRules {
         }
         return Optional.of(new RegisterJournalEntryCommand(event.contributedOn(), "Partner contribution",
                 EntrySource.PARTNER_CONTRIBUTION, event.contributionId(),
-                List.of(debit(CASH, event.amount(), null), credit(CAPITAL, event.amount(), null))));
+                List.of(debit(CASH, event.amount(), null),
+                        credit(event.reimbursable() ? PARTNER_LOANS : CAPITAL, event.amount(), null))));
     }
 
     /**
