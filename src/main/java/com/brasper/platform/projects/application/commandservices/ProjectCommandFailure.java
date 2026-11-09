@@ -9,7 +9,8 @@ public enum ProjectCommandFailure implements CommandFailure {
     INVALID_STATUS_TRANSITION("projects.error.invalid-status-transition"),
     PROGRESS_EXCEEDS_LIMIT("projects.error.progress-exceeds-limit"),
     PERIOD_ALREADY_REGISTERED("projects.error.period-already-registered"),
-    COST_CURRENCY_MISMATCH("projects.error.cost-currency-mismatch");
+    COST_CURRENCY_MISMATCH("projects.error.cost-currency-mismatch"),
+    UNSUPPORTED_CURRENCY("projects.error.unsupported-currency");
 
     private final String messageKey;
 

@@ -37,6 +37,9 @@ public class ProjectCommandService {
 
     @Transactional
     public Result<Project, ProjectCommandFailure> handle(CreateProjectCommand command) {
+        if (!command.budget().currency().isSupported()) {
+            return Result.failure(ProjectCommandFailure.UNSUPPORTED_CURRENCY);
+        }
         if (clients.findById(command.clientId()).isEmpty()) {
             return Result.failure(ProjectCommandFailure.CLIENT_NOT_FOUND);
         }

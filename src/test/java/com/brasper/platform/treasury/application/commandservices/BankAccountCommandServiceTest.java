@@ -57,6 +57,15 @@ class BankAccountCommandServiceTest {
     }
 
     @Test
+    void rejectsAnAccountInUsd() {
+        OpenBankAccountCommand usd = new OpenBankAccountCommand(Bank.BCP, new AccountNumber("001-1"),
+                AccountType.CHECKING, Currency.USD, new Money(BigDecimal.TEN, Currency.USD), DAY);
+
+        assertThat(service.handle(usd).failure()).contains(BankAccountCommandFailure.UNSUPPORTED_CURRENCY);
+        verify(accounts, never()).save(any());
+    }
+
+    @Test
     void registersAMovementOnAnExistingAccount() {
         saveReturnsArgument();
         BankAccount existing = account("001-1", Currency.PEN, "100");

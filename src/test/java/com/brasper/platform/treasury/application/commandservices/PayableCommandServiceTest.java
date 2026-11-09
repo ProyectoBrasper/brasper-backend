@@ -73,6 +73,15 @@ class PayableCommandServiceTest {
     }
 
     @Test
+    void rejectsAPayableInUsd() {
+        var usd = new CreatePayableCommand("materials", PayableType.SUPPLIER, new Money(BigDecimal.TEN, Currency.USD),
+                null, null, null, new CashFlowWeek(2026, 11, 6));
+
+        assertThat(service.handle(usd).failure()).contains(PayableCommandFailure.UNSUPPORTED_CURRENCY);
+        nothingSaved();
+    }
+
+    @Test
     void createsAPayable() {
         when(payables.save(any(Payable.class))).thenAnswer(call -> call.getArgument(0));
         Payable result = service.handle(create()).success().orElseThrow();

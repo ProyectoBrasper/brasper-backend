@@ -72,6 +72,14 @@ class AccountingCommandServicesTest {
     }
 
     @Test
+    void rejectsAnAssetInUsd() {
+        var usd = new RegisterFixedAssetCommand("Laptop", DAY, new Money(new BigDecimal("1200"), Currency.USD), 36, null);
+
+        assertThat(fixedAssets.handle(usd).failure()).contains(FixedAssetCommandFailure.UNSUPPORTED_CURRENCY);
+        org.mockito.Mockito.verify(assets, org.mockito.Mockito.never()).save(any());
+    }
+
+    @Test
     void disposesOnceAndRejectsUnknownAssetsAndEarlyDates() {
         FixedAsset asset = new FixedAsset(register(36), TaxRates.standard());
         when(assets.findById(1L)).thenReturn(Optional.of(asset));

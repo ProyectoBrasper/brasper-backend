@@ -17,6 +17,7 @@ public final class PayableFailureResponseAssembler {
             case PAYABLE_NOT_FOUND, PAYMENT_ACCOUNT_NOT_FOUND -> ProblemDetailAssembler.notFound(messages, key);
             case PAYABLE_ALREADY_PAID, PAYMENT_EXCEEDS_BALANCE -> ProblemDetailAssembler.conflict(messages, key);
             case PAYMENT_CURRENCY_MISMATCH, INVALID_PAYMENT_AMOUNT -> ProblemDetailAssembler.badRequest(messages, key);
+            case UNSUPPORTED_CURRENCY -> ProblemDetailAssembler.unprocessable(messages, key);
         };
     }
 }

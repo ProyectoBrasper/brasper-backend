@@ -37,6 +37,9 @@ public class PayableCommandService {
 
     @Transactional
     public Result<Payable, PayableCommandFailure> handle(CreatePayableCommand command) {
+        if (!command.totalAmount().currency().isSupported()) {
+            return Result.failure(PayableCommandFailure.UNSUPPORTED_CURRENCY);
+        }
         Payable saved = payables.save(new Payable(command));
         events.publishEvent(new PayableRegisteredEvent(saved.getId(), saved.getExpenseId(), saved.getType(),
                 saved.getProjectId(), saved.getTotalAmount(), LocalDate.now()));

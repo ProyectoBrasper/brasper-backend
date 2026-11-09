@@ -9,7 +9,8 @@ public enum FixedAssetCommandFailure implements CommandFailure {
     INVALID_DISPOSAL_DATE("accounting.error.invalid-disposal-date"),
     NOTHING_TO_DEPRECIATE("accounting.error.nothing-to-depreciate"),
     DEPRECIATION_ALREADY_RUN("accounting.error.depreciation-already-run"),
-    ACCOUNTS_NOT_CONFIGURED("accounting.error.accounting-accounts-not-configured");
+    ACCOUNTS_NOT_CONFIGURED("accounting.error.accounting-accounts-not-configured"),
+    UNSUPPORTED_CURRENCY("accounting.error.unsupported-currency");
 
     private final String messageKey;
 

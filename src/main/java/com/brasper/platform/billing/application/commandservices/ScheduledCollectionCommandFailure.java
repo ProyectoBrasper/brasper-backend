@@ -6,7 +6,8 @@ public enum ScheduledCollectionCommandFailure implements CommandFailure {
     PROJECT_NOT_FOUND("billing.error.project-not-found"),
     NOT_FOUND("billing.error.schedule-not-found"),
     /** Realized or cancelled: it can no longer be moved or cancelled. */
-    ALREADY_CLOSED("billing.error.schedule-closed");
+    ALREADY_CLOSED("billing.error.schedule-closed"),
+    UNSUPPORTED_CURRENCY("billing.error.unsupported-currency");
 
     private final String messageKey;
 

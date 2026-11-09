@@ -67,6 +67,15 @@ class FixedCostCommandServiceTest {
     }
 
     @Test
+    void rejectsACostInUsd() {
+        var usd = new CreateFixedCostCommand(new CostCode("FC-1"), "Monthly cost", FixedCostType.HOSTING,
+                new Money(new BigDecimal("100"), Currency.USD), null, SCHEDULE);
+
+        assertThat(service.handle(usd).failure()).contains(FixedCostCommandFailure.UNSUPPORTED_CURRENCY);
+        verify(costs, never()).save(any());
+    }
+
+    @Test
     void createsCostsWithAnExistingEmployeeForAnyType() {
         when(employees.findById(5L)).thenReturn(Optional.of(mock(Employee.class)));
         when(costs.save(any(FixedCost.class))).thenAnswer(call -> call.getArgument(0));

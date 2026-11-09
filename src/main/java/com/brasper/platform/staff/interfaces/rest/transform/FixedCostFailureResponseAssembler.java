@@ -13,6 +13,7 @@ public final class FixedCostFailureResponseAssembler {
         return switch (failure) {
             case DUPLICATE_CODE, FIXED_COST_INACTIVE -> ProblemDetailAssembler.conflict(messages, key);
             case EMPLOYEE_REQUIRED -> ProblemDetailAssembler.badRequest(messages, key);
+            case UNSUPPORTED_CURRENCY -> ProblemDetailAssembler.unprocessable(messages, key);
             case EMPLOYEE_NOT_FOUND, FIXED_COST_NOT_FOUND, BANK_ACCOUNT_NOT_FOUND -> ProblemDetailAssembler.notFound(messages, key);
         };
     }

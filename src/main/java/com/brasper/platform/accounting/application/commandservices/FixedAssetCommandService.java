@@ -75,6 +75,9 @@ public class FixedAssetCommandService {
     /** shortcut: with no tax parameters set yet the standard rates apply; remove once parameters are seeded. */
     @Transactional
     public Result<FixedAsset, FixedAssetCommandFailure> handle(RegisterFixedAssetCommand command) {
+        if (!command.taxableBase().currency().isSupported()) {
+            return Result.failure(FixedAssetCommandFailure.UNSUPPORTED_CURRENCY);
+        }
         if (command.usefulLifeMonths() < 1 || command.usefulLifeMonths() > MAX_USEFUL_LIFE_MONTHS) {
             return Result.failure(FixedAssetCommandFailure.INVALID_USEFUL_LIFE);
         }

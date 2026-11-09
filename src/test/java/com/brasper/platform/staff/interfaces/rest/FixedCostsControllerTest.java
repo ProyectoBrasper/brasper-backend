@@ -37,7 +37,7 @@ import org.springframework.transaction.annotation.Transactional;
 class FixedCostsControllerTest {
     private static final String URL = "/api/v1/fixed-costs";
     private static final String COST = """
-            {"code":"RENT","concept":"Rent","type":"OFFICE_RENT","monthlyAmount":100,"currency":"USD"}
+            {"code":"RENT","concept":"Rent","type":"OFFICE_RENT","monthlyAmount":100,"currency":"PEN"}
             """;
     @Autowired private MockMvc mvc;
     @Autowired private UserRepository users;
@@ -72,9 +72,9 @@ class FixedCostsControllerTest {
     void accountingManagesCostsAndPayments() throws Exception {
         String token = bearer("accountant", Role.ROLE_ACCOUNTING);
         Long employee = employees.handle(new HireEmployeeCommand("Ana Perez", new Dni("12345678"), "Engineer",
-                new Money(new BigDecimal("100"), Currency.USD), LocalDate.of(2026, 11, 1))).success().orElseThrow().getId();
+                new Money(new BigDecimal("100"), Currency.PEN), LocalDate.of(2026, 11, 1))).success().orElseThrow().getId();
         Long account = accounts.handle(new OpenBankAccountCommand(Bank.BCP, new AccountNumber("001-1"),
-                AccountType.CHECKING, Currency.USD, Money.zero(Currency.USD), LocalDate.of(2026, 11, 1)))
+                AccountType.CHECKING, Currency.PEN, Money.zero(Currency.PEN), LocalDate.of(2026, 11, 1)))
                 .success().orElseThrow().getId();
         int id = create(token, COST.replace("OFFICE_RENT", "SALARY").replace("}", ",\"employeeId\":" + employee + "}"));
         read(token, "/" + id).andExpect(status().isOk()).andExpect(jsonPath("$.expectedWeeks.length()").value(0));
@@ -82,10 +82,10 @@ class FixedCostsControllerTest {
         mvc.perform(put(URL + "/" + id).header("Authorization", token).contentType(MediaType.APPLICATION_JSON)
                 .content("{\"concept\":\"Updated\",\"monthlyAmount\":120,\"expectedWeeks\":[1,3]}"))
                 .andExpect(status().isOk()).andExpect(jsonPath("$.monthlyAmount").value(120))
-                .andExpect(jsonPath("$.currency").value("USD")).andExpect(jsonPath("$.expectedWeeks[1]").value(3));
+                .andExpect(jsonPath("$.currency").value("PEN")).andExpect(jsonPath("$.expectedWeeks[1]").value(3));
         send(token, URL + "/" + id + "/payments", payment(null)).andExpect(status().isCreated())
                 .andExpect(jsonPath("$.id").isNumber()).andExpect(jsonPath("$.fixedCostId").value(id))
-                .andExpect(jsonPath("$.currency").value("USD"));
+                .andExpect(jsonPath("$.currency").value("PEN"));
         send(token, URL + "/" + id + "/payments", payment(account)).andExpect(status().isCreated())
                 .andExpect(jsonPath("$.bankAccountId").value(account)).andExpect(jsonPath("$.amount").value(25));
         read(token, "/payments?year=2026&month=11").andExpect(status().isOk())

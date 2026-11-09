@@ -16,7 +16,8 @@ public final class ProjectFailureResponseAssembler {
         return switch (failure) {
             case DUPLICATE_CODE, INVALID_STATUS_TRANSITION, PERIOD_ALREADY_REGISTERED ->
                     ProblemDetailAssembler.conflict(messages, key);
-            case PROGRESS_EXCEEDS_LIMIT, COST_CURRENCY_MISMATCH -> ProblemDetailAssembler.unprocessable(messages, key);
+            case PROGRESS_EXCEEDS_LIMIT, COST_CURRENCY_MISMATCH, UNSUPPORTED_CURRENCY ->
+                    ProblemDetailAssembler.unprocessable(messages, key);
             case CLIENT_NOT_FOUND, PROJECT_NOT_FOUND -> ProblemDetailAssembler.notFound(messages, key);
         };
     }

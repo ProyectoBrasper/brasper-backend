@@ -33,6 +33,9 @@ public class FixedCostCommandService {
 
     @Transactional
     public Result<FixedCost, FixedCostCommandFailure> handle(CreateFixedCostCommand command) {
+        if (!command.monthlyAmount().currency().isSupported()) {
+            return Result.failure(FixedCostCommandFailure.UNSUPPORTED_CURRENCY);
+        }
         if (costs.existsByCode(command.code())) {
             return Result.failure(FixedCostCommandFailure.DUPLICATE_CODE);
         }

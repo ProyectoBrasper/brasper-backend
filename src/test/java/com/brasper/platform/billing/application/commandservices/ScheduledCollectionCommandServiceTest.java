@@ -56,6 +56,15 @@ class ScheduledCollectionCommandServiceTest {
     }
 
     @Test
+    void rejectsAScheduledCollectionInUsd() {
+        var usd = new ScheduleCollectionCommand(3L, new Money(new BigDecimal("500"), Currency.USD), AUG_20, null);
+
+        assertThat(service.handle(usd).failure()).contains(ScheduledCollectionCommandFailure.UNSUPPORTED_CURRENCY);
+        verify(projects, never()).find(any());
+        verify(collections, never()).save(any());
+    }
+
+    @Test
     void schedulingForAnUnknownProjectFailsAndStoresNothing() {
         when(projects.find(3L)).thenReturn(Optional.empty());
 

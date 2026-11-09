@@ -8,7 +8,8 @@ public enum FixedCostCommandFailure implements CommandFailure {
     EMPLOYEE_NOT_FOUND("staff.error.employee-not-found"),
     FIXED_COST_NOT_FOUND("staff.error.fixed-cost-not-found"),
     FIXED_COST_INACTIVE("staff.error.fixed-cost-inactive"),
-    BANK_ACCOUNT_NOT_FOUND("staff.error.bank-account-not-found");
+    BANK_ACCOUNT_NOT_FOUND("staff.error.bank-account-not-found"),
+    UNSUPPORTED_CURRENCY("staff.error.unsupported-currency");
 
     private final String messageKey;
 
