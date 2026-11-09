@@ -11,6 +11,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.context.support.ResourceBundleMessageSource;
 import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.dao.OptimisticLockingFailureException;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
@@ -58,6 +59,13 @@ class GlobalExceptionHandlerTest {
     }
 
     @Test
+    void aConcurrentChangeIsConflict() throws Exception {
+        mockMvc.perform(get("/stale"))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("error.data-conflict"));
+    }
+
+    @Test
     void invalidBodyListsTheFailingFields() throws Exception {
         mockMvc.perform(post("/validate").contentType(MediaType.APPLICATION_JSON).content("{\"name\":\"\"}"))
                 .andExpect(status().isBadRequest())
@@ -84,6 +92,11 @@ class GlobalExceptionHandlerTest {
         @GetMapping("/duplicate")
         void duplicate() {
             throw new DataIntegrityViolationException("uk_users_username");
+        }
+
+        @GetMapping("/stale")
+        void stale() {
+            throw new OptimisticLockingFailureException("Payable 1 was changed by another transaction");
         }
 
         @PostMapping("/validate")
