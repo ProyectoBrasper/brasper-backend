@@ -53,6 +53,30 @@ class PostingRulesTest {
     }
 
     @Test
+    void anAssetTakesOverTheCostOfItsExpenseAndKeepsTheProject() {
+        RegisterJournalEntryCommand command = PostingRules.forFixedAssetAcquisition(8L, DAY, pen("1200"),
+                new com.brasper.platform.accounting.domain.model.valueobjects.AccountCode("60"), 3L);
+
+        assertThat(command.source()).isEqualTo(EntrySource.FIXED_ASSET_ACQUISITION);
+        assertThat(command.sourceId()).isEqualTo(8L);
+        assertThat(line(command, "33").debit().amount()).isEqualByComparingTo("1200");
+        assertThat(line(command, "60").credit().amount()).isEqualByComparingTo("1200");
+        assertThat(line(command, "60").projectId()).isEqualTo(3L);
+    }
+
+    @Test
+    void disposingAnAssetClearsItsCostAndWritesOffWhatWasNotDepreciated() {
+        RegisterJournalEntryCommand command = PostingRules.forFixedAssetDisposal(8L, DAY, pen("1200"), pen("800"));
+
+        assertThat(command.source()).isEqualTo(EntrySource.FIXED_ASSET_DISPOSAL);
+        assertThat(line(command, "39").debit().amount()).isEqualByComparingTo("800");
+        assertThat(line(command, "65").debit().amount()).isEqualByComparingTo("400");
+        assertThat(line(command, "33").credit().amount()).isEqualByComparingTo("1200");
+        assertThat(PostingRules.forFixedAssetDisposal(8L, DAY, pen("1200"), pen("1200")).lines())
+                .extracting(l -> l.accountCode().value()).containsExactly("39", "33");
+    }
+
+    @Test
     void anAdvanceGoesToCustomerAdvancesAndAnInvoiceWithoutIgvHasNoIgvLine() {
         RegisterJournalEntryCommand command = PostingRules.forInvoiceIssued(issued(true, "0"));
 

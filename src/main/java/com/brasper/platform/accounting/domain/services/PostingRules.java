@@ -19,6 +19,7 @@ import com.brasper.platform.treasury.domain.events.PartnerContributionRegistered
 import com.brasper.platform.treasury.domain.events.PayablePaidEvent;
 import com.brasper.platform.treasury.domain.model.valueobjects.LoanType;
 import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
@@ -40,6 +41,10 @@ public final class PostingRules {
     static final AccountCode LOANS_RECEIVED = new AccountCode("45");
     static final AccountCode FINANCIAL_EXPENSES = new AccountCode("67");
     static final AccountCode FINANCIAL_INCOME = new AccountCode("77");
+    static final AccountCode FIXED_ASSETS = new AccountCode("33");
+    static final AccountCode ACCUMULATED_DEPRECIATION = new AccountCode("39");
+    static final AccountCode OTHER_MANAGEMENT_EXPENSES = new AccountCode("65");
+    static final AccountCode RETAINED_EARNINGS = new AccountCode("59");
 
     private PostingRules() { }
 
@@ -88,6 +93,32 @@ public final class PostingRules {
     public static RegisterJournalEntryCommand forPayablePayment(PayablePaidEvent event) {
         return new RegisterJournalEntryCommand(event.paidOn(), "Payable payment", EntrySource.PAYABLE_PAYMENT,
                 event.paymentId(), List.of(debit(PAYABLES, event.amount(), null), credit(CASH, event.amount(), null)));
+    }
+
+    /**
+     * D 33 cost / H the account that already carried the cost as an expense (60 or 63, same project), or H 59 for an
+     * asset the company already owned. IGV stays where the expense put it.
+     */
+    public static RegisterJournalEntryCommand forFixedAssetAcquisition(Long assetId, LocalDate acquiredOn, Money cost,
+            AccountCode counterpart, Long projectId) {
+        return new RegisterJournalEntryCommand(acquiredOn, "Fixed asset acquisition", EntrySource.FIXED_ASSET_ACQUISITION,
+                assetId, List.of(debit(FIXED_ASSETS, cost, null), credit(counterpart, cost, projectId)));
+    }
+
+    /** D 39 accumulated depreciation + D 65 what was left to depreciate (the loss) / H 33 cost. */
+    public static RegisterJournalEntryCommand forFixedAssetDisposal(Long assetId, LocalDate disposedOn, Money cost,
+            Money accumulated) {
+        List<JournalLineData> lines = new ArrayList<>();
+        if (accumulated.isPositive()) {
+            lines.add(debit(ACCUMULATED_DEPRECIATION, accumulated, null));
+        }
+        Money loss = cost.subtract(accumulated);
+        if (loss.isPositive()) {
+            lines.add(debit(OTHER_MANAGEMENT_EXPENSES, loss, null));
+        }
+        lines.add(credit(FIXED_ASSETS, cost, null));
+        return new RegisterJournalEntryCommand(disposedOn, "Fixed asset disposal", EntrySource.FIXED_ASSET_DISPOSAL,
+                assetId, lines);
     }
 
     /** Received loan: D 10 / H 45. Granted loan: D 16 / H 10. */
