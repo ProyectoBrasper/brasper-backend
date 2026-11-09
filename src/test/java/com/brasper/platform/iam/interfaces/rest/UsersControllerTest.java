@@ -97,6 +97,27 @@ class UsersControllerTest {
     }
 
     @Test
+    void adminReactivatesADeactivatedUserWhoCanSignInAgain() throws Exception {
+        createUser("root", Role.ROLE_ADMIN);
+        User ana = createUser("ana", Role.ROLE_ENGINEER);
+        String token = bearer("root");
+        String url = "/api/v1/users/" + ana.getId() + "/reactivate";
+
+        mockMvc.perform(post(url).header("Authorization", token)).andExpect(status().isConflict());
+        mockMvc.perform(post("/api/v1/users/" + ana.getId() + "/deactivate").header("Authorization", token))
+                .andExpect(status().isOk());
+        mockMvc.perform(post(url).header("Authorization", token))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.active").value(true));
+        mockMvc.perform(post("/api/v1/auth/sign-in").contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"username\":\"ana\",\"password\":\"%s\"}".formatted(PASSWORD)))
+                .andExpect(status().isOk());
+        mockMvc.perform(post("/api/v1/users/999999/reactivate").header("Authorization", token))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.code").value("iam.error.user-not-found"));
+        mockMvc.perform(post(url).header("Authorization", bearer("ana"))).andExpect(status().isForbidden());
+    }
+
+    @Test
     void theLastAdminCannotBeDemotedOrDeactivated() throws Exception {
         User root = createUser("root", Role.ROLE_ADMIN);
         String token = bearer("root");

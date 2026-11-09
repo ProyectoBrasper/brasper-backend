@@ -80,6 +80,13 @@ public class User {
         this.active = false;
     }
 
+    public void reactivate() {
+        if (active) {
+            throw new IllegalStateException("User is already active");
+        }
+        this.active = true;
+    }
+
     @PrePersist
     void onCreate() {
         createdAt = updatedAt = Instant.now();
