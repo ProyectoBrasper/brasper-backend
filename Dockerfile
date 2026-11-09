@@ -16,4 +16,5 @@ ENV SPRING_PROFILES_ACTIVE=prod
 EXPOSE 8080
 HEALTHCHECK --interval=30s --timeout=3s --start-period=60s \
   CMD wget -qO- "http://localhost:${PORT:-8080}/actuator/health" | grep -q '"UP"' || exit 1
-ENTRYPOINT ["java", "-jar", "app.jar"]
+# Dates like "today" in the books are Lima dates, not the server's UTC ones (Lima is 5 hours behind).
+ENTRYPOINT ["java", "-Duser.timezone=America/Lima", "-jar", "app.jar"]

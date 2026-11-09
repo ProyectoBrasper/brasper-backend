@@ -86,7 +86,8 @@ Pendiente, en este orden sugerido:
 ## Decisiones propias del agente, sin confirmar por el usuario
 - Matriz de permisos (las lecturas de Treasury y Billing ya son solo ADMIN, ACCOUNTING y MANAGEMENT, ver la auditoría): lecturas para cualquier usuario autenticado; escribir en Projects, clientes, proveedores y gastos con ADMIN, ACCOUNTING y ENGINEER; escribir en Billing con ADMIN y ACCOUNTING; MANAGEMENT solo lee. Treasury (cuentas, ajustes, transferencias) se escribe solo con ADMIN y ACCOUNTING.
 - Los certificados de retención no cuentan como cobrado en `BillingContextFacade`, y los aportes de socio no cuentan como pagado en `ExpensesContextFacade`.
-- Swagger UI y la especificación son públicos (no exponen datos); cada llamada sigue pidiendo token.
+- Swagger UI y la especificación son públicos en dev (no exponen datos); en producción están apagados (`application-prod.yml`). Cada llamada sigue pidiendo token.
+- Zona horaria: la imagen Docker arranca Java con `-Duser.timezone=America/Lima`, así "hoy" en asientos, reportes y tablero es la fecha de Lima y no la de UTC (la anulación de una factura a las 21:00 del 31 de octubre ya no cae en noviembre). Si se corre fuera de Docker, pasar la misma opción.
 
 ## Auditoría ponytail: arreglos
 Auditoría de todo el backend (17 hallazgos). Hechos: 1, 2, 3, 4, 5, 7, 8, 9, 10, 11, 12, 14, 15 y 17. Quedan el 6, 13 y 16, con el motivo en cada uno.
