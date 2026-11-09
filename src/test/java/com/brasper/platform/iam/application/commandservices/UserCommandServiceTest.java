@@ -14,6 +14,7 @@ import com.brasper.platform.iam.domain.model.aggregates.User;
 import com.brasper.platform.iam.domain.model.commands.ChangePasswordCommand;
 import com.brasper.platform.iam.domain.model.commands.ChangeUserRoleCommand;
 import com.brasper.platform.iam.domain.model.commands.DeactivateUserCommand;
+import com.brasper.platform.iam.domain.model.commands.ReactivateUserCommand;
 import com.brasper.platform.iam.domain.model.commands.SignInCommand;
 import com.brasper.platform.iam.domain.model.commands.SignUpCommand;
 import com.brasper.platform.iam.domain.model.valueobjects.Role;
@@ -195,6 +196,18 @@ class UserCommandServiceTest {
                 .contains(UserCommandFailure.USER_INACTIVE);
         assertThat(service.handle(new SignInCommand(ANA, "otra-clave1")).failure())
                 .contains(UserCommandFailure.INVALID_CREDENTIALS);
+    }
+
+    @Test
+    void reactivatesAnInactiveUserAndRejectsAMissingOne() {
+        User user = storedUser();
+        user.deactivate();
+        when(users.findById(1L)).thenReturn(Optional.of(user));
+        when(users.findById(2L)).thenReturn(Optional.empty());
+        when(users.save(any(User.class))).thenAnswer(call -> call.getArgument(0));
+
+        assertThat(service.handle(new ReactivateUserCommand(1L)).success().orElseThrow().isActive()).isTrue();
+        assertThat(service.handle(new ReactivateUserCommand(2L)).failure()).contains(UserCommandFailure.USER_NOT_FOUND);
     }
 
     private User admin() {

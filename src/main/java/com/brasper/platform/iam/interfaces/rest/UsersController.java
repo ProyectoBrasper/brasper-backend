@@ -5,6 +5,7 @@ import com.brasper.platform.iam.application.commandservices.UserCommandService;
 import com.brasper.platform.iam.application.queryservices.UserQueryService;
 import com.brasper.platform.iam.domain.model.commands.ChangeUserRoleCommand;
 import com.brasper.platform.iam.domain.model.commands.DeactivateUserCommand;
+import com.brasper.platform.iam.domain.model.commands.ReactivateUserCommand;
 import com.brasper.platform.iam.interfaces.rest.resources.ChangeRoleResource;
 import com.brasper.platform.iam.interfaces.rest.transform.UserFailureResponseAssembler;
 import com.brasper.platform.iam.interfaces.rest.transform.UserResourceFromEntityAssembler;
@@ -59,6 +60,13 @@ public class UsersController {
     @PostMapping("/{id}/deactivate")
     public ResponseEntity<?> deactivate(@PathVariable Long id) {
         return userCommands.handle(new DeactivateUserCommand(id)).fold(
+                user -> ResponseEntity.ok(UserResourceFromEntityAssembler.toResourceFromEntity(user)),
+                failure -> UserFailureResponseAssembler.toResponse(failure, messages));
+    }
+
+    @PostMapping("/{id}/reactivate")
+    public ResponseEntity<?> reactivate(@PathVariable Long id) {
+        return userCommands.handle(new ReactivateUserCommand(id)).fold(
                 user -> ResponseEntity.ok(UserResourceFromEntityAssembler.toResourceFromEntity(user)),
                 failure -> UserFailureResponseAssembler.toResponse(failure, messages));
     }

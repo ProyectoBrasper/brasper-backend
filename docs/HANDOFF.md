@@ -116,7 +116,7 @@ Auditoría de todo el backend (17 hallazgos). Hechos: 1, 2, 3, 4, 5, 7, 8, 9, 10
 - Contenedores Docker viejos: el usuario nunca dijo cuáles borrar.
 - La respuesta 403 de usuarios sin permiso es un cuerpo vacío de Spring (no `ProblemDetail`).
 - Dos administradores que se desactivan a la vez podrían saltarse la regla del último administrador.
-- Cambiar contraseña: `PUT /api/v1/auth/password` (`currentPassword`, `newPassword`; 204; cualquier usuario con sesión cambia solo la suya). La contraseña actual equivocada cuenta para el bloqueo de inicio de sesión (5 fallos, 15 minutos). Los tokens ya emitidos siguen valiendo hasta que expiren (atajo: JWT sin estado). La contraseña de `admin` se escribió en el chat el 2026-11-09: cambiarla con este endpoint. Falta: restablecer la contraseña de otro usuario (administrador) y reactivar usuarios. El RUC no valida el dígito verificador.
+- Cambiar contraseña: `PUT /api/v1/auth/password` (`currentPassword`, `newPassword`; 204; cualquier usuario con sesión cambia solo la suya). La contraseña actual equivocada cuenta para el bloqueo de inicio de sesión (5 fallos, 15 minutos). Los tokens ya emitidos siguen valiendo hasta que expiren (atajo: JWT sin estado). La contraseña de `admin` se escribió en el chat el 2026-11-09: cambiarla con este endpoint. Reactivar usuario: `POST /api/v1/users/{id}/reactivate` (solo administrador; 409 si ya está activo). Falta: restablecer la contraseña de otro usuario (administrador). El RUC no valida el dígito verificador.
 - Advertencia de Mockito sobre el agente en JDK 25 (inofensiva).
 
 ## Migraciones (esquema `brasper`)
