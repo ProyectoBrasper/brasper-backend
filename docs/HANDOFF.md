@@ -100,7 +100,7 @@ Auditoría de todo el backend (17 hallazgos). Se arreglan en este orden, un PR p
 9. [ ] Facturas y gastos en USD fuera de reportes e IGV.
 10. [x] Un aporte de socio reembolsable con cuenta bancaria asienta D 10 / H 455 (pasivo, V37 siembra la 455) en vez de capital. Límite: un gasto pagado de su bolsillo por un socio sigue yendo a capital (50).
 11. [x] `IllegalStateException`, `IllegalArgumentException` y conflictos de concurrencia se registran en el log (WARN, con traza). Decisión propia: el texto del error se sigue devolviendo al cliente porque es el motivo del 409; no se tradujo.
-12. [ ] Límite de intentos al iniciar sesión.
+12. [x] Cinco contraseñas incorrectas seguidas bloquean el usuario 15 minutos (429, `SignInThrottle`). Límites: el conteo está en memoria (se borra al reiniciar y no se comparte entre instancias) y quien conoce un usuario puede bloquearlo 15 minutos; no hay límite por IP ni configuración CORS (depende de dónde corra el frontend).
 13. [ ] Paginación en listas de facturas, gastos, pagos pendientes y costos fijos.
 14. [ ] `AGENTS.md` dice que Lombok se usa y no está en el `pom.xml`.
 15. [x] `LedgerQueryService` carga las cuentas una sola vez por llamada (se hizo junto con el 4).

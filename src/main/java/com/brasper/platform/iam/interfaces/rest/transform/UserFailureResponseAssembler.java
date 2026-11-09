@@ -16,6 +16,7 @@ public final class UserFailureResponseAssembler {
         return switch (failure) {
             case INVALID_CREDENTIALS -> ProblemDetailAssembler.unauthorized(messages, key);
             case USER_INACTIVE -> ProblemDetailAssembler.forbidden(messages, key);
+            case TOO_MANY_ATTEMPTS -> ProblemDetailAssembler.tooManyRequests(messages, key);
             case DUPLICATE_USERNAME -> ProblemDetailAssembler.conflict(messages, key);
             case WEAK_PASSWORD -> ProblemDetailAssembler.unprocessable(messages, key);
             case USER_NOT_FOUND -> ProblemDetailAssembler.notFound(messages, key);

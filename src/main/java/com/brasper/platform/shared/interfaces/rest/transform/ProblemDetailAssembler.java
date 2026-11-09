@@ -32,6 +32,10 @@ public final class ProblemDetailAssembler {
         return of(HttpStatus.CONFLICT, messages, key, args);
     }
 
+    public static ResponseEntity<ProblemDetail> tooManyRequests(MessageSource messages, String key, Object... args) {
+        return of(HttpStatus.TOO_MANY_REQUESTS, messages, key, args);
+    }
+
     public static ResponseEntity<ProblemDetail> unprocessable(MessageSource messages, String key, Object... args) {
         return of(HttpStatus.UNPROCESSABLE_ENTITY, messages, key, args);
     }
