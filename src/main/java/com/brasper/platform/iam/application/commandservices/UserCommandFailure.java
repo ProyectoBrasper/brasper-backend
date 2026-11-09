@@ -9,7 +9,8 @@ public enum UserCommandFailure implements CommandFailure {
     DUPLICATE_USERNAME("iam.error.duplicate-username"),
     WEAK_PASSWORD("iam.error.weak-password"),
     USER_NOT_FOUND("iam.error.user-not-found"),
-    CANNOT_MODIFY_LAST_ADMIN("iam.error.cannot-modify-last-admin");
+    CANNOT_MODIFY_LAST_ADMIN("iam.error.cannot-modify-last-admin"),
+    INVALID_CURRENT_PASSWORD("iam.error.invalid-current-password");
 
     private final String messageKey;
 

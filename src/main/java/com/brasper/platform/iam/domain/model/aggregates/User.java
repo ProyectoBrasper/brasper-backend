@@ -66,6 +66,13 @@ public class User {
         this.role = Objects.requireNonNull(newRole, "role");
     }
 
+    public void changePasswordHash(String newPasswordHash) {
+        if (newPasswordHash == null || newPasswordHash.isBlank()) {
+            throw new IllegalArgumentException("Password hash is required");
+        }
+        this.passwordHash = newPasswordHash;
+    }
+
     public void deactivate() {
         if (!active) {
             throw new IllegalStateException("User is already inactive");

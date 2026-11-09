@@ -11,6 +11,7 @@ import static org.mockito.Mockito.when;
 import com.brasper.platform.iam.application.outboundservices.HashingService;
 import com.brasper.platform.iam.application.outboundservices.TokenService;
 import com.brasper.platform.iam.domain.model.aggregates.User;
+import com.brasper.platform.iam.domain.model.commands.ChangePasswordCommand;
 import com.brasper.platform.iam.domain.model.commands.ChangeUserRoleCommand;
 import com.brasper.platform.iam.domain.model.commands.DeactivateUserCommand;
 import com.brasper.platform.iam.domain.model.commands.SignInCommand;
@@ -85,6 +86,57 @@ class UserCommandServiceTest {
         var result = service.handle(signUp("clave1234"));
 
         assertThat(result.failure()).contains(UserCommandFailure.DUPLICATE_USERNAME);
+        verify(users, never()).save(any());
+    }
+
+    @Test
+    void changePasswordStoresTheNewHash() {
+        User user = storedUser();
+        when(users.findByUsername(ANA)).thenReturn(Optional.of(user));
+        when(users.save(any(User.class))).thenAnswer(call -> call.getArgument(0));
+
+        var result = service.handle(new ChangePasswordCommand(ANA, "clave1234", "nueva-clave99"));
+
+        assertThat(result.isSuccess()).isTrue();
+        assertThat(user.getPasswordHash()).isEqualTo("hash(nueva-clave99)");
+        verify(users).save(user);
+    }
+
+    @Test
+    void changePasswordRejectsAWrongCurrentPasswordAndAWeakNewOneWithoutSaving() {
+        User user = storedUser();
+        when(users.findByUsername(ANA)).thenReturn(Optional.of(user));
+
+        assertThat(service.handle(new ChangePasswordCommand(ANA, "otra-clave1", "nueva-clave99")).failure())
+                .contains(UserCommandFailure.INVALID_CURRENT_PASSWORD);
+        assertThat(service.handle(new ChangePasswordCommand(ANA, "clave1234", "corta1")).failure())
+                .contains(UserCommandFailure.WEAK_PASSWORD);
+        assertThat(user.getPasswordHash()).isEqualTo("hash(clave1234)");
+        verify(users, never()).save(any());
+    }
+
+    @Test
+    void changePasswordRejectsUnknownAndInactiveUsers() {
+        User inactive = storedUser();
+        inactive.deactivate();
+        when(users.findByUsername(ANA)).thenReturn(Optional.empty(), Optional.of(inactive));
+
+        var change = new ChangePasswordCommand(ANA, "clave1234", "nueva-clave99");
+        assertThat(service.handle(change).failure()).contains(UserCommandFailure.USER_NOT_FOUND);
+        assertThat(service.handle(change).failure()).contains(UserCommandFailure.USER_NOT_FOUND);
+        verify(users, never()).save(any());
+    }
+
+    @Test
+    void wrongCurrentPasswordsCountTowardTheLockout() {
+        when(users.findByUsername(ANA)).thenReturn(Optional.of(storedUser()));
+        var wrong = new ChangePasswordCommand(ANA, "otra-clave1", "nueva-clave99");
+        for (int attempt = 0; attempt < SignInThrottle.MAX_FAILURES; attempt++) {
+            service.handle(wrong);
+        }
+
+        var right = new ChangePasswordCommand(ANA, "clave1234", "nueva-clave99");
+        assertThat(service.handle(right).failure()).contains(UserCommandFailure.TOO_MANY_ATTEMPTS);
         verify(users, never()).save(any());
     }
 

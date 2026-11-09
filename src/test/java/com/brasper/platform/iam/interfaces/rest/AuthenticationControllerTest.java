@@ -2,6 +2,7 @@ package com.brasper.platform.iam.interfaces.rest;
 
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -62,6 +63,43 @@ class AuthenticationControllerTest {
         mockMvc.perform(get("/api/v1/nothing")).andExpect(status().isUnauthorized());
         org.assertj.core.api.Assertions.assertThat((String) JsonPath.read(body, "$.role"))
                 .isEqualTo("ROLE_ENGINEER");
+    }
+
+    private org.springframework.test.web.servlet.ResultActions changePassword(String token, String current, String next)
+            throws Exception {
+        var request = put("/api/v1/auth/password").contentType(MediaType.APPLICATION_JSON)
+                .content("{\"currentPassword\":\"%s\",\"newPassword\":\"%s\"}".formatted(current, next));
+        return mockMvc.perform(token == null ? request : request.header("Authorization", "Bearer " + token));
+    }
+
+    @Test
+    void aSignedInUserChangesTheirOwnPasswordAndSignsInWithTheNewOne() throws Exception {
+        createUser("ana", Role.ROLE_ENGINEER);
+        String token = JsonPath.read(signIn("ana", PASSWORD), "$.token");
+
+        changePassword(token, PASSWORD, "nueva-clave99").andExpect(status().isNoContent());
+
+        mockMvc.perform(post("/api/v1/auth/sign-in").contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"username\":\"ana\",\"password\":\"nueva-clave99\"}"))
+                .andExpect(status().isOk());
+        mockMvc.perform(post("/api/v1/auth/sign-in").contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"username\":\"ana\",\"password\":\"%s\"}".formatted(PASSWORD)))
+                .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    void changingThePasswordNeedsTheCurrentOneAStrongNewOneAndASignedInUser() throws Exception {
+        createUser("ana", Role.ROLE_ENGINEER);
+        String token = JsonPath.read(signIn("ana", PASSWORD), "$.token");
+
+        changePassword(token, "otra-clave1", "nueva-clave99").andExpect(status().isUnprocessableEntity())
+                .andExpect(jsonPath("$.code").value("iam.error.invalid-current-password"));
+        changePassword(token, PASSWORD, "corta1").andExpect(status().isUnprocessableEntity())
+                .andExpect(jsonPath("$.code").value("iam.error.weak-password"));
+        mockMvc.perform(put("/api/v1/auth/password").header("Authorization", "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON).content("{\"currentPassword\":\"\"}"))
+                .andExpect(status().isBadRequest());
+        changePassword(null, PASSWORD, "nueva-clave99").andExpect(status().isUnauthorized());
     }
 
     @Test
