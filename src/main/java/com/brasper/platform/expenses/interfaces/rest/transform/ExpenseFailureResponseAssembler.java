@@ -18,6 +18,7 @@ public final class ExpenseFailureResponseAssembler {
                     PARTNER_NOT_FOUND -> ProblemDetailAssembler.notFound(messages, key);
             case PROJECT_CLOSED, ALREADY_ANNULLED -> ProblemDetailAssembler.conflict(messages, key);
             case BANK_ACCOUNT_REQUIRED, PARTNER_REQUIRED -> ProblemDetailAssembler.badRequest(messages, key);
+            case UNSUPPORTED_CURRENCY -> ProblemDetailAssembler.unprocessable(messages, key);
         };
     }
 }

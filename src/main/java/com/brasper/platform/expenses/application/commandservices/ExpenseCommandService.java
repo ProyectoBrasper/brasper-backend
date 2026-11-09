@@ -13,6 +13,7 @@ import com.brasper.platform.expenses.domain.model.valueobjects.PaymentMethod;
 import com.brasper.platform.expenses.domain.repositories.ExpenseRepository;
 import com.brasper.platform.expenses.domain.repositories.SupplierRepository;
 import com.brasper.platform.shared.application.result.Result;
+import com.brasper.platform.shared.domain.model.valueobjects.Currency;
 import com.brasper.platform.shared.domain.model.valueobjects.PaymentStatus;
 import java.time.LocalDate;
 import java.util.Objects;
@@ -49,6 +50,10 @@ public class ExpenseCommandService {
 
     @Transactional
     public Result<Expense, ExpenseCommandFailure> handle(RegisterExpenseCommand command) {
+        // shortcut: reports, IGV and balances sum PEN only; accept USD once an exchange rate is stored with the entry.
+        if (command.amount().currency() != Currency.PEN) {
+            return Result.failure(ExpenseCommandFailure.UNSUPPORTED_CURRENCY);
+        }
         Optional<ExpenseCommandFailure> failure = paymentTargetFailure(command)
                 .or(() -> projectFailure(command.projectId()))
                 .or(() -> supplierFailure(command.supplierId()));

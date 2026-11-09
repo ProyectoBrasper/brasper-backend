@@ -11,7 +11,8 @@ public enum ExpenseCommandFailure implements CommandFailure {
     BANK_ACCOUNT_NOT_FOUND("expenses.error.bank-account-not-found"),
     PARTNER_NOT_FOUND("expenses.error.partner-not-found"),
     EXPENSE_NOT_FOUND("expenses.error.expense-not-found"),
-    ALREADY_ANNULLED("expenses.error.already-annulled");
+    ALREADY_ANNULLED("expenses.error.already-annulled"),
+    UNSUPPORTED_CURRENCY("expenses.error.unsupported-currency");
 
     private final String messageKey;
 

@@ -93,6 +93,16 @@ class InvoiceCommandServiceTest {
     }
 
     @Test
+    void rejectsAnInvoiceInUsdBeforeLookingAnythingUp() {
+        var usd = new IssueInvoiceCommand(NUMBER, LocalDate.of(2026, 8, 20), null, 3L,
+                new Money(new BigDecimal("1000"), Currency.USD), true, false, false, false, null);
+
+        assertThat(service.handle(usd).failure()).contains(InvoiceCommandFailure.UNSUPPORTED_CURRENCY);
+        verify(projects, never()).find(any());
+        verify(invoices, never()).save(any());
+    }
+
+    @Test
     void voidsAnInvoiceOnlyOnceAndOnlyWithoutPayments() {
         Invoice invoice = storedInvoice();
 

@@ -84,6 +84,17 @@ class ExpenseCommandServiceTest {
     }
 
     @Test
+    void rejectsAnExpenseInUsdBeforeLookingAnythingUp() {
+        var usd = new RegisterExpenseCommand(DAY, 3L, 5L, CostCategory.MATERIALS, "cables",
+                new Voucher(VoucherType.INVOICE, "F001-1"), new Money(new BigDecimal("1000"), Currency.USD), false,
+                PaymentMethod.BANK_ACCOUNT, 9L, null, true);
+
+        assertThat(service.handle(usd).failure()).contains(ExpenseCommandFailure.UNSUPPORTED_CURRENCY);
+        verify(projects, never()).findStatus(any());
+        verify(expenses, never()).save(any());
+    }
+
+    @Test
     void aGeneralExpenseWithoutSupplierNeedsNoLookups() {
         when(treasury.bankAccountExists(2L)).thenReturn(true);
         when(taxRates.ratesAt(DAY)).thenReturn(TaxRates.standard());
