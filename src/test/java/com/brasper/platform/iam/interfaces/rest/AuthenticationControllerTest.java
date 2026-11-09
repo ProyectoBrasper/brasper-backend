@@ -88,6 +88,25 @@ class AuthenticationControllerTest {
     }
 
     @Test
+    void theAuditLogNamesTheUserWhoChangedSomething() throws Exception {
+        createUser("ana", Role.ROLE_ENGINEER);
+        String token = JsonPath.read(signIn("ana", PASSWORD), "$.token");
+        var audit = (ch.qos.logback.classic.Logger) org.slf4j.LoggerFactory.getLogger("audit");
+        var lines = new ch.qos.logback.core.read.ListAppender<ch.qos.logback.classic.spi.ILoggingEvent>();
+        lines.start();
+        audit.addAppender(lines);
+        try {
+            changePassword(token, PASSWORD, "nueva-clave99").andExpect(status().isNoContent());
+        } finally {
+            audit.detachAppender(lines);
+        }
+
+        org.assertj.core.api.Assertions.assertThat(lines.list)
+                .extracting(ch.qos.logback.classic.spi.ILoggingEvent::getFormattedMessage)
+                .containsExactly("ana PUT /api/v1/auth/password -> 204");
+    }
+
+    @Test
     void changingThePasswordNeedsTheCurrentOneAStrongNewOneAndASignedInUser() throws Exception {
         createUser("ana", Role.ROLE_ENGINEER);
         String token = JsonPath.read(signIn("ana", PASSWORD), "$.token");
