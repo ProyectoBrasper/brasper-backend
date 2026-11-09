@@ -72,7 +72,7 @@ note as glossary
   JournalEntry / LedgerAccount = Asiento contable / Cuenta contable (PCGE)
   TaxReturn = Declaración mensual (IGV + pago a cuenta renta)
   FixedAsset = Activo fijo
-  CashFlowWeek = Semana del flujo de caja (Semana 01..05)
+  CashFlowWeek = Semana del flujo de caja (Semana 01..06)
   Detraction / Retention = Detracción (12%) / Retención (3%)
 end note
 

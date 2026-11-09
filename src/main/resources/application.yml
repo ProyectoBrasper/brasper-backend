@@ -1,0 +1,45 @@
+spring:
+  application:
+    name: brasper-backend
+  autoconfigure:
+    # Auth is our own JWT flow: no default in-memory user with a generated password.
+    exclude: org.springframework.boot.security.autoconfigure.UserDetailsServiceAutoConfiguration
+  profiles:
+    default: dev
+  messages:
+    # Without this, a Spanish server OS would pick messages_es even for English clients.
+    fallback-to-system-locale: false
+  web:
+    # Used when the request has no Accept-Language header.
+    locale: es
+  datasource:
+    hikari:
+      # Own schema: Supabase exposes `public` through its REST API, `brasper` is not exposed.
+      schema: brasper
+  flyway:
+    default-schema: brasper
+  jpa:
+    open-in-view: false
+    hibernate:
+      # Schema is owned by Flyway; Hibernate only checks it matches.
+      ddl-auto: validate
+
+brasper:
+  security:
+    jwt:
+      # Blank = random key (dev). The prod profile requires JWT_SECRET (min. 32 bytes).
+      secret: ${JWT_SECRET:}
+      expiration: 8h
+  bootstrap-admin:
+    # Both set + no active admin = the admin is created at startup. Blank = nothing happens.
+    username: ${BOOTSTRAP_ADMIN_USERNAME:}
+    password: ${BOOTSTRAP_ADMIN_PASSWORD:}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health
+  endpoint:
+    health:
+      show-details: never

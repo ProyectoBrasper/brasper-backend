@@ -1,0 +1,24 @@
+server:
+  # Render injects PORT; falls back to 8080 on a local server.
+  port: ${PORT:8080}
+  shutdown: graceful
+  # Behind Render's proxy the client address comes from X-Forwarded-For (only trusted from private proxy addresses);
+  # the sign-in lockout counts failed attempts per username and address.
+  forward-headers-strategy: native
+
+brasper:
+  security:
+    jwt:
+      # Missing or blank JWT_SECRET: the app refuses to start (allow-random-secret is only set in dev).
+      secret: ${JWT_SECRET}
+
+# The API docs list every endpoint to anyone; they stay off in production.
+springdoc:
+  api-docs:
+    enabled: false
+  swagger-ui:
+    enabled: false
+
+logging:
+  level:
+    com.brasper: INFO

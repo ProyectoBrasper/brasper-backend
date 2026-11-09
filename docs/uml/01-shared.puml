@@ -236,7 +236,7 @@ note right of TaxBreakdown
 end note
 
 note right of CashFlowWeek
-  Semana 01..05 del mes (lunes-domingo,
+  Semana 01..06 del mes (lunes-domingo,
   recortada al inicio/fin del mes).
   Reemplaza el texto libre "Semana 0X"
   del Excel usado en los SUMIF.

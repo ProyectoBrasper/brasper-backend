@@ -1,0 +1,2 @@
+-- Baseline. Each bounded context adds its own tables in later migrations.
+-- Supabase runs PostgreSQL 17.

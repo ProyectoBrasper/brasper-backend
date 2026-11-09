@@ -1,0 +1,25 @@
+package com.brasper.platform.projects.application.commandservices;
+
+import com.brasper.platform.shared.application.result.CommandFailure;
+
+public enum ProjectCommandFailure implements CommandFailure {
+    DUPLICATE_CODE("projects.error.duplicate-code"),
+    CLIENT_NOT_FOUND("projects.error.client-not-found"),
+    PROJECT_NOT_FOUND("projects.error.project-not-found"),
+    INVALID_STATUS_TRANSITION("projects.error.invalid-status-transition"),
+    PROGRESS_EXCEEDS_LIMIT("projects.error.progress-exceeds-limit"),
+    PERIOD_ALREADY_REGISTERED("projects.error.period-already-registered"),
+    COST_CURRENCY_MISMATCH("projects.error.cost-currency-mismatch"),
+    UNSUPPORTED_CURRENCY("projects.error.unsupported-currency");
+
+    private final String messageKey;
+
+    ProjectCommandFailure(String messageKey) {
+        this.messageKey = messageKey;
+    }
+
+    @Override
+    public String messageKey() {
+        return messageKey;
+    }
+}
