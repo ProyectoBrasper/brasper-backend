@@ -3,6 +3,7 @@ package com.brasper.platform.billing.interfaces.rest;
 import com.brasper.platform.billing.application.commandservices.InvoiceCommandFailure;
 import com.brasper.platform.billing.application.commandservices.InvoiceCommandService;
 import com.brasper.platform.billing.application.queryservices.InvoiceQueryService;
+import com.brasper.platform.billing.domain.model.aggregates.Invoice;
 import com.brasper.platform.billing.domain.model.commands.IssueInvoiceCommand;
 import com.brasper.platform.billing.domain.model.commands.VoidInvoiceCommand;
 import com.brasper.platform.billing.domain.model.valueobjects.InvoiceNumber;
@@ -11,6 +12,8 @@ import com.brasper.platform.billing.interfaces.rest.resources.IssueInvoiceResour
 import com.brasper.platform.billing.interfaces.rest.transform.InvoiceFailureResponseAssembler;
 import com.brasper.platform.billing.interfaces.rest.transform.InvoiceResourceFromEntityAssembler;
 import com.brasper.platform.shared.domain.model.valueobjects.Money;
+import com.brasper.platform.shared.domain.model.valueobjects.PageSpec;
+import com.brasper.platform.shared.domain.model.valueobjects.PagedList;
 import com.brasper.platform.shared.domain.model.valueobjects.Period;
 import jakarta.validation.Valid;
 import org.springframework.context.MessageSource;
@@ -66,17 +69,27 @@ public class InvoicesController {
                 failure -> InvoiceFailureResponseAssembler.toResponse(failure, messages));
     }
 
-    /** {@code year} and {@code month} filter by issue month and must come together. */
+    /**
+     * {@code year} and {@code month} filter by issue month and must come together. {@code page} and {@code size}
+     * (also together) return one page; the total that match goes in the {@code X-Total-Count} header.
+     */
     @GetMapping
     public ResponseEntity<?> list(@RequestParam(required = false) InvoiceStatus status,
             @RequestParam(required = false) Long projectId, @RequestParam(required = false) Integer year,
-            @RequestParam(required = false) Integer month) {
+            @RequestParam(required = false) Integer month, @RequestParam(required = false) Integer page,
+            @RequestParam(required = false) Integer size) {
         if ((year == null) != (month == null)) {
             throw new IllegalArgumentException("year and month must be given together");
         }
         Period issuedIn = year == null ? null : new Period(year, month);
-        return ResponseEntity.ok(invoiceQueries.findAll(status, projectId, issuedIn).stream()
-                .map(InvoiceResourceFromEntityAssembler::toResourceFromEntity).toList());
+        PageSpec pageSpec = PageSpec.of(page, size);
+        if (pageSpec == null) {
+            return ResponseEntity.ok(invoiceQueries.findAll(status, projectId, issuedIn).stream()
+                    .map(InvoiceResourceFromEntityAssembler::toResourceFromEntity).toList());
+        }
+        PagedList<Invoice> result = invoiceQueries.findPage(status, projectId, issuedIn, pageSpec);
+        return ResponseEntity.ok().header("X-Total-Count", String.valueOf(result.total()))
+                .body(result.items().stream().map(InvoiceResourceFromEntityAssembler::toResourceFromEntity).toList());
     }
 
     @GetMapping("/{id}")

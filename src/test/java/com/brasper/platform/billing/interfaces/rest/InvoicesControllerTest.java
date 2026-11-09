@@ -2,6 +2,7 @@ package com.brasper.platform.billing.interfaces.rest;
 
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -115,6 +116,32 @@ class InvoicesControllerTest {
         mockMvc.perform(get("/api/v1/invoices?year=2026&month=9").header("Authorization", token))
                 .andExpect(jsonPath("$.length()").value(0));
         mockMvc.perform(get("/api/v1/invoices?year=2026").header("Authorization", token))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void pagesTheListAndReportsTheTotalInAHeader() throws Exception {
+        String token = bearer(Role.ROLE_ACCOUNTING);
+        Long projectId = project(true);
+        for (int correlative = 1; correlative <= 3; correlative++) {
+            issue(token, projectId, correlative, "").andExpect(status().isCreated());
+        }
+        String url = "/api/v1/invoices?projectId=" + projectId;
+
+        mockMvc.perform(get(url + "&page=1&size=2").header("Authorization", token))
+                .andExpect(status().isOk())
+                .andExpect(header().string("X-Total-Count", "3"))
+                .andExpect(jsonPath("$.length()").value(1))
+                .andExpect(jsonPath("$[0].number").value("F001-00000001"));
+        mockMvc.perform(get(url).header("Authorization", token))
+                .andExpect(header().doesNotExist("X-Total-Count"))
+                .andExpect(jsonPath("$.length()").value(3));
+        mockMvc.perform(get(url + "&page=0").header("Authorization", token)).andExpect(status().isBadRequest());
+        mockMvc.perform(get(url + "&page=0&size=0").header("Authorization", token))
+                .andExpect(status().isBadRequest());
+        mockMvc.perform(get(url + "&page=-1&size=5").header("Authorization", token))
+                .andExpect(status().isBadRequest());
+        mockMvc.perform(get(url + "&page=0&size=201").header("Authorization", token))
                 .andExpect(status().isBadRequest());
     }
 
