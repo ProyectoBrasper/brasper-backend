@@ -3,6 +3,8 @@ package com.brasper.platform.treasury.interfaces.rest;
 import com.brasper.platform.shared.application.result.Result;
 import com.brasper.platform.shared.domain.model.valueobjects.CashFlowWeek;
 import com.brasper.platform.shared.domain.model.valueobjects.Money;
+import com.brasper.platform.shared.domain.model.valueobjects.PageSpec;
+import com.brasper.platform.shared.domain.model.valueobjects.PagedList;
 import com.brasper.platform.shared.domain.model.valueobjects.PaymentStatus;
 import com.brasper.platform.treasury.application.commandservices.PayableCommandFailure;
 import com.brasper.platform.treasury.application.commandservices.PayableCommandService;
@@ -55,11 +57,17 @@ public class PayablesController {
         return respond(commands.handle(command), HttpStatus.CREATED);
     }
 
+    /** {@code page} and {@code size} (together) return one page; the total that match goes in {@code X-Total-Count}. */
     @GetMapping
-    public ResponseEntity<?> list(@RequestParam(required = false) PaymentStatus status) {
-        return ResponseEntity.ok(queries.findAll().stream()
-                .filter(payable -> status == null || payable.getStatus() == status)
-                .map(PayableResourceAssembler::toResource).toList());
+    public ResponseEntity<?> list(@RequestParam(required = false) PaymentStatus status,
+            @RequestParam(required = false) Integer page, @RequestParam(required = false) Integer size) {
+        PageSpec pageSpec = PageSpec.of(page, size);
+        if (pageSpec == null) {
+            return ResponseEntity.ok(queries.findAll(status).stream().map(PayableResourceAssembler::toResource).toList());
+        }
+        PagedList<Payable> result = queries.findPage(status, pageSpec);
+        return ResponseEntity.ok().header("X-Total-Count", String.valueOf(result.total()))
+                .body(result.items().stream().map(PayableResourceAssembler::toResource).toList());
     }
 
     @GetMapping("/{id}")
