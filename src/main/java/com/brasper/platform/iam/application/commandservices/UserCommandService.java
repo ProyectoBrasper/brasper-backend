@@ -21,6 +21,8 @@ import org.springframework.transaction.annotation.Transactional;
 @Service
 public class UserCommandService {
 
+    /** Wrong current passwords are counted apart from the sign-in ones, under this source. */
+    private static final String PASSWORD_CHANGE = "password-change";
     private static final int MIN_PASSWORD_LENGTH = 8;
     private static final int MAX_PASSWORD_BYTES = 72; // BCrypt ignores (or rejects) anything longer.
 
@@ -53,20 +55,20 @@ public class UserCommandService {
 
     @Transactional(readOnly = true)
     public Result<AuthenticatedUser, UserCommandFailure> handle(SignInCommand command) {
-        if (throttle.isLocked(command.username().value())) {
+        if (throttle.isLocked(command.username().value(), command.clientIp())) {
             return Result.failure(UserCommandFailure.TOO_MANY_ATTEMPTS);
         }
         User user = users.findByUsername(command.username()).orElse(null);
         if (user == null) {
             hashing.matches(command.password(), decoyHash);
-            throttle.failed(command.username().value());
+            throttle.failed(command.username().value(), command.clientIp());
             return Result.failure(UserCommandFailure.INVALID_CREDENTIALS);
         }
         if (!hashing.matches(command.password(), user.getPasswordHash())) {
-            throttle.failed(command.username().value());
+            throttle.failed(command.username().value(), command.clientIp());
             return Result.failure(UserCommandFailure.INVALID_CREDENTIALS);
         }
-        throttle.succeeded(command.username().value());
+        throttle.succeeded(command.username().value(), command.clientIp());
         // Checked after the password so an inactive account is not revealed to someone who does not know it.
         if (!user.isActive()) {
             return Result.failure(UserCommandFailure.USER_INACTIVE);
@@ -75,14 +77,14 @@ public class UserCommandService {
     }
 
     /**
-     * A signed-in user changes their own password. Wrong current passwords count toward the sign-in lockout, so a
+     * A signed-in user changes their own password. Wrong current passwords are counted and locked like sign-in ones, so a
      * stolen token cannot be used to guess it. shortcut: tokens already issued stay valid until they expire (the JWT is
      * stateless); add a per-user token version if revoking them matters.
      */
     @Transactional
     public Result<User, UserCommandFailure> handle(ChangePasswordCommand command) {
         String name = command.username().value();
-        if (throttle.isLocked(name)) {
+        if (throttle.isLocked(name, PASSWORD_CHANGE)) {
             return Result.failure(UserCommandFailure.TOO_MANY_ATTEMPTS);
         }
         User user = users.findByUsername(command.username()).filter(User::isActive).orElse(null);
@@ -90,13 +92,13 @@ public class UserCommandService {
             return Result.failure(UserCommandFailure.USER_NOT_FOUND);
         }
         if (!hashing.matches(command.currentPassword(), user.getPasswordHash())) {
-            throttle.failed(name);
+            throttle.failed(name, PASSWORD_CHANGE);
             return Result.failure(UserCommandFailure.INVALID_CURRENT_PASSWORD);
         }
         if (!isStrong(command.newPassword())) {
             return Result.failure(UserCommandFailure.WEAK_PASSWORD);
         }
-        throttle.succeeded(name);
+        throttle.succeeded(name, PASSWORD_CHANGE);
         user.changePasswordHash(hashing.encode(command.newPassword()));
         return Result.success(users.save(user));
     }
@@ -138,7 +140,7 @@ public class UserCommandService {
             return Result.failure(UserCommandFailure.WEAK_PASSWORD);
         }
         user.changePasswordHash(hashing.encode(command.newPassword()));
-        throttle.succeeded(user.getUsername().value());
+        throttle.clear(user.getUsername().value());
         return Result.success(users.save(user));
     }
 

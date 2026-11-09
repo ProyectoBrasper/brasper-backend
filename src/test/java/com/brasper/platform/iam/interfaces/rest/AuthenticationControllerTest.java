@@ -122,6 +122,27 @@ class AuthenticationControllerTest {
         }
     }
 
+    private org.springframework.test.web.servlet.ResultActions signInFrom(String address, String username,
+            String password) throws Exception {
+        return mockMvc.perform(post("/api/v1/auth/sign-in").contentType(MediaType.APPLICATION_JSON)
+                .content("{\"username\":\"%s\",\"password\":\"%s\"}".formatted(username, password))
+                .with(request -> {
+                    request.setRemoteAddr(address);
+                    return request;
+                }));
+    }
+
+    @Test
+    void guessingFromOneAddressLocksOnlyThatAddressNotTheRealUser() throws Exception {
+        createUser("carla", Role.ROLE_ADMIN);
+        for (int attempt = 0; attempt < 5; attempt++) {
+            signInFrom("203.0.113.9", "carla", "otra-clave1").andExpect(status().isUnauthorized());
+        }
+
+        signInFrom("203.0.113.9", "carla", PASSWORD).andExpect(status().isTooManyRequests());
+        signInFrom("10.0.0.7", "carla", PASSWORD).andExpect(status().isOk());
+    }
+
     @Test
     void inactiveUserWithTheRightPasswordIsForbidden() throws Exception {
         createUser("ana", Role.ROLE_ENGINEER).deactivate();

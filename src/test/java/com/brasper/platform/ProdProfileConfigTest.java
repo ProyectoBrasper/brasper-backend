@@ -10,6 +10,14 @@ import org.springframework.core.io.ClassPathResource;
 class ProdProfileConfigTest {
 
     @Test
+    void theClientAddressComesFromTheProxyHeaderInProduction() {
+        var yaml = new YamlPropertiesFactoryBean();
+        yaml.setResources(new ClassPathResource("application-prod.yml"));
+
+        assertThat(yaml.getObject().getProperty("server.forward-headers-strategy")).isEqualTo("native");
+    }
+
+    @Test
     void theApiDocsAreOffInProduction() {
         var yaml = new YamlPropertiesFactoryBean();
         yaml.setResources(new ClassPathResource("application-prod.yml"));

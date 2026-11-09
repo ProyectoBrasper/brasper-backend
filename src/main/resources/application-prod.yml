@@ -2,6 +2,9 @@ server:
   # Render injects PORT; falls back to 8080 on a local server.
   port: ${PORT:8080}
   shutdown: graceful
+  # Behind Render's proxy the client address comes from X-Forwarded-For (only trusted from private proxy addresses);
+  # the sign-in lockout counts failed attempts per username and address.
+  forward-headers-strategy: native
 
 brasper:
   security:
