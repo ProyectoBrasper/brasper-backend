@@ -68,6 +68,16 @@ class ProjectCommandServiceTest {
     }
 
     @Test
+    void createRejectsABudgetInUsdBeforeLookingAnythingUp() {
+        var usd = new CreateProjectCommand(CODE, "Planta", null, 1L, new Money(BigDecimal.TEN, Currency.USD),
+                LocalDate.of(2026, 8, 3), new Percentage(BigDecimal.ONE), new Percentage(new BigDecimal("0.03")));
+
+        assertThat(service.handle(usd).failure()).contains(ProjectCommandFailure.UNSUPPORTED_CURRENCY);
+        verify(clients, never()).findById(any());
+        verify(projects, never()).save(any());
+    }
+
+    @Test
     void createFailsForAnUnknownClientOrADuplicateCode() {
         when(clients.findById(1L)).thenReturn(Optional.empty());
         assertThat(service.handle(create()).failure()).contains(ProjectCommandFailure.CLIENT_NOT_FOUND);

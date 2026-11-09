@@ -6,7 +6,8 @@ public enum BankAccountCommandFailure implements CommandFailure {
     DUPLICATE_ACCOUNT_NUMBER("treasury.error.duplicate-account-number"),
     BANK_ACCOUNT_NOT_FOUND("treasury.error.bank-account-not-found"),
     SAME_ACCOUNT("treasury.error.same-account"),
-    CURRENCY_MISMATCH("treasury.error.currency-mismatch");
+    CURRENCY_MISMATCH("treasury.error.currency-mismatch"),
+    UNSUPPORTED_CURRENCY("treasury.error.unsupported-currency");
 
     private final String messageKey;
 

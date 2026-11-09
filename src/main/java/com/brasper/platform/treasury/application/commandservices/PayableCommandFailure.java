@@ -8,7 +8,8 @@ public enum PayableCommandFailure implements CommandFailure {
     PAYMENT_EXCEEDS_BALANCE("treasury.error.payment-exceeds-balance"),
     PAYMENT_ACCOUNT_NOT_FOUND("treasury.error.payment-account-not-found"),
     PAYMENT_CURRENCY_MISMATCH("treasury.error.payment-currency-mismatch"),
-    INVALID_PAYMENT_AMOUNT("treasury.error.invalid-payment-amount");
+    INVALID_PAYMENT_AMOUNT("treasury.error.invalid-payment-amount"),
+    UNSUPPORTED_CURRENCY("treasury.error.unsupported-currency");
 
     private final String messageKey;
 

@@ -17,6 +17,7 @@ public final class PartnerFailureResponseAssembler {
             case PARTNER_NOT_FOUND, CONTRIBUTION_ACCOUNT_NOT_FOUND -> ProblemDetailAssembler.notFound(messages, key);
             case DUPLICATE_PARTNER -> ProblemDetailAssembler.conflict(messages, key);
             case INVALID_AMOUNT -> ProblemDetailAssembler.badRequest(messages, key);
+            case UNSUPPORTED_CURRENCY -> ProblemDetailAssembler.unprocessable(messages, key);
         };
     }
 }

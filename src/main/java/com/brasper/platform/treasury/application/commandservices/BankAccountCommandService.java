@@ -22,6 +22,9 @@ public class BankAccountCommandService {
 
     @Transactional
     public Result<BankAccount, BankAccountCommandFailure> handle(OpenBankAccountCommand command) {
+        if (!command.currency().isSupported()) {
+            return Result.failure(BankAccountCommandFailure.UNSUPPORTED_CURRENCY);
+        }
         if (accounts.existsByAccountNumber(command.accountNumber())) {
             return Result.failure(BankAccountCommandFailure.DUPLICATE_ACCOUNT_NUMBER);
         }

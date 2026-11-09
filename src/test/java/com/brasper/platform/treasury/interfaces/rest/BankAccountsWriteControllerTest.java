@@ -100,8 +100,11 @@ class BankAccountsWriteControllerTest {
     void rejectsInvalidRequestsAndUnknownAccounts() throws Exception {
         String token = bearer("ana", Role.ROLE_ACCOUNTING);
         int pen = open(token, "001-1", "PEN", "0");
-        int usd = open(token, "001-2", "USD", "0");
 
+        send(token, URL, "{\"bank\":\"BCP\",\"accountNumber\":\"001-2\",\"type\":\"CHECKING\",\"currency\":\"USD\","
+                + "\"openingBalance\":0,\"openedOn\":\"2026-11-01\"}")
+                .andExpect(status().isUnprocessableEntity())
+                .andExpect(jsonPath("$.code").value("treasury.error.unsupported-currency"));
         send(token, URL, "{\"bank\":\"BCP\",\"accountNumber\":\"001-1\",\"type\":\"CHECKING\",\"currency\":\"PEN\","
                 + "\"openingBalance\":0,\"openedOn\":\"2026-11-01\"}")
                 .andExpect(status().isConflict())
@@ -110,10 +113,6 @@ class BankAccountsWriteControllerTest {
         send(token, URL + "/" + pen + "/adjustments",
                 "{\"occurredOn\":\"2026-11-03\",\"direction\":\"INFLOW\",\"amount\":0}")
                 .andExpect(status().isBadRequest());
-        send(token, URL + "/transfers", ("{\"fromAccountId\":%d,\"toAccountId\":%d,"
-                + "\"transferredOn\":\"2026-11-04\",\"amount\":1}").formatted(pen, usd))
-                .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.code").value("treasury.error.currency-mismatch"));
         send(token, URL + "/transfers", ("{\"fromAccountId\":%d,\"toAccountId\":%d,"
                 + "\"transferredOn\":\"2026-11-04\",\"amount\":1}").formatted(pen, pen))
                 .andExpect(status().isBadRequest())

@@ -17,6 +17,7 @@ public final class ScheduledCollectionFailureResponseAssembler {
         return switch (failure) {
             case PROJECT_NOT_FOUND, NOT_FOUND -> ProblemDetailAssembler.notFound(messages, key);
             case ALREADY_CLOSED -> ProblemDetailAssembler.conflict(messages, key);
+            case UNSUPPORTED_CURRENCY -> ProblemDetailAssembler.unprocessable(messages, key);
         };
     }
 }

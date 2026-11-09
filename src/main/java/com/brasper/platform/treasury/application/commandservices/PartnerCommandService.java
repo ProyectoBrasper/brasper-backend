@@ -43,6 +43,9 @@ public class PartnerCommandService {
         if (command.amount() == null || !command.amount().isPositive()) {
             return Result.failure(PartnerCommandFailure.INVALID_AMOUNT);
         }
+        if (!command.amount().currency().isSupported()) {
+            return Result.failure(PartnerCommandFailure.UNSUPPORTED_CURRENCY);
+        }
         if (command.bankAccountId() != null && accounts.findById(command.bankAccountId()).isEmpty()) {
             return Result.failure(PartnerCommandFailure.CONTRIBUTION_ACCOUNT_NOT_FOUND);
         }

@@ -25,6 +25,9 @@ public class ScheduledCollectionCommandService {
     /** Any existing project will do: projecting a sale for a just-quoted project is normal. */
     @Transactional
     public Result<ScheduledCollection, ScheduledCollectionCommandFailure> handle(ScheduleCollectionCommand command) {
+        if (!command.expectedAmount().currency().isSupported()) {
+            return Result.failure(ScheduledCollectionCommandFailure.UNSUPPORTED_CURRENCY);
+        }
         if (projects.find(command.projectId()).isEmpty()) {
             return Result.failure(ScheduledCollectionCommandFailure.PROJECT_NOT_FOUND);
         }

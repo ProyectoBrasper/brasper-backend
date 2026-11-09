@@ -17,6 +17,7 @@ public final class BankAccountFailureResponseAssembler {
             case DUPLICATE_ACCOUNT_NUMBER -> ProblemDetailAssembler.conflict(messages, key);
             case BANK_ACCOUNT_NOT_FOUND -> ProblemDetailAssembler.notFound(messages, key);
             case SAME_ACCOUNT, CURRENCY_MISMATCH -> ProblemDetailAssembler.badRequest(messages, key);
+            case UNSUPPORTED_CURRENCY -> ProblemDetailAssembler.unprocessable(messages, key);
         };
     }
 }

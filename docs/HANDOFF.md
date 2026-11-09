@@ -1,6 +1,6 @@
 # Traspaso: estado del backend de Brasper
 
-Documento para retomar el trabajo en otra sesión (persona o agente). Última actualización: 2026-11-08, `develop` en el PR #124 más el PR que rechaza USD.
+Documento para retomar el trabajo en otra sesión (persona o agente). Última actualización: 2026-11-08, `develop` en el PR #125 más el PR que rechaza USD en los demás flujos.
 Reglas del repo: `AGENTS.md`. Diseño de dominio: `docs/uml/` (empezar por `00-context-map.puml`).
 
 ## Cómo correr y verificar
@@ -98,7 +98,7 @@ Auditoría de todo el backend (17 hallazgos). Hechos: 1, 2, 3, 4, 5, 7, 8, 9, 10
 6. [ ] (aplazado) Rentabilidad y tablero: son 4 consultas indexadas por proyecto; con decenas de proyectos tarda menos de un segundo. Se hace si el portafolio pasa de unos 100 proyectos: las fachadas de Expenses, Billing y Projects devolverían los totales de todos los proyectos agrupados.
 7. [x] Flujo de caja: la semana de hoy suma lo real ya movido más lo que sigue programado (antes solo mostraba lo programado). Límite: un costo fijo con el mes pagado a medias aún cuenta su parte programada completa.
 8. [x] Las lecturas de Treasury (cuentas, préstamos, socios, pendientes) y Billing (facturas, pagos, cobros programados) quedan para ADMIN, ACCOUNTING y MANAGEMENT. Decisión propia sin confirmar: Projects, clientes, proveedores y gastos siguen abiertos a cualquier usuario porque ENGINEER también los escribe.
-9. [x] Decisión del usuario: rechazar USD. Emitir una factura o registrar un gasto en USD responde 422 (`billing.error.unsupported-currency`, `expenses.error.unsupported-currency`), así nada en USD llega a los reportes ni al IGV. Límites: cuentas bancarias, pendientes, préstamos, costos fijos y proyectos aún aceptan USD (los flujos de caja con otra moneda ya se revierten solos); si se vuelve a aceptar USD, hay que guardar el tipo de cambio de SUNAT en el asiento.
+9. [x] Decisión del usuario: rechazar USD. Responden 422 (`<contexto>.error.unsupported-currency`) abrir una cuenta bancaria, crear un pendiente, registrar un aporte de socio, crear un proyecto (presupuesto), programar un cobro, registrar un activo fijo, crear un costo fijo, emitir una factura y registrar un gasto. El préstamo, la cuota, el pago y el movimiento de caja ya exigen la moneda de la cuenta, y la estimación de costo la del presupuesto, así que también quedan en PEN. Una sola regla: `Currency.isSupported()`; para volver a aceptar USD hay que guardar el tipo de cambio de SUNAT en el asiento. Límites: sueldos de empleados y asientos manuales del libro aún aceptan USD.
 10. [x] Un aporte de socio reembolsable con cuenta bancaria asienta D 10 / H 455 (pasivo, V37 siembra la 455) en vez de capital. Límite: un gasto pagado de su bolsillo por un socio sigue yendo a capital (50).
 11. [x] `IllegalStateException`, `IllegalArgumentException` y conflictos de concurrencia se registran en el log (WARN, con traza). Decisión propia: el texto del error se sigue devolviendo al cliente porque es el motivo del 409; no se tradujo.
 12. [x] Cinco contraseñas incorrectas seguidas bloquean el usuario 15 minutos (429, `SignInThrottle`). Límites: el conteo está en memoria (se borra al reiniciar y no se comparte entre instancias) y quien conoce un usuario puede bloquearlo 15 minutos; no hay límite por IP ni configuración CORS (depende de dónde corra el frontend).

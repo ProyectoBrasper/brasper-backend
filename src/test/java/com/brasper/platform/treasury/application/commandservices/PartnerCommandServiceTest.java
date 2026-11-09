@@ -61,6 +61,15 @@ class PartnerCommandServiceTest {
     }
 
     @Test
+    void rejectsAContributionInUsd() {
+        when(partners.findById(1L)).thenReturn(Optional.of(new Partner(new RegisterPartnerCommand("Ana Perez", null))));
+
+        assertThat(service.handle(contribution(new Money(BigDecimal.TEN, Currency.USD), null)).failure())
+                .contains(PartnerCommandFailure.UNSUPPORTED_CURRENCY);
+        verify(partners, never()).save(any());
+    }
+
+    @Test
     void rejectsContributionsForAMissingPartnerAccountOrAmount() {
         Partner partner = new Partner(new RegisterPartnerCommand("Ana Perez", null));
         when(partners.findById(1L)).thenReturn(Optional.of(partner));

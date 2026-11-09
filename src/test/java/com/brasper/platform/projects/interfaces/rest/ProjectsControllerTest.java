@@ -64,7 +64,7 @@ class ProjectsControllerTest {
         return mockMvc.perform(post("/api/v1/projects").header("Authorization", token)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("""
-                        {"code":"%s","name":"Planta","clientId":%d,"budget":1000.50,"currency":"USD",
+                        {"code":"%s","name":"Planta","clientId":%d,"budget":1000.50,"currency":"PEN",
                          "quotedOn":"2026-08-03","participation":0.5,"salesCommissionRate":0.03}
                         """.formatted(code, clientId)));
     }
@@ -83,7 +83,7 @@ class ProjectsControllerTest {
                 .andExpect(jsonPath("$.code").value("862BR-AGO-2026"))
                 .andExpect(jsonPath("$.status").value("QUOTED"))
                 .andExpect(jsonPath("$.budget").value(1000.50))
-                .andExpect(jsonPath("$.currency").value("USD")));
+                .andExpect(jsonPath("$.currency").value("PEN")));
 
         mockMvc.perform(get("/api/v1/projects/" + id).header("Authorization", token))
                 .andExpect(status().isOk()).andExpect(jsonPath("$.clientId").value(clientId));
@@ -104,7 +104,7 @@ class ProjectsControllerTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"name\":\"Nuevo\",\"budget\":2000,\"participation\":1,\"salesCommissionRate\":0}"))
                 .andExpect(status().isOk()).andExpect(jsonPath("$.name").value("Nuevo"))
-                .andExpect(jsonPath("$.currency").value("USD"));
+                .andExpect(jsonPath("$.currency").value("PEN"));
         mockMvc.perform(post("/api/v1/projects/" + id + "/start").header("Authorization", token))
                 .andExpect(status().isOk()).andExpect(jsonPath("$.status").value("IN_PROGRESS"));
         mockMvc.perform(post("/api/v1/projects/" + id + "/start").header("Authorization", token))
