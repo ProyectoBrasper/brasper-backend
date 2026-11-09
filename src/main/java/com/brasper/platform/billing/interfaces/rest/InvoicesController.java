@@ -28,6 +28,7 @@ import org.springframework.web.bind.annotation.RestController;
 /** Any signed-in user reads; only admin and accounting issue or void invoices. */
 @RestController
 @RequestMapping("/api/v1/invoices")
+@PreAuthorize("hasAnyRole('ADMIN','ACCOUNTING','MANAGEMENT')")
 public class InvoicesController {
 
     private static final String CAN_WRITE = "hasAnyRole('ADMIN','ACCOUNTING')";

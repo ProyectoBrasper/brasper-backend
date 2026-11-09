@@ -23,6 +23,7 @@ import org.springframework.web.bind.annotation.RestController;
 /** Any signed-in user reads; only admin and accounting register payments. */
 @RestController
 @RequestMapping("/api/v1/invoices/{invoiceId}/payments")
+@PreAuthorize("hasAnyRole('ADMIN','ACCOUNTING','MANAGEMENT')")
 public class InvoicePaymentsController {
 
     private final InvoiceCommandService invoiceCommands;

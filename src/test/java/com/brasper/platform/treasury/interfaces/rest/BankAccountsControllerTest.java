@@ -100,7 +100,7 @@ class BankAccountsControllerTest {
 
     @Test
     void rejectsUnknownAccountsBadMonthsAndAnonymousCalls() throws Exception {
-        String token = bearer("ana", Role.ROLE_ENGINEER);
+        String token = bearer("ana", Role.ROLE_ACCOUNTING);
         Long id = seedAccountWithMovements();
 
         mockMvc.perform(get(URL + "/999999").header("Authorization", token))
@@ -111,5 +111,14 @@ class BankAccountsControllerTest {
         mockMvc.perform(get(URL + "/" + id + "/movements?year=2026&month=13").header("Authorization", token))
                 .andExpect(status().isBadRequest());
         mockMvc.perform(get(URL)).andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    void anEngineerCannotReadTheCompanyBankAccounts() throws Exception {
+        String token = bearer("luis", Role.ROLE_ENGINEER);
+        Long id = seedAccountWithMovements();
+
+        mockMvc.perform(get(URL).header("Authorization", token)).andExpect(status().isForbidden());
+        mockMvc.perform(get(URL + "/" + id).header("Authorization", token)).andExpect(status().isForbidden());
     }
 }
