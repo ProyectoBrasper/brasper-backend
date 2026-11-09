@@ -67,7 +67,7 @@ Hecho (dominio, servicios, API y fachada salvo que se indique):
 Pendiente, en este orden sugerido:
 1. **Reporting** está completo (rentabilidad por proyecto, estado de resultados, balance general, flujo de caja y tablero).
 2. Eventos de dominio: están todos los del UML. Falta una carga inicial: lo cobrado, gastado o pagado antes de estos eventos no tiene asiento ni movimiento de caja, y los saldos de apertura de las cuentas bancarias no tienen asiento. Criterio aplicado: los eventos de otros contextos alimentan a Accounting y, donde el flujo no movía caja, también a Treasury; lo que Treasury ya mueve por su cuenta (pagos pendientes, préstamos, transferencias) solo publica para Accounting, así la caja no se cuenta dos veces.
-3. Siguiente trabajo, en este orden: (a) carga inicial de datos cuando el usuario la pida (hoy no quiere cargar datos reales); (b) paginación y totales por lote (hallazgos 13 y 6) si el volumen o el frontend lo piden; (c) crear el primer administrador en Supabase (ver Pendientes de operación).
+3. Siguiente trabajo, en este orden: (a) carga inicial de datos cuando el usuario la pida (hoy no quiere cargar datos reales); (b) paginación y totales por lote (hallazgos 13 y 6) si el volumen o el frontend lo piden.
 
 ## Atajos y desvíos del UML (todos documentados en el código)
 - Las fachadas y sus implementaciones viven en `interfaces/acl` (el UML las pone en `application/acl`) porque ArchUnit prohíbe que `application` dependa de `interfaces`.
@@ -110,7 +110,7 @@ Auditoría de todo el backend (17 hallazgos). Hechos: 1, 2, 3, 4, 5, 7, 8, 9, 10
 
 ## Pendientes de operación
 - Supabase (2026-11-08): Flyway aplicó V2 a V37 (28 migraciones, V12 a V19 se saltaron a propósito) arrancando la app con el perfil `prod` y el session pooler (puerto 5432); la base estaba en `V1`. Hibernate validó el esquema y `/actuator/health` respondió UP. La app se apagó después. El MCP de Supabase de la sesión solo ve otro proyecto (`Booking-Buddy`), no el de Brasper: no sirve para esta base y las migraciones no deben aplicarse por él, porque Flyway lleva su propio historial.
-- La base de Supabase no tiene ningún usuario: para crear el primer administrador, arrancar con `BOOTSTRAP_ADMIN_USERNAME` y `BOOTSTRAP_ADMIN_PASSWORD` (se crea solo si no hay un administrador activo) y quitarlas después.
+- Supabase ya tiene el primer administrador (`admin`, creado el 2026-11-09 con `BOOTSTRAP_ADMIN_*` en una sola corrida; el inicio de sesión devolvió 200). Las variables no quedaron guardadas en ningún archivo. Para más usuarios, usar la API con ese administrador.
 - La contraseña de Supabase se expuso en el chat (al inicio y de nuevo el 2026-11-08); el usuario decidió no rotarla.
 - Avisar al compañero del frontend de los desvíos del UML y de la reescritura del historial de `main` y `develop` (`git fetch && git reset --hard origin/develop`).
 - Contenedores Docker viejos: el usuario nunca dijo cuáles borrar.
