@@ -59,6 +59,30 @@ class JournalEntryJpaRepositoryTest {
                 .containsExactly(EntrySource.REVERSAL, late.getId(), late.getId(), new Period(2026, 12));
         assertThat(reloaded.getLines().getFirst().getCredit()).isEqualTo(found.totalDebit());
     }
+    @Test void sumsEveryLineInTheDatabaseByAccountAndCurrencyForAPeriodARangeAndUpToADate() {
+        AccountCode code = new AccountCode("9946");
+        Money pen = new Money(new BigDecimal("100.10"), Currency.PEN), usd = new Money(new BigDecimal("7"), Currency.USD);
+        List<Object[]> lines = List.of(
+                new Object[] {LocalDate.of(2046, 4, 30), pen}, new Object[] {LocalDate.of(2046, 5, 3), pen},
+                new Object[] {LocalDate.of(2046, 5, 20), pen}, new Object[] {LocalDate.of(2046, 5, 21), usd},
+                new Object[] {LocalDate.of(2046, 6, 1), pen});
+        for (Object[] line : lines) {
+            Money amount = (Money) line[1], zero = Money.zero(amount.currency());
+            entries.save(new JournalEntry(new RegisterJournalEntryCommand((LocalDate) line[0], "Sum", EntrySource.MANUAL, null,
+                    List.of(new JournalLineData(code, amount, zero, null), new JournalLineData(new AccountCode("9947"), zero, amount, null)))));
+        }
+        em.flush();
+        assertThat(totalOf(entries.totalsByPeriod(new Period(2046, 5)), code, Currency.PEN).debit()).isEqualByComparingTo("200.20");
+        assertThat(totalOf(entries.totalsByPeriod(new Period(2046, 5)), code, Currency.USD).debit()).isEqualByComparingTo("7");
+        assertThat(totalOf(entries.totalsBetween(LocalDate.of(2046, 5, 1), LocalDate.of(2046, 5, 20)), code, Currency.PEN).debit())
+                .isEqualByComparingTo("200.20");
+        assertThat(totalOf(entries.totalsUpTo(LocalDate.of(2046, 5, 31)), code, Currency.PEN).debit()).isEqualByComparingTo("300.30");
+        assertThat(totalOf(entries.totalsUpTo(LocalDate.of(2046, 5, 31)), new AccountCode("9947"), Currency.PEN).credit())
+                .isEqualByComparingTo("300.30");
+    }
+    private static AccountTotals totalOf(List<AccountTotals> totals, AccountCode code, Currency currency) {
+        return totals.stream().filter(t -> t.accountCode().equals(code) && t.currency() == currency).findFirst().orElseThrow();
+    }
     @Test void rejectsDuplicateSourceButAllowsOtherSourcesAndManualEntries() {
         LocalDate date = LocalDate.of(2026, 11, 1);
         entries.save(entry(date, EntrySource.MANUAL, null));

@@ -4,13 +4,10 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-import com.brasper.platform.accounting.domain.model.aggregates.JournalEntry;
 import com.brasper.platform.accounting.domain.model.aggregates.LedgerAccount;
 import com.brasper.platform.accounting.domain.model.commands.CreateLedgerAccountCommand;
-import com.brasper.platform.accounting.domain.model.commands.JournalLineData;
-import com.brasper.platform.accounting.domain.model.commands.RegisterJournalEntryCommand;
 import com.brasper.platform.accounting.domain.model.valueobjects.AccountCode;
-import com.brasper.platform.accounting.domain.model.valueobjects.EntrySource;
+import com.brasper.platform.accounting.domain.model.valueobjects.AccountTotals;
 import com.brasper.platform.accounting.domain.model.valueobjects.LedgerAccountType;
 import com.brasper.platform.accounting.domain.model.valueobjects.TrialBalance;
 import com.brasper.platform.accounting.domain.repositories.JournalEntryRepository;
@@ -41,11 +38,10 @@ class LedgerQueryServiceTest {
         return new LedgerAccount(new CreateLedgerAccountCommand(code, name, type));
     }
 
-    private static JournalEntry sale(String amount) {
-        return new JournalEntry(new RegisterJournalEntryCommand(LocalDate.of(2026, 11, 10), "Sale",
-                EntrySource.MANUAL, null, List.of(
-                        new JournalLineData(CASH, pen(amount), pen("0"), null),
-                        new JournalLineData(SALES, pen("0"), pen(amount), null))));
+    /** What the database sums for sales of the given total: cash debited, sales credited. */
+    private static List<AccountTotals> sales(String amount) {
+        return List.of(new AccountTotals(CASH, Currency.PEN, new BigDecimal(amount), BigDecimal.ZERO),
+                new AccountTotals(SALES, Currency.PEN, BigDecimal.ZERO, new BigDecimal(amount)));
     }
 
     @Test
@@ -53,7 +49,7 @@ class LedgerQueryServiceTest {
         LedgerAccount sales = account(SALES, "Sales", LedgerAccountType.REVENUE);
         LedgerAccount cash = account(CASH, "Cash", LedgerAccountType.ASSET);
         when(accounts.findAll()).thenReturn(List.of(sales, cash));
-        when(entries.findAllByPeriod(NOVEMBER)).thenReturn(List.of(sale("100"), sale("50.50")));
+        when(entries.totalsByPeriod(NOVEMBER)).thenReturn(sales("150.50"));
 
         TrialBalance balance = service.trialBalance(NOVEMBER);
 
@@ -68,7 +64,7 @@ class LedgerQueryServiceTest {
     @Test
     void anEmptyPeriodHasNoLines() {
         when(accounts.findAll()).thenReturn(List.of());
-        when(entries.findAllByPeriod(NOVEMBER)).thenReturn(List.of());
+        when(entries.totalsByPeriod(NOVEMBER)).thenReturn(List.of());
 
         assertThat(service.trialBalance(NOVEMBER).lines()).isEmpty();
     }
@@ -78,8 +74,8 @@ class LedgerQueryServiceTest {
         when(accounts.findAll()).thenReturn(List.of(account(CASH, "Cash", LedgerAccountType.ASSET),
                 account(SALES, "Sales", LedgerAccountType.REVENUE)));
         LocalDate day = LocalDate.of(2026, 11, 30);
-        when(entries.findAllUpTo(day)).thenReturn(List.of(sale("100"), sale("50.50")));
-        when(entries.findAllByPeriod(NOVEMBER)).thenReturn(List.of(sale("100")));
+        when(entries.totalsUpTo(day)).thenReturn(sales("150.50"));
+        when(entries.totalsByPeriod(NOVEMBER)).thenReturn(sales("100"));
 
         assertThat(service.accountBalancesAt(day).get("10")).isEqualByComparingTo("150.50");
         assertThat(service.accountBalancesAt(day).get("70")).isEqualByComparingTo("150.50");
@@ -94,7 +90,7 @@ class LedgerQueryServiceTest {
                 account(SALES, "Sales", LedgerAccountType.REVENUE)));
         LocalDate from = LocalDate.of(2026, 11, 1);
         LocalDate to = LocalDate.of(2026, 11, 30);
-        when(entries.findAllBetween(from, to)).thenReturn(List.of(sale("40")));
+        when(entries.totalsBetween(from, to)).thenReturn(sales("40"));
 
         assertThat(service.accountMovementsBetween(from, to).get("70")).isEqualByComparingTo("40");
     }

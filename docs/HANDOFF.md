@@ -92,7 +92,7 @@ Auditoría de todo el backend (17 hallazgos). Se arreglan en este orden, un PR p
 1. [x] Activos fijos: registrar un activo asienta D 33 / H la cuenta que llevaba el costo del gasto (60 o 63, mismo proyecto) o H 59 si no viene de un gasto (saldo inicial); darlo de baja asienta D 39 + D 65 (lo no depreciado) / H 33 (V36 siembra la 65). Decisión propia: el IGV del gasto no se toca y anular el gasto después no revierte el asiento del activo.
 2. [x] Pagos pendientes: un gasto pendiente crea su pendiente en Treasury (semana del gasto), pagarlo del todo marca el gasto como pagado (`PayableSettledEvent`), anular un gasto pendiente borra su pendiente (si ya tiene pagos, 409), y un pendiente sin gasto asienta D 60/63 / H 42 al crearse (fecha = hoy). Límites: los pendientes de tipo TAX y SELF_DETRACTION no asientan nada al crearse; un gasto anulado después de saldado no devuelve el dinero.
 3. [x] Doble pago por concurrencia: `@Version` en `Invoice`, `Payable` y `Loan` (V35); el segundo guardado responde 409. `BankAccount` no lleva versión porque su saldo se calcula de los movimientos.
-4. [ ] Balance y estado de resultados: sumar en la base (`group by`) en vez de cargar todos los asientos.
+4. [x] Balance, estado de resultados, balance de comprobación y preparación del IGV suman en la base (`group by` cuenta y moneda, `JournalEntryRepository.totalsUpTo/totalsBetween/totalsByPeriod`) en vez de cargar cada asiento con sus líneas.
 5. [ ] Flujo de caja: pedir los movimientos una sola vez para todo el rango.
 6. [ ] Rentabilidad y tablero: totales de todos los proyectos en una consulta.
 7. [ ] Flujo de caja: la semana actual suma lo real hasta hoy más lo programado.
@@ -103,7 +103,7 @@ Auditoría de todo el backend (17 hallazgos). Se arreglan en este orden, un PR p
 12. [ ] Límite de intentos al iniciar sesión.
 13. [ ] Paginación en listas de facturas, gastos, pagos pendientes y costos fijos.
 14. [ ] `AGENTS.md` dice que Lombok se usa y no está en el `pom.xml`.
-15. [ ] `LedgerQueryService` carga las cuentas varias veces por llamada.
+15. [x] `LedgerQueryService` carga las cuentas una sola vez por llamada (se hizo junto con el 4).
 16. [ ] Tests con datos confirmados en la base compartida.
 17. [ ] ArchUnit solo hace cumplir 2 de las reglas documentadas.
 
