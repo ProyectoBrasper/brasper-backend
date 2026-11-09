@@ -41,8 +41,7 @@ public class BillingContextFacadeImpl implements BillingContextFacade {
     @Override
     public BigDecimal sumOutputIgvByPeriod(int year, int month) {
         Period period = new Period(year, month);
-        return sum(liveInvoices(null).filter(invoice -> Period.from(invoice.getIssuedOn()).equals(period))
-                .map(invoice -> invoice.getAmounts().igv().amount()));
+        return invoices.sumIgvIssued(period.startDate(), period.endDate());
     }
 
     @Override
@@ -58,7 +57,7 @@ public class BillingContextFacadeImpl implements BillingContextFacade {
     @Override
     public BigDecimal sumCollectedByWeek(int year, int month, int week) {
         CashFlowWeek cashFlowWeek = new CashFlowWeek(year, month, week);
-        return sumDeposits(liveInvoices(null), payment -> cashFlowWeek.contains(payment.getReceivedOn()));
+        return invoices.sumDepositsReceived(cashFlowWeek.startDate(), cashFlowWeek.endDate());
     }
 
     @Override

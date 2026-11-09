@@ -7,6 +7,7 @@ import com.brasper.platform.billing.domain.repositories.InvoiceRepository;
 import com.brasper.platform.shared.domain.model.valueobjects.PageSpec;
 import com.brasper.platform.shared.domain.model.valueobjects.PagedList;
 import com.brasper.platform.shared.domain.model.valueobjects.Period;
+import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.Comparator;
 import java.util.List;
@@ -33,6 +34,16 @@ public class InvoiceQueryService {
     public PagedList<Invoice> findPage(InvoiceStatus status, Long projectId, Period issuedIn, PageSpec page) {
         return new PagedList<>(invoices.filter(status, projectId, from(issuedIn), to(issuedIn), page.page(), page.size()),
                 invoices.countFiltered(status, projectId, from(issuedIn), to(issuedIn)));
+    }
+
+    /** Deposits received from {@code from} to {@code to}, both inclusive (retention certificates are no money). */
+    public BigDecimal sumDepositsReceived(LocalDate from, LocalDate to) {
+        return invoices.sumDepositsReceived(from, to);
+    }
+
+    /** IGV of the invoices issued from {@code from} to {@code to}, both inclusive, voided ones left out. */
+    public BigDecimal sumIgvIssued(LocalDate from, LocalDate to) {
+        return invoices.sumIgvIssued(from, to);
     }
 
     // Postgres cannot type a null date parameter, so "no period" is the widest range instead.

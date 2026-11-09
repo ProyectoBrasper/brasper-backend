@@ -119,6 +119,33 @@ class InvoiceJpaRepositoryTest {
     }
 
     @Test
+    void sumsDepositsAndIgvInTheQueryLeavingOutVoidedInvoicesAndRetentionCertificates() {
+        LocalDate from = LocalDate.of(2031, 3, 1);
+        LocalDate to = LocalDate.of(2031, 3, 31);
+        assertThat(invoices.sumDepositsReceived(from, to)).isEqualByComparingTo("0");
+        assertThat(invoices.sumIgvIssued(from, to)).isEqualByComparingTo("0");
+
+        Invoice live = saveAndFlush(invoiceOn("F009", 1, 987_655L, LocalDate.of(2031, 3, 10)));
+        live.registerPayment(deposit(LocalDate.of(2031, 3, 15), "40", InvoicePaymentType.NET_DEPOSIT));
+        live.registerPayment(deposit(LocalDate.of(2031, 4, 1), "10", InvoicePaymentType.NET_DEPOSIT));
+        live.registerPayment(deposit(LocalDate.of(2031, 3, 20), "5", InvoicePaymentType.RETENTION_CERTIFICATE));
+        Invoice voided = saveAndFlush(invoiceOn("F009", 2, 987_655L, LocalDate.of(2031, 3, 12)));
+        voided.voidInvoice();
+        saveAndFlush(invoiceOn("F009", 3, 987_655L, LocalDate.of(2031, 4, 2)));
+        em.flush();
+
+        assertThat(invoices.sumDepositsReceived(from, to)).isEqualByComparingTo("40");
+        assertThat(invoices.sumDepositsReceived(LocalDate.of(2031, 3, 15), LocalDate.of(2031, 4, 1)))
+                .isEqualByComparingTo("50");
+        assertThat(invoices.sumIgvIssued(from, to)).isEqualByComparingTo("18");
+    }
+
+    private static RegisterInvoicePaymentCommand deposit(LocalDate on, String amount, InvoicePaymentType type) {
+        return new RegisterInvoicePaymentCommand(null, on, new Money(new BigDecimal(amount), Currency.PEN), type,
+                type == InvoicePaymentType.RETENTION_CERTIFICATE ? null : 9L, null);
+    }
+
+    @Test
     void theNumberIsUniqueButTheSameCorrelativeInAnotherSeriesIsFine() {
         saveAndFlush(invoice("F001", 7));
         saveAndFlush(invoice("F002", 7));
