@@ -2,6 +2,7 @@ services:
   - type: web
     name: brasper-backend
     runtime: docker
+    plan: free # sleeps after 15 min idle and has 512 MB; move to starter when real users arrive
     branch: main
     healthCheckPath: /actuator/health
     envVars:
