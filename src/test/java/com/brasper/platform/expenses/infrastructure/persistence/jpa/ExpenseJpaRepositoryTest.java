@@ -92,6 +92,35 @@ class ExpenseJpaRepositoryTest {
         assertThat(expenses.findAll()).hasSize(1);
     }
 
+    private Expense saved(long projectId, CostCategory category, LocalDate spentOn) {
+        Expense expense = expenses.save(new Expense(new RegisterExpenseCommand(spentOn, projectId, 5L, category, null,
+                new Voucher(VoucherType.NO_VOUCHER, null), new Money(BigDecimal.TEN, Currency.PEN), false,
+                PaymentMethod.BANK_ACCOUNT, 9L, null, false), TaxRates.standard()));
+        em.flush();
+        return expense;
+    }
+
+    @Test
+    void filtersAndPagesInTheQueryNewestFirst() {
+        long project = 987_654L;
+        Expense august = saved(project, CostCategory.MATERIALS, LocalDate.of(2026, 8, 20));
+        Expense septemberA = saved(project, CostCategory.LABOR, LocalDate.of(2026, 9, 1));
+        Expense septemberB = saved(project, CostCategory.MATERIALS, LocalDate.of(2026, 9, 30));
+        saved(project + 1, CostCategory.MATERIALS, LocalDate.of(2026, 9, 15));
+        LocalDate first = LocalDate.of(1900, 1, 1);
+        LocalDate last = LocalDate.of(9999, 12, 31);
+
+        assertThat(expenses.filter(project, null, first, last, 0, 10)).containsExactly(septemberB, septemberA, august);
+        assertThat(expenses.filter(project, null, first, last, 1, 2)).containsExactly(august);
+        assertThat(expenses.countFiltered(project, null, first, last)).isEqualTo(3);
+        assertThat(expenses.filter(project, CostCategory.MATERIALS, first, last, 0, 10))
+                .containsExactly(septemberB, august);
+        assertThat(expenses.filter(project, null, LocalDate.of(2026, 9, 1), LocalDate.of(2026, 9, 30), 0, 10))
+                .containsExactly(septemberB, septemberA);
+        assertThat(expenses.countFiltered(null, CostCategory.LABOR, LocalDate.of(2026, 9, 1),
+                LocalDate.of(2026, 9, 30))).isGreaterThanOrEqualTo(1);
+    }
+
     @Test
     void theDatabaseRejectsAnExpenseWithoutItsPaymentTarget() {
         assertThatThrownBy(() -> em.createNativeQuery("""

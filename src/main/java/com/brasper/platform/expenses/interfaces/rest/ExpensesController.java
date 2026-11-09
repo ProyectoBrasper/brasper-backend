@@ -3,6 +3,7 @@ package com.brasper.platform.expenses.interfaces.rest;
 import com.brasper.platform.expenses.application.commandservices.ExpenseCommandFailure;
 import com.brasper.platform.expenses.application.commandservices.ExpenseCommandService;
 import com.brasper.platform.expenses.application.queryservices.ExpenseQueryService;
+import com.brasper.platform.expenses.domain.model.aggregates.Expense;
 import com.brasper.platform.expenses.domain.model.commands.AnnulExpenseCommand;
 import com.brasper.platform.expenses.domain.model.commands.CorrectExpenseCommand;
 import com.brasper.platform.expenses.domain.model.commands.RegisterExpenseCommand;
@@ -13,6 +14,8 @@ import com.brasper.platform.expenses.interfaces.rest.transform.ExpenseFailureRes
 import com.brasper.platform.expenses.interfaces.rest.transform.ExpenseResourceFromEntityAssembler;
 import com.brasper.platform.shared.domain.model.valueobjects.CostCategory;
 import com.brasper.platform.shared.domain.model.valueobjects.Money;
+import com.brasper.platform.shared.domain.model.valueobjects.PageSpec;
+import com.brasper.platform.shared.domain.model.valueobjects.PagedList;
 import com.brasper.platform.shared.domain.model.valueobjects.Period;
 import jakarta.validation.Valid;
 import org.springframework.context.MessageSource;
@@ -79,17 +82,28 @@ public class ExpensesController {
                 failure -> ExpenseFailureResponseAssembler.toResponse(failure, messages));
     }
 
-    /** {@code year} and {@code month} filter by spending month and must come together. Annulled ones are listed. */
+    /**
+     * {@code year} and {@code month} filter by spending month and must come together. Annulled ones are listed.
+     * {@code page} and {@code size} (also together) return one page; the total that match goes in the
+     * {@code X-Total-Count} header.
+     */
     @GetMapping
     public ResponseEntity<?> list(@RequestParam(required = false) Long projectId,
             @RequestParam(required = false) Integer year, @RequestParam(required = false) Integer month,
-            @RequestParam(required = false) CostCategory category) {
+            @RequestParam(required = false) CostCategory category, @RequestParam(required = false) Integer page,
+            @RequestParam(required = false) Integer size) {
         if ((year == null) != (month == null)) {
             throw new IllegalArgumentException("year and month must be given together");
         }
         Period spentIn = year == null ? null : new Period(year, month);
-        return ResponseEntity.ok(expenseQueries.findAll(projectId, spentIn, category).stream()
-                .map(ExpenseResourceFromEntityAssembler::toResourceFromEntity).toList());
+        PageSpec pageSpec = PageSpec.of(page, size);
+        if (pageSpec == null) {
+            return ResponseEntity.ok(expenseQueries.findAll(projectId, spentIn, category).stream()
+                    .map(ExpenseResourceFromEntityAssembler::toResourceFromEntity).toList());
+        }
+        PagedList<Expense> result = expenseQueries.findPage(projectId, spentIn, category, pageSpec);
+        return ResponseEntity.ok().header("X-Total-Count", String.valueOf(result.total()))
+                .body(result.items().stream().map(ExpenseResourceFromEntityAssembler::toResourceFromEntity).toList());
     }
 
     @GetMapping("/{id}")
