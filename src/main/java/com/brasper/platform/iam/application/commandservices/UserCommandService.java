@@ -24,13 +24,16 @@ public class UserCommandService {
     private final UserRepository users;
     private final HashingService hashing;
     private final TokenService tokens;
+    private final SignInThrottle throttle;
     /** Checked when the username does not exist, so unknown and wrong-password logins take the same time. */
     private final String decoyHash;
 
-    public UserCommandService(UserRepository users, HashingService hashing, TokenService tokens) {
+    public UserCommandService(UserRepository users, HashingService hashing, TokenService tokens,
+            SignInThrottle throttle) {
         this.users = users;
         this.hashing = hashing;
         this.tokens = tokens;
+        this.throttle = throttle;
         this.decoyHash = hashing.encode(UUID.randomUUID().toString());
     }
 
@@ -47,14 +50,20 @@ public class UserCommandService {
 
     @Transactional(readOnly = true)
     public Result<AuthenticatedUser, UserCommandFailure> handle(SignInCommand command) {
+        if (throttle.isLocked(command.username().value())) {
+            return Result.failure(UserCommandFailure.TOO_MANY_ATTEMPTS);
+        }
         User user = users.findByUsername(command.username()).orElse(null);
         if (user == null) {
             hashing.matches(command.password(), decoyHash);
+            throttle.failed(command.username().value());
             return Result.failure(UserCommandFailure.INVALID_CREDENTIALS);
         }
         if (!hashing.matches(command.password(), user.getPasswordHash())) {
+            throttle.failed(command.username().value());
             return Result.failure(UserCommandFailure.INVALID_CREDENTIALS);
         }
+        throttle.succeeded(command.username().value());
         // Checked after the password so an inactive account is not revealed to someone who does not know it.
         if (!user.isActive()) {
             return Result.failure(UserCommandFailure.USER_INACTIVE);

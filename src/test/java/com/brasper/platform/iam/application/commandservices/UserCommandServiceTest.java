@@ -38,7 +38,7 @@ class UserCommandServiceTest {
         when(hashing.encode(anyString())).thenAnswer(call -> "hash(" + call.getArgument(0) + ")");
         when(hashing.matches(anyString(), anyString()))
                 .thenAnswer(call -> ("hash(" + call.getArgument(0) + ")").equals(call.getArgument(1)));
-        service = new UserCommandService(users, hashing, tokens);
+        service = new UserCommandService(users, hashing, tokens, new SignInThrottle());
     }
 
     private static SignUpCommand signUp(String password) {
@@ -117,6 +117,20 @@ class UserCommandServiceTest {
 
         assertThat(result.failure()).contains(UserCommandFailure.INVALID_CREDENTIALS);
         verify(hashing).matches(anyString(), anyString());
+    }
+
+    @Test
+    void fiveWrongPasswordsLockTheUsernameEvenForTheRightPassword() {
+        when(users.findByUsername(ANA)).thenReturn(Optional.of(storedUser()));
+
+        for (int i = 0; i < 5; i++) {
+            assertThat(service.handle(new SignInCommand(ANA, "otra-clave1")).failure())
+                    .contains(UserCommandFailure.INVALID_CREDENTIALS);
+        }
+
+        assertThat(service.handle(new SignInCommand(ANA, "clave1234")).failure())
+                .contains(UserCommandFailure.TOO_MANY_ATTEMPTS);
+        verify(tokens, never()).generateToken(any());
     }
 
     @Test
