@@ -12,4 +12,7 @@ public interface FixedCostRepository {
     List<FixedCost> findAll();
     List<FixedCost> findAllByActive(boolean active);
     List<FixedCost> findAllByEmployeeId(Long employeeId);
+    /** Oldest first. {@code active} is optional (null). */
+    List<FixedCost> filter(Boolean active, int page, int size);
+    long countFiltered(Boolean active);
 }

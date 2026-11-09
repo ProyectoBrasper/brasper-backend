@@ -55,6 +55,21 @@ class FixedCostJpaRepositoryTest {
         assertThat(costs.findAllByActive(false)).hasSize(1);
         assertThat(costs.findById(found.getId()).orElseThrow().getSchedule().expectedWeeks()).containsExactly(2, 4);
     }
+    @Test void filtersByActiveAndPagesInTheQueryOldestFirst() {
+        FixedCost first = costs.save(cost("PG01")); FixedCost second = costs.save(cost("PG02")); FixedCost third = costs.save(cost("PG03"));
+        second.deactivate(); costs.save(second); em.flush();
+        var all = costs.filter(null, 0, Integer.MAX_VALUE);
+        assertThat(all).containsSubsequence(first, second, third);
+        assertThat(costs.countFiltered(null)).isEqualTo(all.size());
+        assertThat(costs.filter(null, all.size() - 1, 1)).containsExactly(third);
+        assertThat(costs.filter(true, 0, Integer.MAX_VALUE)).contains(first, third).doesNotContain(second);
+        assertThat(costs.filter(false, 0, Integer.MAX_VALUE)).contains(second).doesNotContain(first, third);
+        assertThat(costs.countFiltered(false)).isEqualTo(costs.filter(false, 0, Integer.MAX_VALUE).size());
+    }
+    private FixedCost cost(String code) {
+        return new FixedCost(new CreateFixedCostCommand(new CostCode(code), "rent", FixedCostType.OFFICE_RENT,
+                new Money(new BigDecimal("100"), Currency.PEN), null, new PaymentSchedule(List.of(5, 1))));
+    }
     @Test void rejectsDuplicateCode() {
         costs.save(cost()); em.flush();
         assertThatThrownBy(() -> { costs.save(cost()); em.flush(); }).isInstanceOf(DataIntegrityViolationException.class);

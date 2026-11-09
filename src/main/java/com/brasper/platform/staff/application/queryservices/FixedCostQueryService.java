@@ -1,5 +1,7 @@
 package com.brasper.platform.staff.application.queryservices;
 
+import com.brasper.platform.shared.domain.model.valueobjects.PageSpec;
+import com.brasper.platform.shared.domain.model.valueobjects.PagedList;
 import com.brasper.platform.shared.domain.model.valueobjects.Period;
 import com.brasper.platform.staff.domain.model.aggregates.FixedCost;
 import com.brasper.platform.staff.domain.model.entities.FixedCostPayment;
@@ -14,8 +16,15 @@ import org.springframework.transaction.annotation.Transactional;
 public class FixedCostQueryService {
     private final FixedCostRepository costs;
     public FixedCostQueryService(FixedCostRepository costs) { this.costs = costs; }
+    /** The active filter is optional; oldest first. */
     public List<FixedCost> findAll(Boolean active) {
-        var result = active == null ? costs.findAll() : costs.findAllByActive(active);
+        return withWeeks(costs.filter(active, 0, Integer.MAX_VALUE));
+    }
+    /** Same filter as {@link #findAll}, one page of it plus the total that match. */
+    public PagedList<FixedCost> findPage(Boolean active, PageSpec page) {
+        return new PagedList<>(withWeeks(costs.filter(active, page.page(), page.size())), costs.countFiltered(active));
+    }
+    private static List<FixedCost> withWeeks(List<FixedCost> result) {
         result.forEach(cost -> cost.getExpectedWeeks());
         return result;
     }
