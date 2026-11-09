@@ -18,12 +18,12 @@ class ProdProfileConfigTest {
     }
 
     @Test
-    void theApiDocsAreOffInProduction() {
+    void theApiDocsAreOffInProductionUnlessTheSwitchIsSet() {
         var yaml = new YamlPropertiesFactoryBean();
         yaml.setResources(new ClassPathResource("application-prod.yml"));
         Properties prod = yaml.getObject();
 
-        assertThat(prod.getProperty("springdoc.api-docs.enabled")).isEqualTo("false");
-        assertThat(prod.getProperty("springdoc.swagger-ui.enabled")).isEqualTo("false");
+        assertThat(prod.getProperty("springdoc.api-docs.enabled")).isEqualTo("${SWAGGER_ENABLED:false}");
+        assertThat(prod.getProperty("springdoc.swagger-ui.enabled")).isEqualTo("${SWAGGER_ENABLED:false}");
     }
 }
