@@ -13,6 +13,7 @@ import com.brasper.platform.billing.domain.model.entities.InvoicePayment;
 import com.brasper.platform.billing.domain.model.valueobjects.InvoiceStatus;
 import com.brasper.platform.billing.domain.repositories.InvoiceRepository;
 import com.brasper.platform.shared.application.result.Result;
+import com.brasper.platform.shared.domain.model.valueobjects.Currency;
 import java.time.LocalDate;
 import java.util.List;
 import org.springframework.context.ApplicationEventPublisher;
@@ -38,6 +39,10 @@ public class InvoiceCommandService {
     /** The invoice is for the project's client and uses the tax rates in force on the issue date. */
     @Transactional
     public Result<Invoice, InvoiceCommandFailure> handle(IssueInvoiceCommand command) {
+        // shortcut: reports, IGV and balances sum PEN only; accept USD once an exchange rate is stored with the entry.
+        if (command.taxableBase().currency() != Currency.PEN) {
+            return Result.failure(InvoiceCommandFailure.UNSUPPORTED_CURRENCY);
+        }
         var project = projects.find(command.projectId()).orElse(null);
         if (project == null) {
             return Result.failure(InvoiceCommandFailure.PROJECT_NOT_FOUND);

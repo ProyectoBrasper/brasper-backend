@@ -1,6 +1,6 @@
 # Traspaso: estado del backend de Brasper
 
-Documento para retomar el trabajo en otra sesión (persona o agente). Última actualización: 2026-11-06, `develop` en el PR #54 más el PR de OpenAPI.
+Documento para retomar el trabajo en otra sesión (persona o agente). Última actualización: 2026-11-08, `develop` en el PR #124 más el PR que rechaza USD.
 Reglas del repo: `AGENTS.md`. Diseño de dominio: `docs/uml/` (empezar por `00-context-map.puml`).
 
 ## Cómo correr y verificar
@@ -67,7 +67,7 @@ Hecho (dominio, servicios, API y fachada salvo que se indique):
 Pendiente, en este orden sugerido:
 1. **Reporting** está completo (rentabilidad por proyecto, estado de resultados, balance general, flujo de caja y tablero).
 2. Eventos de dominio: están todos los del UML. Falta una carga inicial: lo cobrado, gastado o pagado antes de estos eventos no tiene asiento ni movimiento de caja, y los saldos de apertura de las cuentas bancarias no tienen asiento. Criterio aplicado: los eventos de otros contextos alimentan a Accounting y, donde el flujo no movía caja, también a Treasury; lo que Treasury ya mueve por su cuenta (pagos pendientes, préstamos, transferencias) solo publica para Accounting, así la caja no se cuenta dos veces.
-3. Siguiente trabajo, en este orden: (a) la decisión del usuario sobre USD (hallazgo 9 de la auditoría: rechazar o convertir con tipo de cambio de SUNAT); (b) carga inicial de datos cuando el usuario la pida (hoy no quiere cargar datos reales); (c) paginación y totales por lote (hallazgos 13 y 6) si el volumen o el frontend lo piden; (d) probar contra Supabase real al aplicar V2 a V37.
+3. Siguiente trabajo, en este orden: (a) carga inicial de datos cuando el usuario la pida (hoy no quiere cargar datos reales); (b) paginación y totales por lote (hallazgos 13 y 6) si el volumen o el frontend lo piden; (c) probar contra Supabase real al aplicar V2 a V37.
 
 ## Atajos y desvíos del UML (todos documentados en el código)
 - Las fachadas y sus implementaciones viven en `interfaces/acl` (el UML las pone en `application/acl`) porque ArchUnit prohíbe que `application` dependa de `interfaces`.
@@ -89,7 +89,7 @@ Pendiente, en este orden sugerido:
 - Swagger UI y la especificación son públicos (no exponen datos); cada llamada sigue pidiendo token.
 
 ## Auditoría ponytail: arreglos
-Auditoría de todo el backend (17 hallazgos). Hechos: 1, 2, 3, 4, 5, 7, 8, 10, 11, 12, 14, 15 y 17. Quedan el 6, 9, 13 y 16, con el motivo en cada uno.
+Auditoría de todo el backend (17 hallazgos). Hechos: 1, 2, 3, 4, 5, 7, 8, 9, 10, 11, 12, 14, 15 y 17. Quedan el 6, 13 y 16, con el motivo en cada uno.
 1. [x] Activos fijos: registrar un activo asienta D 33 / H la cuenta que llevaba el costo del gasto (60 o 63, mismo proyecto) o H 59 si no viene de un gasto (saldo inicial); darlo de baja asienta D 39 + D 65 (lo no depreciado) / H 33 (V36 siembra la 65). Decisión propia: el IGV del gasto no se toca y anular el gasto después no revierte el asiento del activo.
 2. [x] Pagos pendientes: un gasto pendiente crea su pendiente en Treasury (semana del gasto), pagarlo del todo marca el gasto como pagado (`PayableSettledEvent`), anular un gasto pendiente borra su pendiente (si ya tiene pagos, 409), y un pendiente sin gasto asienta D 60/63 / H 42 al crearse (fecha = hoy). Límites: los pendientes de tipo TAX y SELF_DETRACTION no asientan nada al crearse; un gasto anulado después de saldado no devuelve el dinero.
 3. [x] Doble pago por concurrencia: `@Version` en `Invoice`, `Payable` y `Loan` (V35); el segundo guardado responde 409. `BankAccount` no lleva versión porque su saldo se calcula de los movimientos.
@@ -98,7 +98,7 @@ Auditoría de todo el backend (17 hallazgos). Hechos: 1, 2, 3, 4, 5, 7, 8, 10, 1
 6. [ ] (aplazado) Rentabilidad y tablero: son 4 consultas indexadas por proyecto; con decenas de proyectos tarda menos de un segundo. Se hace si el portafolio pasa de unos 100 proyectos: las fachadas de Expenses, Billing y Projects devolverían los totales de todos los proyectos agrupados.
 7. [x] Flujo de caja: la semana de hoy suma lo real ya movido más lo que sigue programado (antes solo mostraba lo programado). Límite: un costo fijo con el mes pagado a medias aún cuenta su parte programada completa.
 8. [x] Las lecturas de Treasury (cuentas, préstamos, socios, pendientes) y Billing (facturas, pagos, cobros programados) quedan para ADMIN, ACCOUNTING y MANAGEMENT. Decisión propia sin confirmar: Projects, clientes, proveedores y gastos siguen abiertos a cualquier usuario porque ENGINEER también los escribe.
-9. [ ] (necesita decisión del usuario) Facturas y gastos en USD quedan fuera de los reportes, del IGV declarado y de los balances (solo suman PEN). Opciones: rechazar USD hasta tener tipo de cambio, o convertir a PEN al asentar con el tipo de cambio de SUNAT guardado en el asiento.
+9. [x] Decisión del usuario: rechazar USD. Emitir una factura o registrar un gasto en USD responde 422 (`billing.error.unsupported-currency`, `expenses.error.unsupported-currency`), así nada en USD llega a los reportes ni al IGV. Límites: cuentas bancarias, pendientes, préstamos, costos fijos y proyectos aún aceptan USD (los flujos de caja con otra moneda ya se revierten solos); si se vuelve a aceptar USD, hay que guardar el tipo de cambio de SUNAT en el asiento.
 10. [x] Un aporte de socio reembolsable con cuenta bancaria asienta D 10 / H 455 (pasivo, V37 siembra la 455) en vez de capital. Límite: un gasto pagado de su bolsillo por un socio sigue yendo a capital (50).
 11. [x] `IllegalStateException`, `IllegalArgumentException` y conflictos de concurrencia se registran en el log (WARN, con traza). Decisión propia: el texto del error se sigue devolviendo al cliente porque es el motivo del 409; no se tradujo.
 12. [x] Cinco contraseñas incorrectas seguidas bloquean el usuario 15 minutos (429, `SignInThrottle`). Límites: el conteo está en memoria (se borra al reiniciar y no se comparte entre instancias) y quien conoce un usuario puede bloquearlo 15 minutos; no hay límite por IP ni configuración CORS (depende de dónde corra el frontend).

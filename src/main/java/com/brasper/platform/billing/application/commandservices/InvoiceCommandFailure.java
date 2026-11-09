@@ -10,7 +10,8 @@ public enum InvoiceCommandFailure implements CommandFailure {
     ALREADY_VOIDED("billing.error.already-voided"),
     HAS_PAYMENTS("billing.error.has-payments"),
     AMOUNT_EXCEEDS_BALANCE("billing.error.amount-exceeds-balance"),
-    PAYMENT_CURRENCY_MISMATCH("billing.error.payment-currency-mismatch");
+    PAYMENT_CURRENCY_MISMATCH("billing.error.payment-currency-mismatch"),
+    UNSUPPORTED_CURRENCY("billing.error.unsupported-currency");
 
     private final String messageKey;
 
