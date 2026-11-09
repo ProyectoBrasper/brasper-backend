@@ -1,5 +1,8 @@
 package com.brasper.platform.treasury.domain.repositories;
 
+import java.time.LocalDate;
+import java.math.BigDecimal;
+import com.brasper.platform.treasury.domain.model.valueobjects.MovementTotal;
 import com.brasper.platform.treasury.domain.model.aggregates.BankAccount;
 import com.brasper.platform.treasury.domain.model.valueobjects.AccountNumber;
 import com.brasper.platform.treasury.domain.model.valueobjects.AccountType;
@@ -19,4 +22,8 @@ public interface BankAccountRepository {
     boolean existsByAccountNumber(AccountNumber accountNumber);
 
     List<BankAccount> findAll();
+    /** Opening balances of the accounts open on the date plus their movements up to it; currencies are added as plain numbers. */
+    BigDecimal sumBalancesAt(LocalDate date);
+    /** Movements between the dates, both included, by direction and source. Transfers between own accounts are left out. */
+    List<MovementTotal> sumMovementsBetween(LocalDate from, LocalDate to);
 }

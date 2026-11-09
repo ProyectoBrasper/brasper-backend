@@ -9,5 +9,7 @@ public interface LoanRepository {
     Loan save(Loan loan);
     Optional<Loan> findById(Long id);
     List<Loan> findAll();
+    /** Every loan with its installments loaded, for sums that read each one. */
+    List<Loan> findAllWithInstallments();
     List<Loan> findAllByType(LoanType type);
 }
